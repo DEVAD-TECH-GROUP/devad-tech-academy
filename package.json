@@ -16,5 +16,8 @@
   "description": "",
   "devDependencies": {
     "concurrently": "^10.0.5"
+  },
+  "dependencies": {
+    "date-fns": "^4.4.0"
   }
 }

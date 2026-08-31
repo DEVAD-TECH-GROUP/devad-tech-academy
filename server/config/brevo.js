@@ -1,8 +1,18 @@
-import * as Brevo from "@getbrevo/brevo";
+import { BrevoClient } from "@getbrevo/brevo";
 import env from "./env.js";
 
-const brevoClient = new Brevo.TransactionalEmailsApi();
+const brevo = new BrevoClient({
+  apiKey: env.BREVO_API_KEY,
+});
 
-brevoClient.authentications["api-key"].apiKey = env.BREVO_API_KEY;
+// Compatibility wrapper
+const brevoClient = {
+  sendTransacEmail: (...args) => {
+    return brevo.transactionalEmails.sendTransacEmail(...args);
+  },
+};
 
-export default brevoClient;
+export default brevoClient
+
+
+
