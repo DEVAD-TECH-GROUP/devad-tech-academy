@@ -200,3 +200,4 @@ export const resendVerification = asyncHandler(async (req, res) => {
 
   sendResponse(res, 200, "Verification email sent");
 });
+

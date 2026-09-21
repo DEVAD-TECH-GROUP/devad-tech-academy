@@ -1,6 +1,9 @@
-import brevoClient from "../../config/brevo.js";
-import * as Brevo from "@getbrevo/brevo";
+import { BrevoClient } from "@getbrevo/brevo";
 import env from "../../config/env.js";
+
+const brevo = new BrevoClient({
+  apiKey: env.BREVO_API_KEY,
+});
 
 const sendEmail = async ({
   to,
@@ -10,31 +13,40 @@ const sendEmail = async ({
   attachments = [],
 }) => {
   try {
-    const sendSmtpEmail = new Brevo.SendSmtpEmail();
+    const emailData = {
+      sender: {
+        name: env.BREVO_FROM_NAME,
+        email: env.BREVO_FROM_EMAIL,
+      },
 
-    sendSmtpEmail.sender = {
-      name: env.BREVO_FROM_NAME,
-      email: env.BREVO_FROM_EMAIL,
+      to: Array.isArray(to)
+        ? to.map((email) => ({ email }))
+        : [{ email: to }],
+
+      subject,
+      htmlContent,
+
+      ...(textContent && {
+        textContent,
+      }),
+
+      ...(attachments.length > 0 && {
+        attachment: attachments,
+      }),
     };
-    sendSmtpEmail.to = Array.isArray(to)
-      ? to.map((email) => ({ email }))
-      : [{ email: to }];
-    sendSmtpEmail.subject = subject;
-    sendSmtpEmail.htmlContent = htmlContent;
 
-    if (textContent) {
-      sendSmtpEmail.textContent = textContent;
-    }
+    const response =
+      await brevo.transactionalEmails.sendTransacEmail(emailData);
 
-    if (attachments.length > 0) {
-      sendSmtpEmail.attachment = attachments;
-    }
-
-    const response = await brevoClient.sendTransacEmail(sendSmtpEmail);
     console.log(`✅ Email sent to ${to}: ${response.messageId}`);
+
     return response;
   } catch (error) {
-    console.error(`❌ Email send error: ${error.message}`);
+    console.error(
+      `❌ Email send error:`,
+      error?.body || error?.message || error
+    );
+
     throw error;
   }
 };

@@ -5,9 +5,6 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
-import mongoSanitize from "express-mongo-sanitize";
-import xss from "xss-clean";
-import hpp from "hpp";
 import env from "./config/env.js";
 
 // ── Route imports ─────────────────────────────────────────
@@ -106,14 +103,12 @@ import { notFound } from "./middlewares/error/notFound.js";
 const app = express();
 
 // ── Security middlewares ──────────────────────────────────
+// Express 5 compatible security middleware
 app.use(helmet());
-app.use(mongoSanitize());
-app.use(xss());
-app.use(hpp());
 
 // ── Rate limiting ─────────────────────────────────────────
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 100,
   message: {
     success: false,
@@ -146,6 +141,7 @@ app.use(
 // ── Body parsers ──────────────────────────────────────────
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
 app.use(cookieParser());
 app.use(compression());
 
@@ -250,9 +246,10 @@ app.use("/api/student/search", studentSearchRoutes);
 app.use("/api/student/support", studentSupportRoutes);
 app.use("/api/student/profile", studentProfileRoutes);
 
-// ── Error handling ────────────────────────────────────────
+// ── 404 handler ───────────────────────────────────────────
 app.use(notFound);
+
+// ── Global error handler ──────────────────────────────────
 app.use(errorHandler);
 
 export default app;
-

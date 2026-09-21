@@ -14,12 +14,14 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: [50, "First name cannot exceed 50 characters"],
     },
+
     lastName: {
       type: String,
       required: [true, "Last name is required"],
       trim: true,
       maxlength: [50, "Last name cannot exceed 50 characters"],
     },
+
     email: {
       type: String,
       required: [true, "Email is required"],
@@ -31,11 +33,13 @@ const userSchema = new mongoose.Schema(
         "Please enter a valid email",
       ],
     },
+
     password: {
       type: String,
       minlength: [8, "Password must be at least 8 characters"],
       select: false,
     },
+
     phone: {
       type: String,
       trim: true,
@@ -57,52 +61,60 @@ const userSchema = new mongoose.Schema(
 
     // ── Avatar ──────────────────────────────────────────
     avatar: {
-      public_id: { type: String, default: null },
+      public_id: {
+        type: String,
+        default: null,
+      },
       url: {
         type: String,
         default: null,
       },
     },
 
-    // ── Email verification ───────────────────────────────
+    // ── Email verification ──────────────────────────────
     isEmailVerified: {
       type: Boolean,
       default: false,
     },
+
     emailVerificationToken: {
       type: String,
       select: false,
     },
+
     emailVerificationExpire: {
       type: Date,
       select: false,
     },
 
-    // ── Password reset ───────────────────────────────────
+    // ── Password reset ──────────────────────────────────
     passwordResetToken: {
       type: String,
       select: false,
     },
+
     passwordResetExpire: {
       type: Date,
       select: false,
     },
 
-    // ── Google OAuth ─────────────────────────────────────
+    // ── Google OAuth ────────────────────────────────────
     googleId: {
       type: String,
       default: null,
     },
+
     isGoogleAuth: {
       type: Boolean,
       default: false,
     },
 
-    // ── Two factor auth ──────────────────────────────────
+    // ── Two factor auth ─────────────────────────────────
     isTwoFactorEnabled: {
       type: Boolean,
       default: false,
     },
+
     twoFactorSecret: {
       type: String,
       select: false,
@@ -120,22 +132,54 @@ const userSchema = new mongoose.Schema(
       unique: true,
       sparse: true,
     },
+
     referredBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
     },
 
-    // ── Notifications preferences ────────────────────────
+    // ── Notification preferences ─────────────────────────
     notificationPreferences: {
-      email: { type: Boolean, default: true },
-      push: { type: Boolean, default: true },
-      sms: { type: Boolean, default: false },
-      assignments: { type: Boolean, default: true },
-      liveClasses: { type: Boolean, default: true },
-      quizzes: { type: Boolean, default: true },
-      announcements: { type: Boolean, default: true },
-      community: { type: Boolean, default: true },
+      email: {
+        type: Boolean,
+        default: true,
+      },
+
+      push: {
+        type: Boolean,
+        default: true,
+      },
+
+      sms: {
+        type: Boolean,
+        default: false,
+      },
+
+      assignments: {
+        type: Boolean,
+        default: true,
+      },
+
+      liveClasses: {
+        type: Boolean,
+        default: true,
+      },
+
+      quizzes: {
+        type: Boolean,
+        default: true,
+      },
+
+      announcements: {
+        type: Boolean,
+        default: true,
+      },
+
+      community: {
+        type: Boolean,
+        default: true,
+      },
     },
 
     // ── Appearance ───────────────────────────────────────
@@ -144,6 +188,7 @@ const userSchema = new mongoose.Schema(
       enum: ["dark", "light"],
       default: "dark",
     },
+
     language: {
       type: String,
       default: "en",
@@ -157,20 +202,46 @@ const userSchema = new mongoose.Schema(
 
     // ── Social links ─────────────────────────────────────
     socialLinks: {
-      github: { type: String, default: null },
-      linkedin: { type: String, default: null },
-      twitter: { type: String, default: null },
-      website: { type: String, default: null },
+      github: {
+        type: String,
+        default: null,
+      },
+
+      linkedin: {
+        type: String,
+        default: null,
+      },
+
+      twitter: {
+        type: String,
+        default: null,
+      },
+
+      website: {
+        type: String,
+        default: null,
+      },
     },
 
-    // ── Connected accounts ────────────────────────────────
+    // ── Connected accounts ───────────────────────────────
     connectedAccounts: {
-      google: { type: Boolean, default: false },
-      github: { type: Boolean, default: false },
-      linkedin: { type: Boolean, default: false },
+      google: {
+        type: Boolean,
+        default: false,
+      },
+
+      github: {
+        type: Boolean,
+        default: false,
+      },
+
+      linkedin: {
+        type: Boolean,
+        default: false,
+      },
     },
 
-    // ── Bio ──────────────────────────────────────────────
+    // ── Bio ───────────────────────────────────────────────
     bio: {
       type: String,
       maxlength: [500, "Bio cannot exceed 500 characters"],
@@ -192,8 +263,14 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
+
+    toJSON: {
+      virtuals: true,
+    },
+
+    toObject: {
+      virtuals: true,
+    },
   }
 );
 
@@ -202,7 +279,7 @@ userSchema.virtual("fullName").get(function () {
   return `${this.firstName} ${this.lastName}`;
 });
 
-// ── Index ─────────────────────────────────────────────────
+// ── Indexes ───────────────────────────────────────────────
 userSchema.index({ email: 1 });
 userSchema.index({ role: 1 });
 userSchema.index({ status: 1 });
@@ -210,13 +287,16 @@ userSchema.index({ referralCode: 1 });
 userSchema.index({ googleId: 1 });
 
 // ── Hash password before save ─────────────────────────────
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
-  if (!this.password) return next();
+userSchema.pre("save", async function () {
+  // Don't hash if password hasn't changed
+  if (!this.isModified("password")) return;
+
+  // Don't hash an empty password
+  if (!this.password) return;
 
   const salt = await bcrypt.genSalt(12);
+
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
 // ── Compare password ──────────────────────────────────────
@@ -227,9 +307,13 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
 // ── Update last login ─────────────────────────────────────
 userSchema.methods.updateLastLogin = async function () {
   this.lastLogin = new Date();
-  await this.save({ validateBeforeSave: false });
+
+  await this.save({
+    validateBeforeSave: false,
+  });
 };
 
+// ── Create model ───────────────────────────────────────────
 const User = mongoose.model("User", userSchema);
 
 export default User;

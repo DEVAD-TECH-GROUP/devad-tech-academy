@@ -70,3 +70,4 @@ export const assignmentReminderJob = async () => {
     console.error(`❌ Assignment reminder job failed: ${error.message}`);
   }
 };
+
