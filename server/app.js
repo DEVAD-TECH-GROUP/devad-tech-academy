@@ -14,6 +14,9 @@ import authRoutes from "./routes/auth/authRoutes.js";
 import googleAuthRoutes from "./routes/auth/googleAuthRoutes.js";
 import passwordRoutes from "./routes/auth/passwordRoutes.js";
 
+// Public routes
+import publicCourseRoutes from "./routes/public/courseRoute.js";;
+
 // Super Admin routes
 import dashboardRoutes from "./routes/superadmin/dashboardRoutes.js";
 import userRoutes from "./routes/superadmin/userRoutes.js";
@@ -164,6 +167,9 @@ app.get("/api/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/auth", googleAuthRoutes);
 app.use("/api/auth", passwordRoutes);
+
+// Public routes
+app.use("/api/courses", publicCourseRoutes);
 
 // ── Super Admin routes ────────────────────────────────────
 app.use("/api/superadmin/dashboard", dashboardRoutes);
