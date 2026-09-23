@@ -1,15 +1,162 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>client</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-    <script src="//cdn.jsdelivr.net/npm/eruda"></script>
-<script>eruda.init();</script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+
+  <link rel="icon" type="image/png" href="./src/assets/logo.png" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <meta name="theme-color" content="#020b18" />
+
+  <meta name="description" content="Devad Tech Academy - Learn, build and grow with technology." />
+
+  <title>Devad Tech Academy</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Tailwind Configuration -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg: "#020b18",
+
+            surface: "#06142d",
+
+            surfaceHigh: "#0a1c3a",
+
+            border: "rgba(100,150,255,0.15)",
+
+            text: "#e2ebff",
+
+            muted: "rgba(180,210,255,0.65)",
+
+            mutedLight: "rgba(200,220,255,0.8)",
+
+            accent: "#38bdf8",
+
+            blue: "#0066ff",
+
+            purple: "#8b5cf6",
+          },
+
+          fontFamily: {
+            dsp: [
+              "Orbitron",
+              "sans-serif",
+            ],
+
+            rajdhani: [
+              "Rajdhani",
+              "sans-serif",
+            ],
+          },
+
+          boxShadow: {
+            glow:
+              "0 0 35px rgba(0,150,255,0.2)",
+          },
+        },
+      },
+    };
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+
+  <style>
+    html,
+    body,
+    #root {
+      min-height: 100%;
+      margin: 0;
+    }
+
+    body {
+      background: #020b18;
+      color: #e2ebff;
+      font-family: "Rajdhani", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button,
+    input {
+      font-family: inherit;
+    }
+
+    input::placeholder {
+      color: rgba(150, 180, 255, 0.35);
+      font-family: "Rajdhani", sans-serif;
+    }
+
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus {
+      -webkit-text-fill-color: rgba(220, 235, 255, 0.9);
+      -webkit-box-shadow:
+        0 0 0 1000px rgba(6, 20, 45, 0.95) inset;
+      transition:
+        background-color 5000s ease-in-out 0s;
+    }
+
+    @keyframes shimmerAnimation {
+      0% {
+        transform: translateX(-100%) skewX(-20deg);
+      }
+
+      100% {
+        transform: translateX(300%) skewX(-20deg);
+      }
+    }
+
+    .shimmer-effect {
+      transform: skewX(-20deg);
+      animation: shimmerAnimation 1.5s infinite;
+    }
+
+    @keyframes pulseGlow {
+
+      0%,
+      100% {
+        opacity: 0.4;
+      }
+
+      50% {
+        opacity: 1;
+      }
+    }
+
+    .glow-pulse {
+      animation: pulseGlow 2s ease-in-out infinite;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="root"></div>
+
+  <script type="module" src="/src/main.jsx"></script>
+
+  <!-- Eruda mobile/dev console -->
+  <script src="//cdn.jsdelivr.net/npm/eruda"></script>
+
+  <script>
+    eruda.init();
+  </script>
+</body>
+
 </html>

@@ -1,3 +1,4 @@
+// src/router/AppRouter.jsx
 import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
 import GuestRoute from "./RoleRoute";
@@ -7,6 +8,13 @@ import AuthLayout from "../components/layout/auth/AuthLayout";
 import StudentLayout from "../components/layout/student/StudentLayout";
 import InstructorLayout from "../components/layout/instructor/InstructorLayout";
 import SuperAdminLayout from "../components/layout/superadmin/SuperAdminLayout";
+
+// shared pages
+import Home from "../pages/shared/home/Home";
+import About from "../pages/shared/about/About";
+import CoursesPage from "../pages/shared/courses/Courses";
+import PreviewAll from "../pages/shared/careerPath/CareerPath";
+import Contact from "../pages/shared/contact/Contact";
 
 // Auth
 import Login from "../pages/auth/Login";
@@ -99,12 +107,23 @@ import AdminCommunication from "../pages/superadmin/Communication";
 import AdminNotifications from "../pages/superadmin/Notifications";
 
 const router = createBrowserRouter([
-  // ── Auth ──────────────────────────────────────────────
+  // ── shared routes (default home) ───────────────────────
+  {
+    path: "/",
+    children: [
+      { index: true, element: <Home /> },                 // default page
+      { path: "about", element: <About /> },
+      { path: "courses", element: <CoursesPage /> },
+      { path: "PreviewAll", element: <PreviewAll /> },
+      { path: "contact", element: <Contact /> },
+    ],
+  },
+
+  // ── Auth (guest only) ─────────────────────────────────
   {
     path: "/",
     element: <GuestRoute><AuthLayout /></GuestRoute>,
     children: [
-      { index: true, element: <Navigate to="/login" replace /> },
       { path: "login", element: <Login /> },
       { path: "register", element: <Register /> },
       { path: "forgot-password", element: <ForgotPassword /> },
@@ -217,7 +236,11 @@ const router = createBrowserRouter([
     ],
   },
 
-  { path: "*", element: <Navigate to="/login" replace /> },
+  // ── Fallback ──────────────────────────────────────────
+  // Unknown routes:
+  // - If logged in, you might want to redirect based on role.
+  // - For now, sending unknown paths to home; adjust if you prefer /login.
+  { path: "*", element: <Navigate to="/" replace /> },
 ]);
 
 export default function AppRouter() {
