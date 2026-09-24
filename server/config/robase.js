@@ -1,16 +1,22 @@
+// config/robase.js
+
 import axios from "axios";
 
 const ROBASE_BASE_URL =
   process.env.ROBASE_BASE_URL || "https://api.robase.dev";
 
+/* ============================================================
+   NORMALIZE PHONE
+   ============================================================ */
+
 /**
- * Normalize a Nigerian phone number to E.164 format.
+ * Normalize a phone number to E.164 format.
  *
  * Examples:
  *
- * 08012345678    → +2348012345678
- * +2348012345678 → +2348012345678
- * 2348012345678  → +2348012345678
+ * 08012345678     → +2348012345678
+ * +2348012345678  → +2348012345678
+ * 2348012345678   → +2348012345678
  */
 export const normalizePhone = (rawPhone) => {
   if (!rawPhone) return "";
@@ -34,22 +40,20 @@ export const normalizePhone = (rawPhone) => {
     return "+" + phone;
   }
 
-  // Fallback for international numbers
+  // Fallback
   return "+" + phone;
 };
 
+/* ============================================================
+   SEND SMS
+   ============================================================ */
+
 /**
- * Send SMS through Robase.
+ * Send an SMS through Robase.
  *
  * @param {Object} options
  * @param {string} options.to
  * @param {string} options.message
- *
- * @returns {Promise<{
- *   success: boolean,
- *   messageId?: string,
- *   error?: string
- * }>}
  */
 export const sendSMS = async ({ to, message }) => {
   if (!to) {
@@ -140,4 +144,190 @@ export const sendSMS = async ({ to, message }) => {
           : JSON.stringify(errMsg),
     };
   }
+};
+
+/* ============================================================
+   SEND OTP
+   ============================================================ */
+
+/**
+ * Send OTP through Robase.
+ *
+ * @param {string} phone
+ */
+export const sendOTP = async (phone) => {
+  if (!phone) {
+    return {
+      success: false,
+      error: "No phone number provided",
+    };
+  }
+
+  if (!process.env.ROBASE_API_KEY) {
+    console.warn(
+      "⚠️ ROBASE_API_KEY not set — skipping OTP send"
+    );
+
+    return {
+      success: false,
+      error: "ROBASE_API_KEY not configured",
+    };
+  }
+
+  const recipient = normalizePhone(phone);
+
+  if (!recipient) {
+    return {
+      success: false,
+      error: "Invalid phone number",
+    };
+  }
+
+  try {
+    const response = await axios.post(
+      `${ROBASE_BASE_URL}/v1/otp/send`,
+      {
+        phone_number: recipient,
+        code_length: 6,
+        ttl_seconds: 600,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.ROBASE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 15000,
+      }
+    );
+
+    const data = response.data;
+
+    if (data?.id) {
+      console.log(
+        `✅ Robase OTP sent to ${recipient} (${data.id})`
+      );
+
+      return {
+        success: true,
+        otpId: data.id,
+      };
+    }
+
+    return {
+      success: false,
+      error: JSON.stringify(data),
+    };
+  } catch (error) {
+    const errMsg =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      error.response?.data ||
+      error.message ||
+      "Unknown OTP error";
+
+    console.error(
+      "❌ Robase OTP send failed:",
+      errMsg
+    );
+
+    return {
+      success: false,
+      error:
+        typeof errMsg === "string"
+          ? errMsg
+          : JSON.stringify(errMsg),
+    };
+  }
+};
+
+/* ============================================================
+   VERIFY OTP
+   ============================================================ */
+
+/**
+ * Verify an OTP through Robase.
+ *
+ * @param {string} otpId
+ * @param {string} code
+ */
+export const verifyOTP = async (otpId, code) => {
+  if (!otpId) {
+    return {
+      success: false,
+      error: "OTP ID is required",
+    };
+  }
+
+  if (!code) {
+    return {
+      success: false,
+      error: "OTP code is required",
+    };
+  }
+
+  if (!process.env.ROBASE_API_KEY) {
+    return {
+      success: false,
+      error: "ROBASE_API_KEY not configured",
+    };
+  }
+
+  try {
+    const response = await axios.post(
+      `${ROBASE_BASE_URL}/v1/otp/verify`,
+      {
+        otp_id: otpId,
+        code: String(code).trim(),
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.ROBASE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 15000,
+      }
+    );
+
+    const data = response.data;
+
+    console.log(
+      `✅ Robase OTP verification successful`
+    );
+
+    return {
+      success: true,
+      data,
+    };
+  } catch (error) {
+    const errMsg =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      error.response?.data ||
+      error.message ||
+      "Invalid or expired OTP";
+
+    console.error(
+      "❌ Robase OTP verification failed:",
+      errMsg
+    );
+
+    return {
+      success: false,
+      error:
+        typeof errMsg === "string"
+          ? errMsg
+          : JSON.stringify(errMsg),
+    };
+  }
+};
+
+/* ============================================================
+   DEFAULT EXPORT
+   ============================================================ */
+
+export default {
+  normalizePhone,
+  sendSMS,
+  sendOTP,
+  verifyOTP,
 };
