@@ -1,139 +1,127 @@
 import api from "../../api/Api";
 
-/* ============================================================
-   AUTHENTICATION
-   ============================================================ */
+export const authService = {
+  // ============================================================
+  // LOGIN
+  // ============================================================
 
-/**
- * Login
- */
-export const login = (email, password) =>
-  api.post("/auth/login", {
-    email,
-    password,
-  });
+  login: (email, password) =>
+    api.post("/auth/login", {
+      email,
+      password,
+    }),
 
-/**
- * Register
- */
-export const register = (payload) =>
-  api.post("/auth/register", payload);
+  // ============================================================
+  // REGISTRATION
+  // ============================================================
 
-/**
- * Logout
- */
-export const logout = () =>
-  api.post("/auth/logout");
+  register: (payload) =>
+    api.post("/auth/register", payload),
 
-/**
- * Get current authenticated user
- */
-export const getMe = () =>
-  api.get("/auth/me");
+  // ============================================================
+  // EMAIL VERIFICATION
+  // ============================================================
 
+  verifyEmail: (email, token) =>
+    api.post("/auth/verify-email", {
+      email,
+      token,
+    }),
 
-/* ============================================================
-   EMAIL VERIFICATION
-   ============================================================ */
+  resendVerification: (email) =>
+    api.post("/auth/resend-verification", {
+      email,
+    }),
 
-/**
- * Verify email
- */
-export const verifyEmail = (token) =>
-  api.post("/auth/verify-email", {
-    token,
-  });
+  // ============================================================
+  // PHONE REGISTRATION VERIFICATION
+  // ============================================================
 
-/**
- * Resend email verification
- */
-export const resendVerification = () =>
-  api.post("/auth/resend-verification");
+  updateRegistrationPhone: (
+    registrationToken,
+    phone
+  ) =>
+    api.post("/auth/update-registration-phone", {
+      registrationToken,
+      phone,
+    }),
 
+  sendPhoneOTP: (registrationToken) =>
+    api.post("/auth/send-phone-otp", {
+      registrationToken,
+    }),
 
-/* ============================================================
-   PHONE VERIFICATION — ROBASE OTP
-   ============================================================ */
-
-/**
- * Send phone verification OTP
- *
- * The backend gets the phone number from the
- * authenticated user's account.
- */
-export const sendPhoneOTP = () =>
-  api.post("/auth/send-phone-otp");
-
-/**
- * Verify phone using Robase OTP
- *
- * otpId = the Robase OTP ID returned/stored by the backend
- * code  = the 6-digit OTP entered by the user
- */
-export const verifyPhone = (otpId, code) =>
-  api.post("/auth/verify-phone", {
+  verifyPhone: (
+    registrationToken,
     otpId,
-    code,
-  });
+    code
+  ) =>
+    api.post("/auth/verify-phone", {
+      registrationToken,
+      otpId,
+      code,
+    }),
 
-/**
- * Update/change phone number
- *
- * Backend updates the user's phone and automatically
- * sends a new Robase OTP.
- */
-export const updatePhone = (phone) =>
-  api.put("/auth/phone", {
-    phone,
-  });
+  // ============================================================
+  // GOOGLE
+  // ============================================================
 
-/**
- * Get email and phone verification status
- */
-export const getVerificationStatus = () =>
-  api.get("/auth/verification-status");
+  googleLogin: (credential) =>
+    api.post("/auth/google", {
+      credential,
+    }),
 
+  // ============================================================
+  // AUTHENTICATED USER
+  // ============================================================
 
-/* ============================================================
-   PASSWORD
-   ============================================================ */
+  logout: () =>
+    api.post("/auth/logout"),
 
-/**
- * Forgot password
- */
-export const forgotPassword = (email) =>
-  api.post("/auth/forgot-password", {
-    email,
-  });
+  getMe: () =>
+    api.get("/auth/me"),
 
-/**
- * Reset password
- */
-export const resetPassword = (token, password) =>
-  api.post("/auth/reset-password", {
+  getVerificationStatus: () =>
+    api.get("/auth/verification-status"),
+
+  updatePhone: (phone) =>
+    api.post("/auth/update-phone", {
+      phone,
+    }),
+
+  // ============================================================
+  // PASSWORD
+  // ============================================================
+
+  forgotPassword: (email) =>
+    api.post("/auth/forgot-password", {
+      email,
+    }),
+
+  resetPassword: (
     token,
-    password,
-  });
+    password
+  ) =>
+    api.post("/auth/reset-password", {
+      token,
+      password,
+    }),
 
-/**
- * Change password
- */
-export const changePassword = (
-  currentPassword,
-  newPassword
-) =>
-  api.post("/auth/change-password", {
+  changePassword: (
     currentPassword,
-    newPassword,
-  });
+    newPassword
+  ) =>
+    api.post("/auth/change-password", {
+      currentPassword,
+      newPassword,
+    }),
 
+  // ============================================================
+  // TOKEN
+  // ============================================================
 
-/* ============================================================
-   TOKEN
-   ============================================================ */
+  refreshToken: () =>
+    api.post("/auth/refresh-token"),
+};
 
-/**
- * Refresh access token
- */
-export const refreshToken = () =>
-  api.post("/auth/refresh-token");
+export default authService;
