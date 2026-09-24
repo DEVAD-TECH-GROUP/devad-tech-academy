@@ -6,16 +6,18 @@ import {
   Home,
   GraduationCap,
   Route,
-  BadgeDollarSign,
   Building2,
   Phone,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import logo from "../../assets/logo.png";
+import logo from "../../../assets/logo.png";
 
 const HEADER_HEIGHT = 80;
 
+// ─────────────────────────────────────────────────────────────
 // Throttle utility
+// ─────────────────────────────────────────────────────────────
+
 const throttle = (func, limit) => {
   let inThrottle;
 
@@ -31,13 +33,20 @@ const throttle = (func, limit) => {
   };
 };
 
+// ─────────────────────────────────────────────────────────────
+// Header
+// ─────────────────────────────────────────────────────────────
+
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
   const menuRef = useRef(null);
 
+  // ───────────────────────────────────────────────────────────
   // Scroll effect
+  // ───────────────────────────────────────────────────────────
+
   const handleScroll = useCallback(
     throttle(() => {
       setScrolled(window.scrollY > 10);
@@ -55,7 +64,10 @@ export default function Header() {
     };
   }, [handleScroll]);
 
-  // Outside click close
+  // ───────────────────────────────────────────────────────────
+  // Close menu when clicking outside
+  // ───────────────────────────────────────────────────────────
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -66,10 +78,7 @@ export default function Header() {
       }
     };
 
-    document.addEventListener(
-      "mousedown",
-      handleClickOutside
-    );
+    document.addEventListener("mousedown", handleClickOutside);
 
     return () => {
       document.removeEventListener(
@@ -79,48 +88,56 @@ export default function Header() {
     };
   }, []);
 
-  // Lock body scroll
+  // ───────────────────────────────────────────────────────────
+  // Lock body scroll when mobile menu is open
+  // ───────────────────────────────────────────────────────────
+
   useEffect(() => {
-    document.body.style.overflow = isOpen
-      ? "hidden"
-      : "auto";
+    document.body.style.overflow = isOpen ? "hidden" : "auto";
 
     return () => {
       document.body.style.overflow = "auto";
     };
   }, [isOpen]);
 
+  // ───────────────────────────────────────────────────────────
   // Navigation links
- const navLinks = useMemo(
-  () => [
-   {
-    name: "Home",
-    path: "/",
-    icon: Home,
-  },
-  {
-    name: "Courses",
-    path: "/courses",
-    icon: GraduationCap,
-  },
-  {
-    name: "Career Paths",
-    path: "/career-paths",
-    icon: Route,
-  },
-  {
-    name: "About",
-    path: "/about",
-    icon: Building2,
-  },
-  {
-    name: "Contact",
-    path: "/contact",
-    icon: Phone,
-  },
-  ],
-  []
-);
+  // ───────────────────────────────────────────────────────────
+
+  const navLinks = useMemo(
+    () => [
+      {
+        name: "Home",
+        path: "/",
+        icon: Home,
+      },
+      {
+        name: "Courses",
+        path: "/courses",
+        icon: GraduationCap,
+      },
+      {
+        name: "Career Paths",
+        path: "/career-paths",
+        icon: Route,
+      },
+      {
+        name: "About",
+        path: "/about",
+        icon: Building2,
+      },
+      {
+        name: "Contact",
+        path: "/contact",
+        icon: Phone,
+      },
+    ],
+    []
+  );
+
+  // ───────────────────────────────────────────────────────────
+  // Menu controls
+  // ───────────────────────────────────────────────────────────
 
   const toggleMenu = useCallback(() => {
     setIsOpen((prev) => !prev);
@@ -130,16 +147,23 @@ export default function Header() {
     setIsOpen(false);
   }, []);
 
+  // ───────────────────────────────────────────────────────────
+  // Render
+  // ───────────────────────────────────────────────────────────
+
   return (
     <header
-      className={`fixed top-0 left-0 w-full z-50 transition-all duration-300 ${
+      className={`fixed top-0 left-0 w-full z-50 transition-all duration-300 backdrop-blur-xl ${
         scrolled
           ? "bg-[#040816]/98 border-b border-cyan-500/20 shadow-lg shadow-cyan-900/20"
           : "bg-[#040816]/90 border-b border-white/10"
-      } backdrop-blur-xl`}
+      }`}
     >
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-        {/* Logo */}
+        {/* ─────────────────────────────────────────────────────
+            Logo
+        ────────────────────────────────────────────────────── */}
+
         <NavLink
           to="/"
           className="flex items-center gap-3 group"
@@ -161,7 +185,10 @@ export default function Header() {
           </div>
         </NavLink>
 
-        {/* Desktop Navigation */}
+        {/* ─────────────────────────────────────────────────────
+            Desktop Navigation
+        ────────────────────────────────────────────────────── */}
+
         <nav className="hidden xl:flex items-center gap-8">
           {navLinks.map((link) => (
             <NavLink
@@ -180,7 +207,7 @@ export default function Header() {
                   {link.name}
 
                   <span
-                    className={`absolute left-0 -bottom-1 h-[2px] w-full bg-gradient-to-r from-cyan-400 to-blue-500 origin-left transition-transform duration-300 ${
+                    className={`absolute left-0 -bottom-1 h-0.5 w-full bg-gradient-to-r from-cyan-400 to-blue-500 origin-left transition-transform duration-300 ${
                       isActive
                         ? "scale-x-100"
                         : "scale-x-0 group-hover:scale-x-100"
@@ -191,19 +218,26 @@ export default function Header() {
             </NavLink>
           ))}
 
+          {/* Enroll Now */}
           <NavLink
             to="/login"
-            className="ml-4 px-6 py-2.5 rounded-lg bg-gradient-to-r from-cyan-400 to-blue-600 text-black font-semibold text-sm transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/30"
+            className="ml-4 px-6 py-2.5 rounded-lg text-black font-semibold text-sm transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/30 bg-[linear-gradient(90deg,#22d3ee,#2563eb)]"
           >
             Enroll Now
           </NavLink>
         </nav>
 
-        {/* Mobile Toggle */}
+        {/* ─────────────────────────────────────────────────────
+            Mobile Toggle
+        ────────────────────────────────────────────────────── */}
+
         <div className="xl:hidden text-white">
           <button
+            type="button"
             onClick={toggleMenu}
-            aria-label="Toggle Menu"
+            aria-label={isOpen ? "Close Menu" : "Open Menu"}
+            aria-expanded={isOpen}
+            className="p-2 rounded-lg hover:bg-white/5 transition-colors"
           >
             {isOpen ? (
               <X size={28} />
@@ -214,7 +248,10 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Mobile Menu */}
+      {/* ─────────────────────────────────────────────────────
+          Mobile Menu
+      ────────────────────────────────────────────────────── */}
+
       <AnimatePresence>
         {isOpen && (
           <>
@@ -234,10 +271,21 @@ export default function Header() {
             {/* Mobile Dropdown */}
             <motion.div
               ref={menuRef}
-              initial={{ opacity: 0, y: -15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.25 }}
+              initial={{
+                opacity: 0,
+                y: -15,
+              }}
+              animate={{
+                opacity: 1,
+                y: 0,
+              }}
+              exit={{
+                opacity: 0,
+                y: -15,
+              }}
+              transition={{
+                duration: 0.25,
+              }}
               className="fixed left-0 w-full bg-[#040816] border-t border-white/10 z-50 xl:hidden overflow-y-auto"
               style={{
                 top: HEADER_HEIGHT,
@@ -245,6 +293,7 @@ export default function Header() {
               }}
             >
               <div className="flex flex-col gap-4 px-6 py-6">
+                {/* Mobile Navigation Links */}
                 {navLinks.map((link) => {
                   const Icon = link.icon;
 
@@ -270,13 +319,13 @@ export default function Header() {
                   );
                 })}
 
-                <NavLink
-                  to="/login"
-                  onClick={closeMenu}
-                  className="mt-4 px-5 py-3 rounded-lg bg-gradient-to-r from-cyan-400 to-blue-600 text-black font-semibold text-center transition-all active:scale-95"
-                >
-                  Enroll Now
-                </NavLink>
+                {/* Mobile Enroll Now */}
+              <NavLink
+                to="/login"
+                className="ml-4 px-6 py-2.5 rounded-lg text-black font-semibold text-sm transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/30 bg-[linear-gradient(90deg,#22d3ee,#2563eb)]"
+              >
+                Enroll Now
+              </NavLink>
               </div>
             </motion.div>
           </>

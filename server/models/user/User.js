@@ -1,13 +1,16 @@
+// models/user/User.js
+
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
-import {
-  ROLES,
-  USER_STATUS,
-} from "../../utils/constants.js";
+
+import { ROLES, USER_STATUS } from "../../utils/constants.js";
 
 const userSchema = new mongoose.Schema(
   {
-    // ── Basic info ──────────────────────────────────────
+    // ============================================================
+    // BASIC PROFILE
+    // ============================================================
+
     firstName: {
       type: String,
       required: [true, "First name is required"],
@@ -40,38 +43,100 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
 
-    phone: {
-      type: String,
-      trim: true,
-    },
+    // ============================================================
+    // PHONE
+    // ============================================================
 
-    // ── Role ────────────────────────────────────────────
+    /*
+     * Phone is intentionally NOT required here.
+     *
+     * Why?
+     * Google OAuth does not reliably provide the user's phone number.
+     *
+     * Therefore:
+     *
+     * Normal registration:
+     *   Account → Email verification → Phone verification
+     *
+     * Google registration:
+     *   Google → Phone verification
+     *
+     * The phone is collected during the phone-verification step.
+     */
+// ============================================================
+// PHONE
+// ============================================================
+
+/*
+ * Phone is intentionally NOT required here.
+ *
+ * Normal registration:
+ *   Account → Email verification → Phone verification
+ *
+ * Google registration:
+ *   Google → Phone collection → Phone verification
+ *
+ * Robase handles the SMS OTP.
+ */
+
+phone: {
+  type: String,
+  trim: true,
+  unique: true,
+  sparse: true,
+},
+
+isPhoneVerified: {
+  type: Boolean,
+  default: false,
+},
+
+phoneVerificationToken: {
+  type: String,
+  select: false,
+},
+
+phoneVerificationExpire: {
+  type: Date,
+  select: false,
+},
+
+    // ============================================================
+    // ROLE & ACCOUNT STATUS
+    // ============================================================
+
     role: {
       type: String,
       enum: Object.values(ROLES),
       default: ROLES.STUDENT,
     },
 
-    // ── Status ──────────────────────────────────────────
     status: {
       type: String,
       enum: Object.values(USER_STATUS),
       default: USER_STATUS.ACTIVE,
     },
 
-    // ── Avatar ──────────────────────────────────────────
+    // ============================================================
+    // PROFILE IMAGE
+    // ============================================================
+
     avatar: {
       public_id: {
         type: String,
         default: null,
       },
+
       url: {
         type: String,
         default: null,
       },
     },
 
-    // ── Email verification ──────────────────────────────
+    // ============================================================
+    // EMAIL VERIFICATION
+    // ============================================================
+
     isEmailVerified: {
       type: Boolean,
       default: false,
@@ -87,7 +152,10 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
 
-    // ── Password reset ──────────────────────────────────
+    // ============================================================
+    // PASSWORD RESET
+    // ============================================================
+
     passwordResetToken: {
       type: String,
       select: false,
@@ -98,10 +166,14 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
 
-    // ── Google OAuth ────────────────────────────────────
+    // ============================================================
+    // GOOGLE AUTHENTICATION
+    // ============================================================
+
     googleId: {
       type: String,
       default: null,
+      sparse: true,
     },
 
     isGoogleAuth: {
@@ -109,7 +181,10 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
 
-    // ── Two factor auth ─────────────────────────────────
+    // ============================================================
+    // TWO FACTOR AUTHENTICATION
+    // ============================================================
+
     isTwoFactorEnabled: {
       type: Boolean,
       default: false,
@@ -120,17 +195,24 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
 
-    // ── Last login ───────────────────────────────────────
+    // ============================================================
+    // LOGIN INFORMATION
+    // ============================================================
+
     lastLogin: {
       type: Date,
       default: null,
     },
 
-    // ── Referral ─────────────────────────────────────────
+    // ============================================================
+    // REFERRALS
+    // ============================================================
+
     referralCode: {
       type: String,
       unique: true,
       sparse: true,
+      trim: true,
     },
 
     referredBy: {
@@ -139,7 +221,10 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
-    // ── Notification preferences ─────────────────────────
+    // ============================================================
+    // NOTIFICATION PREFERENCES
+    // ============================================================
+
     notificationPreferences: {
       email: {
         type: Boolean,
@@ -182,7 +267,10 @@ const userSchema = new mongoose.Schema(
       },
     },
 
-    // ── Appearance ───────────────────────────────────────
+    // ============================================================
+    // USER PREFERENCES
+    // ============================================================
+
     theme: {
       type: String,
       enum: ["dark", "light"],
@@ -194,13 +282,15 @@ const userSchema = new mongoose.Schema(
       default: "en",
     },
 
-    // ── Timezone ─────────────────────────────────────────
     timezone: {
       type: String,
       default: "Africa/Lagos",
     },
 
-    // ── Social links ─────────────────────────────────────
+    // ============================================================
+    // SOCIAL LINKS
+    // ============================================================
+
     socialLinks: {
       github: {
         type: String,
@@ -223,7 +313,10 @@ const userSchema = new mongoose.Schema(
       },
     },
 
-    // ── Connected accounts ───────────────────────────────
+    // ============================================================
+    // CONNECTED ACCOUNTS
+    // ============================================================
+
     connectedAccounts: {
       google: {
         type: Boolean,
@@ -241,26 +334,28 @@ const userSchema = new mongoose.Schema(
       },
     },
 
-    // ── Bio ───────────────────────────────────────────────
+    // ============================================================
+    // PROFILE INFORMATION
+    // ============================================================
+
     bio: {
       type: String,
       maxlength: [500, "Bio cannot exceed 500 characters"],
       default: null,
     },
 
-    // ── Headline ──────────────────────────────────────────
     headline: {
       type: String,
       maxlength: [100, "Headline cannot exceed 100 characters"],
       default: null,
     },
 
-    // ── Location ─────────────────────────────────────────
     location: {
       type: String,
       default: null,
     },
   },
+
   {
     timestamps: true,
 
@@ -274,37 +369,74 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// ── Virtual: full name ────────────────────────────────────
+// ================================================================
+// VIRTUALS
+// ================================================================
+
 userSchema.virtual("fullName").get(function () {
   return `${this.firstName} ${this.lastName}`;
 });
 
-// ── Indexes ───────────────────────────────────────────────
-userSchema.index({ email: 1 });
-userSchema.index({ role: 1 });
-userSchema.index({ status: 1 });
-userSchema.index({ referralCode: 1 });
-userSchema.index({ googleId: 1 });
+// ================================================================
+// INDEXES
+// ================================================================
 
-// ── Hash password before save ─────────────────────────────
+userSchema.index({
+  email: 1,
+});
+
+userSchema.index({
+  role: 1,
+});
+
+userSchema.index({
+  status: 1,
+});
+
+userSchema.index({
+  referralCode: 1,
+});
+
+userSchema.index({
+  googleId: 1,
+});
+
+userSchema.index({
+  phone: 1,
+});
+
+// ================================================================
+// PASSWORD HASHING
+// ================================================================
+
 userSchema.pre("save", async function () {
-  // Don't hash if password hasn't changed
-  if (!this.isModified("password")) return;
+  // Don't hash if password wasn't changed
+  if (!this.isModified("password")) {
+    return;
+  }
 
-  // Don't hash an empty password
-  if (!this.password) return;
+  // Google accounts may not have a password
+  if (!this.password) {
+    return;
+  }
 
   const salt = await bcrypt.genSalt(12);
 
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-// ── Compare password ──────────────────────────────────────
+// ================================================================
+// PASSWORD COMPARISON
+// ================================================================
+
 userSchema.methods.comparePassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// ── Update last login ─────────────────────────────────────
+// ================================================================
+// UPDATE LAST LOGIN
+// ================================================================
+
 userSchema.methods.updateLastLogin = async function () {
   this.lastLogin = new Date();
 
@@ -313,7 +445,10 @@ userSchema.methods.updateLastLogin = async function () {
   });
 };
 
-// ── Create model ───────────────────────────────────────────
+// ================================================================
+// USER MODEL
+// ================================================================
+
 const User = mongoose.model("User", userSchema);
 
 export default User;

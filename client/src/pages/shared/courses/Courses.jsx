@@ -1,52 +1,37 @@
-import { useEffect, useState } from "react";
-import { getCourses } from "../../../services/public/courseService";
+import { useState } from "react";
+
+import { useCourses } from "../../../hooks/useCourses";
+
 import CoursesHero from "../sections/coursesSections/coursesHero";
 import CourseGrid from "../sections/coursesSections/courseGrid";
 import FeaturedCourses from "../sections/coursesSections/featured";
 
 export default function CoursesPage({ onNavigate }) {
-  const [courses, setCourses] = useState([]);
+  // ───────────────────────────────────────────────────────────
+  // Course API
+  // ───────────────────────────────────────────────────────────
+
+  const {
+    courses,
+    loading,
+    error,
+    pagination,
+    refetch,
+  } = useCourses();
+
+  // ───────────────────────────────────────────────────────────
+  // Filters
+  // ───────────────────────────────────────────────────────────
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [level, setLevel] = useState("All");
   const [priceMax, setPriceMax] = useState(400000);
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  // ───────────────────────────────────────────────────────────
+  // Categories
+  // ───────────────────────────────────────────────────────────
 
-  // ── Get public courses ──────────────────────────────────
-  useEffect(() => {
-    const loadCourses = async () => {
-      try {
-        setLoading(true);
-        setError("");
-
-        const response = await getCourses();
-
-        const result =
-          response?.data?.data?.docs ||
-          response?.data?.data?.courses ||
-          response?.data?.data ||
-          [];
-
-        setCourses(result);
-      } catch (error) {
-        console.error("Failed to load courses:", error);
-
-        setError(
-          error?.response?.data?.message ||
-            "Failed to load courses."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadCourses();
-  }, []);
-
-  // ── Categories ──────────────────────────────────────────
   const categories = [
     "All",
     ...new Set(
@@ -60,7 +45,10 @@ export default function CoursesPage({ onNavigate }) {
     ),
   ];
 
-  // ── Levels ──────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────
+  // Levels
+  // ───────────────────────────────────────────────────────────
+
   const levels = [
     "All",
     "Beginner",
@@ -69,7 +57,10 @@ export default function CoursesPage({ onNavigate }) {
     "Advanced",
   ];
 
-  // ── Filter courses ─────────────────────────────────────
+  // ───────────────────────────────────────────────────────────
+  // Filter courses
+  // ───────────────────────────────────────────────────────────
+
   const filtered = courses.filter((course) => {
     const title = course.title || "";
 
@@ -82,6 +73,8 @@ export default function CoursesPage({ onNavigate }) {
       typeof course.category === "object"
         ? course.category?.name
         : course.category;
+
+    const courseLevel = course.level || "";
 
     const matchSearch =
       title
@@ -97,7 +90,7 @@ export default function CoursesPage({ onNavigate }) {
 
     const matchLevel =
       level === "All" ||
-      course.level === level;
+      courseLevel === level;
 
     const matchPrice =
       Number(course.price || 0) <= priceMax;
@@ -110,36 +103,62 @@ export default function CoursesPage({ onNavigate }) {
     );
   });
 
-  // ── Loading ─────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────
+  // Loading
+  // ───────────────────────────────────────────────────────────
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-        <p className="text-slate-400">
-          Loading courses...
-        </p>
-      </div>
-    );
-  }
-
-  // ── Error ───────────────────────────────────────────────
-  if (error) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-xl font-semibold mb-2">
-            Unable to load courses
-          </h2>
+          <div className="w-10 h-10 border-4 border-slate-700 border-t-green-500 rounded-full animate-spin mx-auto mb-4" />
 
           <p className="text-slate-400">
-            {error}
+            Loading courses...
           </p>
         </div>
       </div>
     );
   }
 
+  // ───────────────────────────────────────────────────────────
+  // Error
+  // ───────────────────────────────────────────────────────────
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-6">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold mb-2">
+            Unable to load courses
+          </h2>
+
+          <p className="text-slate-400 mb-6">
+            {error}
+          </p>
+
+          <button
+            type="button"
+            onClick={refetch}
+            className="px-5 py-2.5 rounded-lg bg-green-600 hover:bg-green-500 transition text-white font-medium"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────
+  // Page
+  // ───────────────────────────────────────────────────────────
+
   return (
     <div className="min-h-screen bg-slate-950 text-white pt-10">
+      {/* ─────────────────────────────────────────────────────
+          Hero
+      ───────────────────────────────────────────────────── */}
+
       <CoursesHero
         search={search}
         setSearch={setSearch}
@@ -153,6 +172,10 @@ export default function CoursesPage({ onNavigate }) {
         levels={levels}
       />
 
+      {/* ─────────────────────────────────────────────────────
+          Course Grid
+      ───────────────────────────────────────────────────── */}
+
       <CourseGrid
         courses={courses}
         filtered={filtered}
@@ -161,6 +184,10 @@ export default function CoursesPage({ onNavigate }) {
         setCategory={setCategory}
         onNavigate={onNavigate}
       />
+
+      {/* ─────────────────────────────────────────────────────
+          Featured Courses
+      ───────────────────────────────────────────────────── */}
 
       <FeaturedCourses
         courses={courses}

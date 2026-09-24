@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
-import { getCourse } from "../services/public/courseApi";
-import { formatNaira } from "../utils/formatNaira";
+import { getCourse } from "../../../services/public/courseService";
+import { formatNaira } from "../../../utils/formatCurrency";
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
