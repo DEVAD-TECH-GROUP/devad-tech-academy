@@ -13,9 +13,11 @@ function Particles() {
 
   useEffect(() => {
     const canvas = canvasRef.current;
+
     if (!canvas) return;
 
     const ctx = canvas.getContext("2d");
+
     if (!ctx) return;
 
     let animId;
@@ -29,14 +31,17 @@ function Particles() {
 
     window.addEventListener("resize", resize);
 
-    const particles = Array.from({ length: 80 }, () => ({
-      x: Math.random() * window.innerWidth,
-      y: Math.random() * window.innerHeight,
-      r: Math.random() * 2 + 0.5,
-      dx: (Math.random() - 0.5) * 0.4,
-      dy: (Math.random() - 0.5) * 0.4,
-      alpha: Math.random() * 0.6 + 0.2,
-    }));
+    const particles = Array.from(
+      { length: 80 },
+      () => ({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        r: Math.random() * 2 + 0.5,
+        dx: (Math.random() - 0.5) * 0.4,
+        dy: (Math.random() - 0.5) * 0.4,
+        alpha: Math.random() * 0.6 + 0.2,
+      })
+    );
 
     const draw = () => {
       ctx.clearRect(
@@ -47,28 +52,32 @@ function Particles() {
       );
 
       particles.forEach((p, i) => {
-        particles.slice(i + 1).forEach((p2) => {
-          const dist = Math.hypot(
-            p.x - p2.x,
-            p.y - p2.y
-          );
+        particles
+          .slice(i + 1)
+          .forEach((p2) => {
+            const dist = Math.hypot(
+              p.x - p2.x,
+              p.y - p2.y
+            );
 
-          if (dist < 120) {
-            ctx.beginPath();
+            if (dist < 120) {
+              ctx.beginPath();
 
-            ctx.strokeStyle = `rgba(
-              0,
-              180,
-              255,
-              ${0.15 * (1 - dist / 120)}
-            )`;
+              ctx.strokeStyle = `rgba(
+                0,
+                180,
+                255,
+                ${0.15 * (1 - dist / 120)}
+              )`;
 
-            ctx.lineWidth = 0.5;
-            ctx.moveTo(p.x, p.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.stroke();
-          }
-        });
+              ctx.lineWidth = 0.5;
+
+              ctx.moveTo(p.x, p.y);
+              ctx.lineTo(p2.x, p2.y);
+
+              ctx.stroke();
+            }
+          });
       });
 
       particles.forEach((p) => {
@@ -116,6 +125,7 @@ function Particles() {
 
     return () => {
       cancelAnimationFrame(animId);
+
       window.removeEventListener(
         "resize",
         resize
@@ -225,7 +235,8 @@ function InputField({
               ? "rgba(0,180,255,0.5)"
               : "rgba(100,150,255,0.15)"
           }`,
-          transition: "border-color 0.3s",
+          transition:
+            "border-color 0.3s",
         }}
       >
         <div className="pl-4 pr-3 flex items-center">
@@ -239,7 +250,8 @@ function InputField({
                 focusedField === id
                   ? "#38bdf8"
                   : "rgba(150,180,255,0.5)",
-              transition: "color 0.3s",
+              transition:
+                "color 0.3s",
             }}
           >
             {icon}
@@ -477,6 +489,44 @@ function StrengthBar({ password }) {
 }
 
 /* ============================================================
+   OTP INPUT
+   ============================================================ */
+
+function OTPInput({
+  value,
+  onChange,
+  disabled = false,
+}) {
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      maxLength={6}
+      autoComplete="one-time-code"
+      placeholder="000000"
+      value={value}
+      disabled={disabled}
+      onChange={(e) =>
+        onChange(
+          e.target.value.replace(/\D/g, "")
+        )
+      }
+      className="w-full rounded-xl py-4 px-4 text-center tracking-[0.5em] text-xl font-bold outline-none"
+      style={{
+        background:
+          "rgba(255,255,255,0.04)",
+        border:
+          "1px solid rgba(0,180,255,0.25)",
+        color: "#dbeafe",
+        fontFamily:
+          "'Orbitron', sans-serif",
+        opacity: disabled ? 0.6 : 1,
+      }}
+    />
+  );
+}
+
+/* ============================================================
    REGISTER PAGE
    ============================================================ */
 
@@ -485,8 +535,12 @@ export default function RegisterPage() {
 
   const {
     register,
-    googleLogin,
+    verifyEmail,
+    resendVerification,
+    updateRegistrationPhone,
+    sendPhoneOTP,
     verifyPhone,
+    googleLogin,
     isLoading,
   } = useAuthStore();
 
@@ -495,13 +549,6 @@ export default function RegisterPage() {
      ========================================================== */
 
   const [step, setStep] = useState(1);
-
-  /* ==========================================================
-     PHONE STAGE
-     ========================================================== */
-
-  const [phoneStage, setPhoneStage] =
-    useState("phone");
 
   /* ==========================================================
      REGISTRATION FORM
@@ -516,11 +563,55 @@ export default function RegisterPage() {
   });
 
   /* ==========================================================
+     EMAIL OTP
+     ========================================================== */
+
+  const [emailOtp, setEmailOtp] =
+    useState("");
+
+  /* ==========================================================
      PHONE
      ========================================================== */
 
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
+  const [phone, setPhone] =
+    useState("");
+
+  const [phoneOtp, setPhoneOtp] =
+    useState("");
+
+  /* ==========================================================
+     REGISTRATION SESSION
+     ========================================================== */
+
+  const [
+    registrationToken,
+    setRegistrationToken,
+  ] = useState("");
+
+  const [phoneOtpId, setPhoneOtpId] =
+    useState("");
+
+  /* ==========================================================
+     LOADING STATES
+     ========================================================== */
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [
+    emailResendLoading,
+    setEmailResendLoading,
+  ] = useState(false);
+
+  const [
+    phoneSendLoading,
+    setPhoneSendLoading,
+  ] = useState(false);
+
+  const [
+    phoneResendLoading,
+    setPhoneResendLoading,
+  ] = useState(false);
 
   /* ==========================================================
      UI STATE
@@ -532,9 +623,6 @@ export default function RegisterPage() {
   const [showConfirm, setShowConfirm] =
     useState(false);
 
-  const [loading, setLoading] =
-    useState(false);
-
   const [mounted, setMounted] =
     useState(false);
 
@@ -542,12 +630,6 @@ export default function RegisterPage() {
     useState(null);
 
   const [agreed, setAgreed] =
-    useState(false);
-
-  const [otpId, setOtpId] =
-    useState("");
-
-  const [resendLoading, setResendLoading] =
     useState(false);
 
   /* ==========================================================
@@ -676,51 +758,15 @@ export default function RegisterPage() {
   };
 
   /* ==========================================================
-     STEP 1 → STEP 2
+     STEP 1 → REGISTER → EMAIL OTP
      ========================================================== */
 
-  const handleContinue = (e) => {
+  const handleCreateAccount = async (
+    e
+  ) => {
     e.preventDefault();
 
     if (!validateStepOne()) {
-      return;
-    }
-
-    setStep(2);
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  };
-
-  /* ==========================================================
-     REGISTER + SEND PHONE OTP
-     ========================================================== */
-
-  const handleCreateAccount = async () => {
-    const cleanPhone =
-      phone.trim();
-
-    if (!cleanPhone) {
-      toast.error(
-        "Please enter your phone number."
-      );
-
-      return;
-    }
-
-    const digits =
-      cleanPhone.replace(/\D/g, "");
-
-    if (
-      digits.length < 10 ||
-      digits.length > 15
-    ) {
-      toast.error(
-        "Please enter a valid phone number."
-      );
-
       return;
     }
 
@@ -741,46 +787,36 @@ export default function RegisterPage() {
 
         password:
           form.password,
-
-        phone:
-          cleanPhone,
       });
-
-      /*
-       * Expected backend response:
-       *
-       * {
-       *   user: {...},
-       *   phoneVerification: {
-       *     otpId: "..."
-       *   }
-       * }
-       */
 
       const data =
         response?.data ||
         response ||
         {};
 
-      const returnedOtpId =
-        data?.phoneVerification?.otpId ||
-        data?.otpId ||
-        data?.phoneOtpId ||
-        "";
+      const returnedEmail =
+        data?.registration?.email ||
+        data?.email ||
+        form.email
+          .trim()
+          .toLowerCase();
 
-      if (!returnedOtpId) {
+      if (!returnedEmail) {
         throw new Error(
-          "Registration succeeded, but the phone verification session was not returned."
+          "Registration response did not contain an email address."
         );
       }
 
-      setOtpId(returnedOtpId);
-
-      setPhoneStage("otp");
-
       toast.success(
-        "Account created. Verification code sent to your phone."
+        "Account created. Check your email for the verification code."
       );
+
+      setStep(2);
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
     } catch (err) {
       console.error(
         "Registration failed:",
@@ -798,33 +834,20 @@ export default function RegisterPage() {
   };
 
   /* ==========================================================
-     VERIFY PHONE
+     VERIFY EMAIL
      ========================================================== */
 
-  const handleVerifyPhone = async (
+  const handleVerifyEmail = async (
     e
   ) => {
     e.preventDefault();
 
-    if (!otp.trim()) {
+    const code =
+      emailOtp.trim();
+
+    if (!/^\d{6}$/.test(code)) {
       toast.error(
-        "Please enter the verification code."
-      );
-
-      return;
-    }
-
-    if (!/^\d{6}$/.test(otp.trim())) {
-      toast.error(
-        "Please enter the 6-digit verification code."
-      );
-
-      return;
-    }
-
-    if (!otpId) {
-      toast.error(
-        "Verification session expired. Please request a new code."
+        "Please enter the 6-digit email verification code."
       );
 
       return;
@@ -833,40 +856,55 @@ export default function RegisterPage() {
     try {
       setLoading(true);
 
-      /*
-       * Your backend currently uses:
-       *
-       * verifyPhone(otpId, code)
-       */
+      const email =
+        form.email
+          .trim()
+          .toLowerCase();
 
-      await verifyPhone(
-        otpId,
-        otp.trim()
-      );
+      const response =
+        await verifyEmail(
+          email,
+          code
+        );
+
+      const data =
+        response?.data ||
+        response ||
+        {};
+
+      const token =
+        data?.registrationToken ||
+        data?.registration?.registrationToken ||
+        "";
+
+      if (!token) {
+        throw new Error(
+          "Email verified, but the registration verification session was not returned."
+        );
+      }
+
+      setRegistrationToken(token);
 
       toast.success(
-        "Phone number verified successfully!"
+        "Email verified successfully!"
       );
 
-      /*
-       * Email verification is still required.
-       * Send the user to login after successful
-       * phone verification.
-       */
+      setStep(3);
 
-      setTimeout(() => {
-        navigate("/login");
-      }, 1000);
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
     } catch (err) {
       console.error(
-        "Phone verification failed:",
+        "Email verification failed:",
         err
       );
 
       toast.error(
         err?.response?.data?.message ||
           err?.message ||
-          "Phone verification failed."
+          "Email verification failed."
       );
     } finally {
       setLoading(false);
@@ -874,58 +912,332 @@ export default function RegisterPage() {
   };
 
   /* ==========================================================
-     RESEND OTP
+     RESEND EMAIL OTP
      ========================================================== */
 
-  const handleResendOTP = async () => {
-    try {
-      setResendLoading(true);
+  const handleResendEmailOTP =
+    async () => {
+      if (!form.email.trim()) {
+        toast.error(
+          "Your email address is missing."
+        );
 
-      const response =
-        await useAuthStore
-          .getState()
-          .resendPhoneOTP();
-
-      const data =
-        response?.data ||
-        response ||
-        {};
-
-      const newOtpId =
-        data?.phoneVerification?.otpId ||
-        data?.otpId ||
-        data?.phoneOtpId ||
-        "";
-
-      if (newOtpId) {
-        setOtpId(newOtpId);
+        return;
       }
 
-      toast.success(
-        "A new verification code has been sent."
-      );
-    } catch (err) {
-      console.error(
-        "Resend OTP failed:",
-        err
+      try {
+        setEmailResendLoading(true);
+
+        await resendVerification(
+          form.email
+            .trim()
+            .toLowerCase()
+        );
+
+        setEmailOtp("");
+
+        toast.success(
+          "A new email verification code has been sent."
+        );
+      } catch (err) {
+        console.error(
+          "Resend email OTP failed:",
+          err
+        );
+
+        toast.error(
+          err?.response?.data?.message ||
+            err?.message ||
+            "Unable to resend email verification code."
+        );
+      } finally {
+        setEmailResendLoading(false);
+      }
+    };
+
+  /* ==========================================================
+     VALIDATE PHONE
+     ========================================================== */
+
+  const validatePhone = () => {
+    const cleanPhone =
+      phone.trim();
+
+    if (!cleanPhone) {
+      toast.error(
+        "Please enter your phone number."
       );
 
-      toast.error(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Unable to resend verification code."
-      );
-    } finally {
-      setResendLoading(false);
+      return false;
     }
+
+    const digits =
+      cleanPhone.replace(
+        /\D/g,
+        ""
+      );
+
+    if (
+      digits.length < 10 ||
+      digits.length > 15
+    ) {
+      toast.error(
+        "Please enter a valid phone number."
+      );
+
+      return false;
+    }
+
+    return true;
   };
+
+  /* ==========================================================
+     STEP 3 → SAVE PHONE + SEND OTP
+     ========================================================== */
+
+  const handleSendPhoneOTP =
+    async () => {
+      if (!validatePhone()) {
+        return;
+      }
+
+      if (!registrationToken) {
+        toast.error(
+          "Your registration session has expired. Please restart registration."
+        );
+
+        setStep(1);
+
+        return;
+      }
+
+      try {
+        setPhoneSendLoading(true);
+
+        const cleanPhone =
+          phone.trim();
+
+        /*
+         * First attach the phone number
+         * to the registration session.
+         */
+
+        await updateRegistrationPhone(
+          registrationToken,
+          cleanPhone
+        );
+
+        /*
+         * Then request the Robase OTP.
+         */
+
+        const response =
+          await sendPhoneOTP(
+            registrationToken
+          );
+
+        const data =
+          response?.data ||
+          response ||
+          {};
+
+        const returnedOtpId =
+          data?.phoneVerification
+            ?.otpId ||
+          data?.otpId ||
+          data?.phoneOtpId ||
+          "";
+
+        if (!returnedOtpId) {
+          throw new Error(
+            "Phone verification session was not returned."
+          );
+        }
+
+        setPhoneOtpId(
+          returnedOtpId
+        );
+
+        setPhoneOtp("");
+
+        toast.success(
+          "Verification code sent to your phone."
+        );
+
+        setStep(4);
+
+        window.scrollTo({
+          top: 0,
+          behavior: "smooth",
+        });
+      } catch (err) {
+        console.error(
+          "Phone OTP failed:",
+          err
+        );
+
+        toast.error(
+          err?.response?.data?.message ||
+            err?.message ||
+            "Unable to send phone verification code."
+        );
+      } finally {
+        setPhoneSendLoading(false);
+      }
+    };
+
+  /* ==========================================================
+     VERIFY PHONE
+     ========================================================== */
+
+  const handleVerifyPhone =
+    async (e) => {
+      e.preventDefault();
+
+      const code =
+        phoneOtp.trim();
+
+      if (!/^\d{6}$/.test(code)) {
+        toast.error(
+          "Please enter the 6-digit phone verification code."
+        );
+
+        return;
+      }
+
+      if (!registrationToken) {
+        toast.error(
+          "Your registration session has expired."
+        );
+
+        setStep(1);
+
+        return;
+      }
+
+      if (!phoneOtpId) {
+        toast.error(
+          "Phone verification session is missing. Please request a new code."
+        );
+
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        await verifyPhone(
+          registrationToken,
+          phoneOtpId,
+          code
+        );
+
+        toast.success(
+          "Registration completed successfully!"
+        );
+
+        /*
+         * Give the success toast a moment
+         * before moving to login.
+         */
+
+        setTimeout(() => {
+          navigate("/login", {
+            replace: true,
+            state: {
+              registered: true,
+              email:
+                form.email
+                  .trim()
+                  .toLowerCase(),
+            },
+          });
+        }, 1000);
+      } catch (err) {
+        console.error(
+          "Phone verification failed:",
+          err
+        );
+
+        toast.error(
+          err?.response?.data?.message ||
+            err?.message ||
+            "Phone verification failed."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  /* ==========================================================
+     RESEND PHONE OTP
+     ========================================================== */
+
+  const handleResendPhoneOTP =
+    async () => {
+      if (!registrationToken) {
+        toast.error(
+          "Your registration session has expired."
+        );
+
+        return;
+      }
+
+      try {
+        setPhoneResendLoading(true);
+
+        const response =
+          await sendPhoneOTP(
+            registrationToken
+          );
+
+        const data =
+          response?.data ||
+          response ||
+          {};
+
+        const newOtpId =
+          data?.phoneVerification
+            ?.otpId ||
+          data?.otpId ||
+          data?.phoneOtpId ||
+          "";
+
+        if (newOtpId) {
+          setPhoneOtpId(
+            newOtpId
+          );
+        }
+
+        setPhoneOtp("");
+
+        toast.success(
+          "A new phone verification code has been sent."
+        );
+      } catch (err) {
+        console.error(
+          "Resend phone OTP failed:",
+          err
+        );
+
+        toast.error(
+          err?.response?.data?.message ||
+            err?.message ||
+            "Unable to resend phone verification code."
+        );
+      } finally {
+        setPhoneResendLoading(false);
+      }
+    };
 
   /* ==========================================================
      GOOGLE AUTH
      ========================================================== */
 
   const handleGoogleSuccess =
-    async (credentialResponse) => {
+    async (
+      credentialResponse
+    ) => {
       try {
         const googleToken =
           credentialResponse?.credential;
@@ -950,11 +1262,8 @@ export default function RegisterPage() {
           null;
 
         /*
-         * Google does not reliably provide
-         * the user's phone number.
-         *
-         * Therefore phone verification must
-         * still be completed when required.
+         * Google authentication may succeed
+         * before phone verification.
          */
 
         if (
@@ -982,13 +1291,15 @@ export default function RegisterPage() {
         );
 
         if (
-          user?.role === "super_admin"
+          user?.role ===
+          "super_admin"
         ) {
           navigate(
             "/admin/dashboard"
           );
         } else if (
-          user?.role === "instructor"
+          user?.role ===
+          "instructor"
         ) {
           navigate(
             "/instructor/dashboard"
@@ -1012,10 +1323,35 @@ export default function RegisterPage() {
       }
     };
 
-  const handleGoogleError = () => {
-    toast.error(
-      "Google authentication could not be completed."
-    );
+  const handleGoogleError =
+    () => {
+      toast.error(
+        "Google authentication could not be completed."
+      );
+    };
+
+  /* ==========================================================
+     STEP NAVIGATION
+     ========================================================== */
+
+  const goBack = () => {
+    if (step === 2) {
+      setEmailOtp("");
+      setStep(1);
+      return;
+    }
+
+    if (step === 3) {
+      setPhone("");
+      setStep(2);
+      return;
+    }
+
+    if (step === 4) {
+      setPhoneOtp("");
+      setPhoneOtpId("");
+      setStep(3);
+    }
   };
 
   /* ==========================================================
@@ -1042,6 +1378,24 @@ export default function RegisterPage() {
 
     transition: `all 0.8s cubic-bezier(0.23, 1, 0.32, 1) ${delay}s`,
   });
+
+  /* ==========================================================
+     STEP TITLES
+     ========================================================== */
+
+  const stepTitle = {
+    1: "Create Account",
+    2: "Verify Your Email",
+    3: "Add Your Phone",
+    4: "Verify Your Phone",
+  };
+
+  const stepDescription = {
+    1: "Start your learning journey today",
+    2: "Check your email for your verification code",
+    3: "Secure your account with phone verification",
+    4: "Enter the code sent to your phone",
+  };
 
   /* ==========================================================
      RENDER
@@ -1118,10 +1472,13 @@ export default function RegisterPage() {
           style={{
             background:
               "linear-gradient(160deg, rgba(6,20,45,0.95) 0%, rgba(4,14,32,0.98) 100%)",
+
             border:
               "1px solid rgba(0,180,255,0.25)",
+
             boxShadow:
               "0 0 60px rgba(0,100,255,0.15), 0 25px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)",
+
             backdropFilter:
               "blur(20px)",
           }}
@@ -1146,29 +1503,33 @@ export default function RegisterPage() {
 
             <div className="flex justify-center mb-4">
               <div className="flex items-center gap-2">
-                <div
-                  className={`w-2.5 h-2.5 rounded-full ${
-                    step >= 1
-                      ? "bg-cyan-400"
-                      : "bg-slate-700"
-                  }`}
-                />
+                {[1, 2, 3, 4].map(
+                  (item, index) => (
+                    <div
+                      key={item}
+                      className="flex items-center gap-2"
+                    >
+                      <div
+                        className={`w-2.5 h-2.5 rounded-full ${
+                          step >= item
+                            ? "bg-cyan-400"
+                            : "bg-slate-700"
+                        }`}
+                      />
 
-                <div
-                  className={`w-10 h-px ${
-                    step >= 2
-                      ? "bg-cyan-400"
-                      : "bg-slate-700"
-                  }`}
-                />
-
-                <div
-                  className={`w-2.5 h-2.5 rounded-full ${
-                    step >= 2
-                      ? "bg-cyan-400"
-                      : "bg-slate-700"
-                  }`}
-                />
+                      {index < 3 && (
+                        <div
+                          className={`w-6 sm:w-8 h-px ${
+                            step >
+                            item
+                              ? "bg-cyan-400"
+                              : "bg-slate-700"
+                          }`}
+                        />
+                      )}
+                    </div>
+                  )
+                )}
               </div>
             </div>
 
@@ -1181,7 +1542,7 @@ export default function RegisterPage() {
                   "'Orbitron', sans-serif",
               }}
             >
-              Step {step} of 2
+              Step {step} of 4
             </p>
 
             <h2
@@ -1193,14 +1554,13 @@ export default function RegisterPage() {
                   "text",
                 WebkitTextFillColor:
                   "transparent",
-                backgroundClip: "text",
+                backgroundClip:
+                  "text",
                 fontFamily:
                   "'Orbitron', sans-serif",
               }}
             >
-              {step === 1
-                ? "Create Account"
-                : "Verify Your Phone"}
+              {stepTitle[step]}
             </h2>
 
             <p
@@ -1210,9 +1570,7 @@ export default function RegisterPage() {
                   "rgba(180,210,255,0.65)",
               }}
             >
-              {step === 1
-                ? "Start your learning journey today"
-                : "Secure your account with phone verification"}
+              {stepDescription[step]}
             </p>
           </div>
 
@@ -1223,7 +1581,9 @@ export default function RegisterPage() {
           {step === 1 && (
             <>
               <form
-                onSubmit={handleContinue}
+                onSubmit={
+                  handleCreateAccount
+                }
                 className="space-y-4"
                 style={fadeIn(0.35)}
               >
@@ -1233,30 +1593,42 @@ export default function RegisterPage() {
                   <InputField
                     id="firstName"
                     placeholder="First name"
-                    value={form.firstName}
-                    onChange={set("firstName")}
+                    value={
+                      form.firstName
+                    }
+                    onChange={set(
+                      "firstName"
+                    )}
                     focusedField={
                       focusedField
                     }
                     setFocusedField={
                       setFocusedField
                     }
-                    icon={ICONS.user}
+                    icon={
+                      ICONS.user
+                    }
                     autoComplete="given-name"
                   />
 
                   <InputField
                     id="lastName"
                     placeholder="Last name"
-                    value={form.lastName}
-                    onChange={set("lastName")}
+                    value={
+                      form.lastName
+                    }
+                    onChange={set(
+                      "lastName"
+                    )}
                     focusedField={
                       focusedField
                     }
                     setFocusedField={
                       setFocusedField
                     }
-                    icon={ICONS.user}
+                    icon={
+                      ICONS.user
+                    }
                     autoComplete="family-name"
                   />
                 </div>
@@ -1267,15 +1639,21 @@ export default function RegisterPage() {
                   id="email"
                   type="email"
                   placeholder="Email address"
-                  value={form.email}
-                  onChange={set("email")}
+                  value={
+                    form.email
+                  }
+                  onChange={set(
+                    "email"
+                  )}
                   focusedField={
                     focusedField
                   }
                   setFocusedField={
                     setFocusedField
                   }
-                  icon={ICONS.email}
+                  icon={
+                    ICONS.email
+                  }
                   autoComplete="email"
                 />
 
@@ -1290,15 +1668,21 @@ export default function RegisterPage() {
                         : "password"
                     }
                     placeholder="Password"
-                    value={form.password}
-                    onChange={set("password")}
+                    value={
+                      form.password
+                    }
+                    onChange={set(
+                      "password"
+                    )}
                     focusedField={
                       focusedField
                     }
                     setFocusedField={
                       setFocusedField
                     }
-                    icon={ICONS.lock}
+                    icon={
+                      ICONS.lock
+                    }
                     autoComplete="new-password"
                     rightSlot={
                       <button
@@ -1310,13 +1694,16 @@ export default function RegisterPage() {
                         }
                         className="px-4 flex items-center transition-colors duration-200"
                         style={{
-                          color: showPass
-                            ? "#38bdf8"
-                            : "rgba(150,180,255,0.5)",
+                          color:
+                            showPass
+                              ? "#38bdf8"
+                              : "rgba(150,180,255,0.5)",
                         }}
                       >
                         <EyeIcon
-                          open={showPass}
+                          open={
+                            showPass
+                          }
                         />
                       </button>
                     }
@@ -1351,7 +1738,9 @@ export default function RegisterPage() {
                   setFocusedField={
                     setFocusedField
                   }
-                  icon={ICONS.lock}
+                  icon={
+                    ICONS.lock
+                  }
                   autoComplete="new-password"
                   rightSlot={
                     <button
@@ -1363,13 +1752,16 @@ export default function RegisterPage() {
                       }
                       className="px-4 flex items-center transition-colors duration-200"
                       style={{
-                        color: showConfirm
-                          ? "#38bdf8"
-                          : "rgba(150,180,255,0.5)",
+                        color:
+                          showConfirm
+                            ? "#38bdf8"
+                            : "rgba(150,180,255,0.5)",
                       }}
                     >
                       <EyeIcon
-                        open={showConfirm}
+                        open={
+                          showConfirm
+                        }
                       />
                     </button>
                   }
@@ -1409,13 +1801,16 @@ export default function RegisterPage() {
                 >
                   <div
                     onClick={() =>
-                      setAgreed(!agreed)
+                      setAgreed(
+                        !agreed
+                      )
                     }
                     className="mt-0.5 w-4 h-4 rounded flex-shrink-0 flex items-center justify-center transition-all duration-200"
                     style={{
-                      background: agreed
-                        ? "linear-gradient(135deg, #0066ff, #00c8ff)"
-                        : "rgba(255,255,255,0.04)",
+                      background:
+                        agreed
+                          ? "linear-gradient(135deg, #0066ff, #00c8ff)"
+                          : "rgba(255,255,255,0.04)",
 
                       border: `1px solid ${
                         agreed
@@ -1423,9 +1818,10 @@ export default function RegisterPage() {
                           : "rgba(100,150,255,0.25)"
                       }`,
 
-                      boxShadow: agreed
-                        ? "0 0 10px rgba(0,150,255,0.3)"
-                        : "none",
+                      boxShadow:
+                        agreed
+                          ? "0 0 10px rgba(0,150,255,0.3)"
+                          : "none",
                     }}
                   >
                     {agreed && (
@@ -1456,7 +1852,8 @@ export default function RegisterPage() {
                     <span
                       className="font-semibold"
                       style={{
-                        color: "#38bdf8",
+                        color:
+                          "#38bdf8",
                       }}
                     >
                       Terms of Service
@@ -1465,7 +1862,8 @@ export default function RegisterPage() {
                     <span
                       className="font-semibold"
                       style={{
-                        color: "#38bdf8",
+                        color:
+                          "#38bdf8",
                       }}
                     >
                       Privacy Policy
@@ -1477,10 +1875,14 @@ export default function RegisterPage() {
 
                 <button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={
+                    loading ||
+                    isLoading
+                  }
                   className="w-full relative overflow-hidden rounded-xl py-3.5 font-bold text-sm tracking-widest transition-all duration-300 group mt-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{
                     background:
+                      loading ||
                       isLoading
                         ? "rgba(0,100,200,0.5)"
                         : "linear-gradient(135deg, #0066ff 0%, #0099ff 50%, #00c8ff 100%)",
@@ -1490,7 +1892,8 @@ export default function RegisterPage() {
                     fontFamily:
                       "'Orbitron', 'Rajdhani', sans-serif",
 
-                    fontSize: "13px",
+                    fontSize:
+                      "13px",
 
                     letterSpacing:
                       "0.15em",
@@ -1500,7 +1903,10 @@ export default function RegisterPage() {
                   }}
                 >
                   <span className="relative flex items-center justify-center gap-3">
-                    CONTINUE
+                    {loading ||
+                    isLoading
+                      ? "CREATING ACCOUNT..."
+                      : "CONTINUE"}
 
                     <svg
                       className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1"
@@ -1563,7 +1969,8 @@ export default function RegisterPage() {
                     containerProps={{
                       style: {
                         width: "350px",
-                        display: "flex",
+                        display:
+                          "flex",
                         justifyContent:
                           "center",
                       },
@@ -1575,16 +1982,17 @@ export default function RegisterPage() {
           )}
 
           {/* ==================================================
-              STEP 2 — PHONE VERIFICATION
+              STEP 2 — EMAIL VERIFICATION
               ================================================== */}
 
           {step === 2 && (
-            <div
+            <form
+              onSubmit={
+                handleVerifyEmail
+              }
               className="space-y-5"
               style={fadeIn(0.35)}
             >
-              {/* Explanation */}
-
               <div
                 className="rounded-xl p-4"
                 style={{
@@ -1603,15 +2011,156 @@ export default function RegisterPage() {
                       "'Rajdhani', sans-serif",
                   }}
                 >
-                  We use your phone number
-                  to help secure your account
-                  and prevent fake
-                  registrations. Enter your
-                  Nigerian phone number below.
+                  We sent a 6-digit
+                  verification code to
+                  <br />
+
+                  <strong
+                    style={{
+                      color:
+                        "#38bdf8",
+                    }}
+                  >
+                    {form.email}
+                  </strong>
                 </p>
               </div>
 
-              {/* Phone */}
+              <div>
+                <label
+                  className="block text-xs mb-2 px-1"
+                  style={{
+                    color:
+                      "rgba(150,180,255,0.6)",
+                    fontFamily:
+                      "'Rajdhani', sans-serif",
+                  }}
+                >
+                  Enter 6-digit email
+                  verification code
+                </label>
+
+                <OTPInput
+                  value={
+                    emailOtp
+                  }
+                  onChange={
+                    setEmailOtp
+                  }
+                  disabled={
+                    loading ||
+                    isLoading
+                  }
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={
+                  loading ||
+                  isLoading ||
+                  emailOtp.length !== 6
+                }
+                className="w-full rounded-xl py-3.5 font-bold text-sm tracking-widest transition-all duration-300 cursor-pointer disabled:cursor-not-allowed"
+                style={{
+                  background:
+                    loading ||
+                    isLoading ||
+                    emailOtp.length !== 6
+                      ? "rgba(0,100,200,0.35)"
+                      : "linear-gradient(135deg, #0066ff 0%, #0099ff 50%, #00c8ff 100%)",
+
+                  color: "#fff",
+
+                  fontFamily:
+                    "'Orbitron', sans-serif",
+
+                  fontSize:
+                    "12px",
+                }}
+              >
+                {loading ||
+                isLoading
+                  ? "VERIFYING..."
+                  : "VERIFY EMAIL"}
+              </button>
+
+              <button
+                type="button"
+                onClick={
+                  handleResendEmailOTP
+                }
+                disabled={
+                  emailResendLoading ||
+                  loading
+                }
+                className="w-full text-xs font-semibold cursor-pointer disabled:opacity-50"
+                style={{
+                  color:
+                    "#38bdf8",
+                  fontFamily:
+                    "'Rajdhani', sans-serif",
+                }}
+              >
+                {emailResendLoading
+                  ? "Sending new code..."
+                  : "Didn't receive the code? Resend OTP"}
+              </button>
+
+              <button
+                type="button"
+                onClick={
+                  goBack
+                }
+                className="w-full text-xs cursor-pointer"
+                style={{
+                  color:
+                    "rgba(150,180,255,0.5)",
+                  fontFamily:
+                    "'Rajdhani', sans-serif",
+                }}
+              >
+                ← Back to account details
+              </button>
+            </form>
+          )}
+
+          {/* ==================================================
+              STEP 3 — PHONE NUMBER
+              ================================================== */}
+
+          {step === 3 && (
+            <div
+              className="space-y-5"
+              style={fadeIn(0.35)}
+            >
+              <div
+                className="rounded-xl p-4"
+                style={{
+                  background:
+                    "rgba(0,180,255,0.05)",
+                  border:
+                    "1px solid rgba(0,180,255,0.12)",
+                }}
+              >
+                <p
+                  className="text-sm leading-relaxed"
+                  style={{
+                    color:
+                      "rgba(180,210,255,0.7)",
+                    fontFamily:
+                      "'Rajdhani', sans-serif",
+                  }}
+                >
+                  Your email is verified.
+                  Now add your Nigerian
+                  phone number. We will
+                  send you a verification
+                  code to secure your
+                  account and prevent fake
+                  registrations.
+                </p>
+              </div>
 
               <InputField
                 id="phone"
@@ -1619,7 +2168,9 @@ export default function RegisterPage() {
                 placeholder="08012345678"
                 value={phone}
                 onChange={(e) =>
-                  setPhone(e.target.value)
+                  setPhone(
+                    e.target.value
+                  )
                 }
                 focusedField={
                   focusedField
@@ -1627,191 +2178,210 @@ export default function RegisterPage() {
                 setFocusedField={
                   setFocusedField
                 }
-                icon={ICONS.phone}
+                icon={
+                  ICONS.phone
+                }
                 autoComplete="tel"
               />
 
-              {/* Phone stage */}
-
-              {phoneStage === "phone" && (
-                <>
-                  <button
-                    type="button"
-                    onClick={
-                      handleCreateAccount
-                    }
-                    disabled={
-                      loading ||
-                      isLoading
-                    }
-                    className="w-full rounded-xl py-3.5 font-bold text-sm tracking-widest transition-all duration-300 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                    style={{
-                      background:
-                        loading ||
-                        isLoading
-                          ? "rgba(0,100,200,0.5)"
-                          : "linear-gradient(135deg, #0066ff 0%, #0099ff 50%, #00c8ff 100%)",
-
-                      color: "#fff",
-
-                      fontFamily:
-                        "'Orbitron', sans-serif",
-
-                      fontSize: "12px",
-
-                      boxShadow:
-                        "0 0 30px rgba(0,150,255,0.3)",
-                    }}
-                  >
-                    {loading ||
+              <button
+                type="button"
+                onClick={
+                  handleSendPhoneOTP
+                }
+                disabled={
+                  phoneSendLoading ||
+                  loading ||
+                  isLoading
+                }
+                className="w-full rounded-xl py-3.5 font-bold text-sm tracking-widest transition-all duration-300 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{
+                  background:
+                    phoneSendLoading ||
+                    loading ||
                     isLoading
-                      ? "CREATING ACCOUNT..."
-                      : "CREATE ACCOUNT & SEND CODE"}
-                  </button>
+                      ? "rgba(0,100,200,0.5)"
+                      : "linear-gradient(135deg, #0066ff 0%, #0099ff 50%, #00c8ff 100%)",
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStep(1);
-                    }}
-                    className="w-full text-xs cursor-pointer"
-                    style={{
-                      color:
-                        "rgba(150,180,255,0.5)",
-                      fontFamily:
-                        "'Rajdhani', sans-serif",
-                    }}
-                  >
-                    ← Back to account details
-                  </button>
-                </>
-              )}
+                  color: "#fff",
 
-              {/* OTP */}
+                  fontFamily:
+                    "'Orbitron', sans-serif",
 
-              {phoneStage === "otp" && (
-                <>
-                  <div>
-                    <label
-                      className="block text-xs mb-2 px-1"
-                      style={{
-                        color:
-                          "rgba(150,180,255,0.6)",
-                        fontFamily:
-                          "'Rajdhani', sans-serif",
-                      }}
-                    >
-                      Enter 6-digit verification
-                      code
-                    </label>
+                  fontSize:
+                    "12px",
 
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={6}
-                      autoComplete="one-time-code"
-                      placeholder="000000"
-                      value={otp}
-                      onChange={(e) =>
-                        setOtp(
-                          e.target.value.replace(
-                            /\D/g,
-                            ""
-                          )
-                        )
-                      }
-                      className="w-full rounded-xl py-4 px-4 text-center tracking-[0.5em] text-xl font-bold outline-none"
-                      style={{
-                        background:
-                          "rgba(255,255,255,0.04)",
-                        border:
-                          "1px solid rgba(0,180,255,0.25)",
-                        color: "#dbeafe",
-                        fontFamily:
-                          "'Orbitron', sans-serif",
-                      }}
-                    />
-                  </div>
+                  boxShadow:
+                    "0 0 30px rgba(0,150,255,0.3)",
+                }}
+              >
+                {phoneSendLoading ||
+                loading ||
+                isLoading
+                  ? "SENDING CODE..."
+                  : "SEND PHONE CODE"}
+              </button>
 
-                  <button
-                    type="button"
-                    onClick={
-                      handleVerifyPhone
-                    }
-                    disabled={
-                      loading ||
-                      otp.length !== 6
-                    }
-                    className="w-full rounded-xl py-3.5 font-bold text-sm tracking-widest transition-all duration-300 cursor-pointer disabled:cursor-not-allowed"
-                    style={{
-                      background:
-                        loading ||
-                        otp.length !== 6
-                          ? "rgba(0,100,200,0.35)"
-                          : "linear-gradient(135deg, #0066ff 0%, #0099ff 50%, #00c8ff 100%)",
-
-                      color: "#fff",
-
-                      fontFamily:
-                        "'Orbitron', sans-serif",
-
-                      fontSize: "12px",
-                    }}
-                  >
-                    {loading
-                      ? "VERIFYING..."
-                      : "VERIFY PHONE"}
-                  </button>
-
-                  {/* Resend */}
-
-                  <button
-                    type="button"
-                    onClick={
-                      handleResendOTP
-                    }
-                    disabled={
-                      resendLoading ||
-                      loading
-                    }
-                    className="w-full text-xs font-semibold cursor-pointer disabled:opacity-50"
-                    style={{
-                      color: "#38bdf8",
-                      fontFamily:
-                        "'Rajdhani', sans-serif",
-                    }}
-                  >
-                    {resendLoading
-                      ? "Sending new code..."
-                      : "Didn't receive the code? Resend OTP"}
-                  </button>
-
-                  {/* Change number */}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPhoneStage(
-                        "phone"
-                      );
-
-                      setOtp("");
-
-                      setOtpId("");
-                    }}
-                    className="w-full text-xs cursor-pointer"
-                    style={{
-                      color:
-                        "rgba(150,180,255,0.5)",
-                      fontFamily:
-                        "'Rajdhani', sans-serif",
-                    }}
-                  >
-                    ← Change phone number
-                  </button>
-                </>
-              )}
+              <button
+                type="button"
+                onClick={
+                  goBack
+                }
+                className="w-full text-xs cursor-pointer"
+                style={{
+                  color:
+                    "rgba(150,180,255,0.5)",
+                  fontFamily:
+                    "'Rajdhani', sans-serif",
+                }}
+              >
+                ← Back to email verification
+              </button>
             </div>
+          )}
+
+          {/* ==================================================
+              STEP 4 — PHONE OTP
+              ================================================== */}
+
+          {step === 4 && (
+            <form
+              onSubmit={
+                handleVerifyPhone
+              }
+              className="space-y-5"
+              style={fadeIn(0.35)}
+            >
+              <div
+                className="rounded-xl p-4"
+                style={{
+                  background:
+                    "rgba(0,180,255,0.05)",
+                  border:
+                    "1px solid rgba(0,180,255,0.12)",
+                }}
+              >
+                <p
+                  className="text-sm leading-relaxed"
+                  style={{
+                    color:
+                      "rgba(180,210,255,0.7)",
+                    fontFamily:
+                      "'Rajdhani', sans-serif",
+                  }}
+                >
+                  We sent a 6-digit
+                  verification code to
+                  <br />
+
+                  <strong
+                    style={{
+                      color:
+                        "#38bdf8",
+                    }}
+                  >
+                    {phone}
+                  </strong>
+                </p>
+              </div>
+
+              <div>
+                <label
+                  className="block text-xs mb-2 px-1"
+                  style={{
+                    color:
+                      "rgba(150,180,255,0.6)",
+                    fontFamily:
+                      "'Rajdhani', sans-serif",
+                  }}
+                >
+                  Enter 6-digit phone
+                  verification code
+                </label>
+
+                <OTPInput
+                  value={
+                    phoneOtp
+                  }
+                  onChange={
+                    setPhoneOtp
+                  }
+                  disabled={
+                    loading ||
+                    isLoading
+                  }
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={
+                  loading ||
+                  isLoading ||
+                  phoneOtp.length !== 6
+                }
+                className="w-full rounded-xl py-3.5 font-bold text-sm tracking-widest transition-all duration-300 cursor-pointer disabled:cursor-not-allowed"
+                style={{
+                  background:
+                    loading ||
+                    isLoading ||
+                    phoneOtp.length !== 6
+                      ? "rgba(0,100,200,0.35)"
+                      : "linear-gradient(135deg, #0066ff 0%, #0099ff 50%, #00c8ff 100%)",
+
+                  color: "#fff",
+
+                  fontFamily:
+                    "'Orbitron', sans-serif",
+
+                  fontSize:
+                    "12px",
+                }}
+              >
+                {loading ||
+                isLoading
+                  ? "VERIFYING..."
+                  : "VERIFY PHONE"}
+              </button>
+
+              <button
+                type="button"
+                onClick={
+                  handleResendPhoneOTP
+                }
+                disabled={
+                  phoneResendLoading ||
+                  loading
+                }
+                className="w-full text-xs font-semibold cursor-pointer disabled:opacity-50"
+                style={{
+                  color:
+                    "#38bdf8",
+                  fontFamily:
+                    "'Rajdhani', sans-serif",
+                }}
+              >
+                {phoneResendLoading
+                  ? "Sending new code..."
+                  : "Didn't receive the code? Resend OTP"}
+              </button>
+
+              <button
+                type="button"
+                onClick={
+                  goBack
+                }
+                className="w-full text-xs cursor-pointer"
+                style={{
+                  color:
+                    "rgba(150,180,255,0.5)",
+                  fontFamily:
+                    "'Rajdhani', sans-serif",
+                }}
+              >
+                ← Change phone number
+              </button>
+            </form>
           )}
 
           {/* Login */}
@@ -1821,6 +2391,7 @@ export default function RegisterPage() {
             style={{
               color:
                 "rgba(150,180,255,0.55)",
+
               fontFamily:
                 "'Rajdhani', sans-serif",
             }}
@@ -1835,8 +2406,10 @@ export default function RegisterPage() {
               className="font-bold transition-all duration-200 hover:brightness-125 cursor-pointer"
               style={{
                 color: "#38bdf8",
+
                 fontFamily:
                   "'Orbitron', sans-serif",
+
                 fontSize: "12px",
               }}
             >
