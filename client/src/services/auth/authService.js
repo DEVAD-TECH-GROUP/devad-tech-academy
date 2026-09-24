@@ -1,3 +1,5 @@
+// src/services/auth/authService.js
+
 import api from "../../api/Api";
 
 export const authService = {
@@ -36,8 +38,28 @@ export const authService = {
   // ============================================================
   // PHONE REGISTRATION VERIFICATION
   // ============================================================
-  // These routes are PUBLIC during registration.
-  // They use registrationToken instead of JWT.
+  //
+  // IMPORTANT:
+  // These three endpoints are PUBLIC.
+  //
+  // The user has verified their email but has NOT logged in yet.
+  // Therefore they use registrationToken instead of JWT.
+  //
+  // Flow:
+  //
+  // verifyEmail()
+  //      ↓
+  // registrationToken
+  //      ↓
+  // updateRegistrationPhone()
+  //      ↓
+  // sendPhoneOTP()
+  //      ↓
+  // verifyPhone()
+  //      ↓
+  // Login
+  //
+  // ============================================================
 
   updateRegistrationPhone: (
     registrationToken,
@@ -65,7 +87,7 @@ export const authService = {
     }),
 
   // ============================================================
-  // GOOGLE
+  // GOOGLE AUTHENTICATION
   // ============================================================
 
   googleLogin: (credential) =>
@@ -75,6 +97,10 @@ export const authService = {
 
   // ============================================================
   // AUTHENTICATED USER
+  // ============================================================
+  //
+  // These endpoints require JWT authentication.
+  //
   // ============================================================
 
   logout: () =>
@@ -86,7 +112,22 @@ export const authService = {
   getVerificationStatus: () =>
     api.get("/auth/verification-status"),
 
-  // This is a protected route after login.
+  // ============================================================
+  // UPDATE PHONE AFTER LOGIN
+  // ============================================================
+  //
+  // This is different from updateRegistrationPhone().
+  //
+  // updateRegistrationPhone()
+  //   → before login
+  //   → registrationToken
+  //
+  // updatePhone()
+  //   → after login
+  //   → JWT
+  //
+  // ============================================================
+
   updatePhone: (phone) =>
     api.put("/auth/phone", {
       phone,

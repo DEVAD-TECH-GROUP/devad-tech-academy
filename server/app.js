@@ -15,7 +15,7 @@ import googleAuthRoutes from "./routes/auth/googleAuthRoutes.js";
 import passwordRoutes from "./routes/auth/passwordRoutes.js";
 
 // Public routes
-import publicCourseRoutes from "./routes/public/courseRoute.js";;
+import publicCourseRoutes from "./routes/public/courseRoute.js";
 
 // Super Admin routes
 import dashboardRoutes from "./routes/superadmin/dashboardRoutes.js";
@@ -99,69 +99,77 @@ import studentSupportRoutes from "./routes/student/supportRoutes.js";
 import studentProfileRoutes from "./routes/student/profileRoutes.js";
 
 // ── Error handlers ────────────────────────────────────────
+
 import { errorHandler } from "./middlewares/error/errorHandler.js";
 import { notFound } from "./middlewares/error/notFound.js";
 
 // ── App setup ─────────────────────────────────────────────
+
 const app = express();
 
 // ── Reverse proxy configuration ───────────────────────────
-// Render sits behind a reverse proxy and forwards the original
-// client IP through X-Forwarded-For.
-//
-// Trust only the first proxy hop so express-rate-limit can
-// safely identify the real client IP.
+
 app.set("trust proxy", 1);
 
 // ── Security middlewares ──────────────────────────────────
+
 app.use(helmet());
 
+// ── General rate limiting ─────────────────────────────────
 
-// ── Rate limiting ─────────────────────────────────────────
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: {
     success: false,
     message: "Too many requests. Please try again later.",
   },
 });
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  message: {
-    success: false,
-    message: "Too many auth attempts. Please try again later.",
-  },
-});
-
 app.use("/api", limiter);
-app.use("/api/auth", authLimiter);
 
 // ── CORS ──────────────────────────────────────────────────
+
 app.use(
   cors({
     origin: env.CLIENT_URL,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+    ],
   })
 );
 
 // ── Body parsers ──────────────────────────────────────────
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+app.use(
+  express.json({
+    limit: "10mb",
+  })
+);
+
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "10mb",
+  })
+);
 
 app.use(cookieParser());
 app.use(compression());
 
 // ── Logger ────────────────────────────────────────────────
+
 if (env.NODE_ENV === "development") {
   app.use(morgan("dev"));
 }
 
 // ── Health check ──────────────────────────────────────────
+
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     success: true,
@@ -171,99 +179,425 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// ── Auth routes ───────────────────────────────────────────
+// ============================================================
+// AUTH ROUTES
+// ============================================================
+//
+// IMPORTANT:
+//
+// DO NOT put authenticate middleware here globally.
+//
+// authRoutes.js itself decides which routes are public and
+// which routes require JWT.
+//
+// ============================================================
+
 app.use("/api/auth", authRoutes);
+
 app.use("/api/auth", googleAuthRoutes);
+
 app.use("/api/auth", passwordRoutes);
 
-// Public routes
-app.use("/api/courses", publicCourseRoutes);
+// ── Public routes ─────────────────────────────────────────
 
-// ── Super Admin routes ────────────────────────────────────
-app.use("/api/superadmin/dashboard", dashboardRoutes);
-app.use("/api/superadmin/users", userRoutes);
-app.use("/api/superadmin/instructors", instructorRoutes);
-app.use("/api/superadmin/students", studentRoutes);
-app.use("/api/superadmin/courses", courseRoutes);
-app.use("/api/superadmin/categories", categoryRoutes);
-app.use("/api/superadmin/learning-paths", learningPathRoutes);
-app.use("/api/superadmin/live-classes", liveClassRoutes);
-app.use("/api/superadmin/assignments", assignmentRoutes);
-app.use("/api/superadmin/quizzes", quizRoutes);
-app.use("/api/superadmin/projects", projectRoutes);
-app.use("/api/superadmin/certificates", certificateRoutes);
-app.use("/api/superadmin/payments", paymentRoutes);
-app.use("/api/superadmin/refunds", refundRoutes);
-app.use("/api/superadmin/coupons", couponRoutes);
-app.use("/api/superadmin/payouts", payoutRoutes);
-app.use("/api/superadmin/financial", financialRoutes);
-app.use("/api/superadmin/analytics", analyticsRoutes);
-app.use("/api/superadmin/reports", reportRoutes);
-app.use("/api/superadmin/content", contentRoutes);
-app.use("/api/superadmin/communication", communicationRoutes);
-app.use("/api/superadmin/community", communityRoutes);
-app.use("/api/superadmin/reviews", reviewRoutes);
-app.use("/api/superadmin/support", supportRoutes);
-app.use("/api/superadmin/roles", roleRoutes);
-app.use("/api/superadmin/audit", auditRoutes);
-app.use("/api/superadmin/integrations", integrationRoutes);
-app.use("/api/superadmin/settings", settingRoutes);
-app.use("/api/superadmin/ai", aiRoutes);
-app.use("/api/superadmin/notifications", notificationRoutes);
+app.use(
+  "/api/courses",
+  publicCourseRoutes
+);
 
-// ── Instructor routes ─────────────────────────────────────
-app.use("/api/instructor/dashboard", instructorDashboardRoutes);
-app.use("/api/instructor/courses", instructorCourseRoutes);
-app.use("/api/instructor/modules", instructorModuleRoutes);
-app.use("/api/instructor/lessons", instructorLessonRoutes);
-app.use("/api/instructor/resources", instructorResourceRoutes);
-app.use("/api/instructor/students", instructorStudentRoutes);
-app.use("/api/instructor/assignments", instructorAssignmentRoutes);
-app.use("/api/instructor/quizzes", instructorQuizRoutes);
-app.use("/api/instructor/projects", instructorProjectRoutes);
-app.use("/api/instructor/live-classes", instructorLiveClassRoutes);
-app.use("/api/instructor/discussions", instructorDiscussionRoutes);
-app.use("/api/instructor/announcements", instructorAnnouncementRoutes);
-app.use("/api/instructor/certificates", instructorCertificateRoutes);
-app.use("/api/instructor/earnings", instructorEarningsRoutes);
-app.use("/api/instructor/analytics", instructorAnalyticsRoutes);
-app.use("/api/instructor/reviews", instructorReviewRoutes);
-app.use("/api/instructor/resource-library", instructorResourceLibraryRoutes);
-app.use("/api/instructor/ai", instructorAiRoutes);
-app.use("/api/instructor/referral", instructorReferralRoutes);
-app.use("/api/instructor/messages", instructorMessageRoutes);
-app.use("/api/instructor/notifications", instructorNotificationRoutes);
-app.use("/api/instructor/profile", instructorProfileRoutes);
+// ============================================================
+// SUPER ADMIN ROUTES
+// ============================================================
 
-// ── Student routes ────────────────────────────────────────
-app.use("/api/student/dashboard", studentDashboardRoutes);
-app.use("/api/student/courses", studentCourseRoutes);
-app.use("/api/student/lessons", studentLessonRoutes);
-app.use("/api/student/assignments", studentAssignmentRoutes);
-app.use("/api/student/quizzes", studentQuizRoutes);
-app.use("/api/student/projects", studentProjectRoutes);
-app.use("/api/student/live-classes", studentLiveClassRoutes);
-app.use("/api/student/progress", studentProgressRoutes);
-app.use("/api/student/certificates", studentCertificateRoutes);
-app.use("/api/student/achievements", studentAchievementRoutes);
-app.use("/api/student/discussions", studentDiscussionRoutes);
-app.use("/api/student/messages", studentMessageRoutes);
-app.use("/api/student/notifications", studentNotificationRoutes);
-app.use("/api/student/payments", studentPaymentRoutes);
-app.use("/api/student/referral", studentReferralRoutes);
-app.use("/api/student/reviews", studentReviewRoutes);
-app.use("/api/student/portfolio", studentPortfolioRoutes);
-app.use("/api/student/career", studentCareerRoutes);
-app.use("/api/student/calendar", studentCalendarRoutes);
-app.use("/api/student/community", studentCommunityRoutes);
-app.use("/api/student/search", studentSearchRoutes);
-app.use("/api/student/support", studentSupportRoutes);
-app.use("/api/student/profile", studentProfileRoutes);
+app.use(
+  "/api/superadmin/dashboard",
+  dashboardRoutes
+);
+
+app.use(
+  "/api/superadmin/users",
+  userRoutes
+);
+
+app.use(
+  "/api/superadmin/instructors",
+  instructorRoutes
+);
+
+app.use(
+  "/api/superadmin/students",
+  studentRoutes
+);
+
+app.use(
+  "/api/superadmin/courses",
+  courseRoutes
+);
+
+app.use(
+  "/api/superadmin/categories",
+  categoryRoutes
+);
+
+app.use(
+  "/api/superadmin/learning-paths",
+  learningPathRoutes
+);
+
+app.use(
+  "/api/superadmin/live-classes",
+  liveClassRoutes
+);
+
+app.use(
+  "/api/superadmin/assignments",
+  assignmentRoutes
+);
+
+app.use(
+  "/api/superadmin/quizzes",
+  quizRoutes
+);
+
+app.use(
+  "/api/superadmin/projects",
+  projectRoutes
+);
+
+app.use(
+  "/api/superadmin/certificates",
+  certificateRoutes
+);
+
+app.use(
+  "/api/superadmin/payments",
+  paymentRoutes
+);
+
+app.use(
+  "/api/superadmin/refunds",
+  refundRoutes
+);
+
+app.use(
+  "/api/superadmin/coupons",
+  couponRoutes
+);
+
+app.use(
+  "/api/superadmin/payouts",
+  payoutRoutes
+);
+
+app.use(
+  "/api/superadmin/financial",
+  financialRoutes
+);
+
+app.use(
+  "/api/superadmin/analytics",
+  analyticsRoutes
+);
+
+app.use(
+  "/api/superadmin/reports",
+  reportRoutes
+);
+
+app.use(
+  "/api/superadmin/content",
+  contentRoutes
+);
+
+app.use(
+  "/api/superadmin/communication",
+  communicationRoutes
+);
+
+app.use(
+  "/api/superadmin/community",
+  communityRoutes
+);
+
+app.use(
+  "/api/superadmin/reviews",
+  reviewRoutes
+);
+
+app.use(
+  "/api/superadmin/support",
+  supportRoutes
+);
+
+app.use(
+  "/api/superadmin/roles",
+  roleRoutes
+);
+
+app.use(
+  "/api/superadmin/audit",
+  auditRoutes
+);
+
+app.use(
+  "/api/superadmin/integrations",
+  integrationRoutes
+);
+
+app.use(
+  "/api/superadmin/settings",
+  settingRoutes
+);
+
+app.use(
+  "/api/superadmin/ai",
+  aiRoutes
+);
+
+app.use(
+  "/api/superadmin/notifications",
+  notificationRoutes
+);
+
+// ============================================================
+// INSTRUCTOR ROUTES
+// ============================================================
+
+app.use(
+  "/api/instructor/dashboard",
+  instructorDashboardRoutes
+);
+
+app.use(
+  "/api/instructor/courses",
+  instructorCourseRoutes
+);
+
+app.use(
+  "/api/instructor/modules",
+  instructorModuleRoutes
+);
+
+app.use(
+  "/api/instructor/lessons",
+  instructorLessonRoutes
+);
+
+app.use(
+  "/api/instructor/resources",
+  instructorResourceRoutes
+);
+
+app.use(
+  "/api/instructor/students",
+  instructorStudentRoutes
+);
+
+app.use(
+  "/api/instructor/assignments",
+  instructorAssignmentRoutes
+);
+
+app.use(
+  "/api/instructor/quizzes",
+  instructorQuizRoutes
+);
+
+app.use(
+  "/api/instructor/projects",
+  instructorProjectRoutes
+);
+
+app.use(
+  "/api/instructor/live-classes",
+  instructorLiveClassRoutes
+);
+
+app.use(
+  "/api/instructor/discussions",
+  instructorDiscussionRoutes
+);
+
+app.use(
+  "/api/instructor/announcements",
+  instructorAnnouncementRoutes
+);
+
+app.use(
+  "/api/instructor/certificates",
+  instructorCertificateRoutes
+);
+
+app.use(
+  "/api/instructor/earnings",
+  instructorEarningsRoutes
+);
+
+app.use(
+  "/api/instructor/analytics",
+  instructorAnalyticsRoutes
+);
+
+app.use(
+  "/api/instructor/reviews",
+  instructorReviewRoutes
+);
+
+app.use(
+  "/api/instructor/resource-library",
+  instructorResourceLibraryRoutes
+);
+
+app.use(
+  "/api/instructor/ai",
+  instructorAiRoutes
+);
+
+app.use(
+  "/api/instructor/referral",
+  instructorReferralRoutes
+);
+
+app.use(
+  "/api/instructor/messages",
+  instructorMessageRoutes
+);
+
+app.use(
+  "/api/instructor/notifications",
+  instructorNotificationRoutes
+);
+
+app.use(
+  "/api/instructor/profile",
+  instructorProfileRoutes
+);
+
+// ============================================================
+// STUDENT ROUTES
+// ============================================================
+
+app.use(
+  "/api/student/dashboard",
+  studentDashboardRoutes
+);
+
+app.use(
+  "/api/student/courses",
+  studentCourseRoutes
+);
+
+app.use(
+  "/api/student/lessons",
+  studentLessonRoutes
+);
+
+app.use(
+  "/api/student/assignments",
+  studentAssignmentRoutes
+);
+
+app.use(
+  "/api/student/quizzes",
+  studentQuizRoutes
+);
+
+app.use(
+  "/api/student/projects",
+  studentProjectRoutes
+);
+
+app.use(
+  "/api/student/live-classes",
+  studentLiveClassRoutes
+);
+
+app.use(
+  "/api/student/progress",
+  studentProgressRoutes
+);
+
+app.use(
+  "/api/student/certificates",
+  studentCertificateRoutes
+);
+
+app.use(
+  "/api/student/achievements",
+  studentAchievementRoutes
+);
+
+app.use(
+  "/api/student/discussions",
+  studentDiscussionRoutes
+);
+
+app.use(
+  "/api/student/messages",
+  studentMessageRoutes
+);
+
+app.use(
+  "/api/student/notifications",
+  studentNotificationRoutes
+);
+
+app.use(
+  "/api/student/payments",
+  studentPaymentRoutes
+);
+
+app.use(
+  "/api/student/referral",
+  studentReferralRoutes
+);
+
+app.use(
+  "/api/student/reviews",
+  studentReviewRoutes
+);
+
+app.use(
+  "/api/student/portfolio",
+  studentPortfolioRoutes
+);
+
+app.use(
+  "/api/student/career",
+  studentCareerRoutes
+);
+
+app.use(
+  "/api/student/calendar",
+  studentCalendarRoutes
+);
+
+app.use(
+  "/api/student/community",
+  studentCommunityRoutes
+);
+
+app.use(
+  "/api/student/search",
+  studentSearchRoutes
+);
+
+app.use(
+  "/api/student/support",
+  studentSupportRoutes
+);
+
+app.use(
+  "/api/student/profile",
+  studentProfileRoutes
+);
 
 // ── 404 handler ───────────────────────────────────────────
+
 app.use(notFound);
 
 // ── Global error handler ──────────────────────────────────
+
 app.use(errorHandler);
 
 export default app;
