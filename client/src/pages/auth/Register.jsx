@@ -5,6 +5,57 @@ import { GoogleLogin } from "@react-oauth/google";
 import useAuthStore from "../../store/authStore";
 
 /* ============================================================
+   DEBUG LOGGER
+   ============================================================ */
+
+const DEBUG_PREFIX = "[DEVAD REGISTER]";
+
+const log = (...args) => {
+  console.log(DEBUG_PREFIX, ...args);
+};
+
+const logInfo = (label, data = null) => {
+  if (data !== null) {
+    console.info(`${DEBUG_PREFIX} ${label}`, data);
+  } else {
+    console.info(`${DEBUG_PREFIX} ${label}`);
+  }
+};
+
+const logWarn = (label, data = null) => {
+  if (data !== null) {
+    console.warn(`${DEBUG_PREFIX} ${label}`, data);
+  } else {
+    console.warn(`${DEBUG_PREFIX} ${label}`);
+  }
+};
+
+const logError = (label, error = null) => {
+  if (error) {
+    console.error(`${DEBUG_PREFIX} ${label}`, error);
+  } else {
+    console.error(`${DEBUG_PREFIX} ${label}`);
+  }
+};
+
+/*
+ * IMPORTANT:
+ * Never log:
+ * - password
+ * - confirmPassword
+ * - OTP codes
+ * - registrationToken
+ * - Google credential/JWT
+ */
+const sanitizeError = (err) => ({
+  message: err?.message || null,
+  status: err?.response?.status || null,
+  responseMessage: err?.response?.data?.message || null,
+  responseData: err?.response?.data || null,
+  code: err?.code || null,
+});
+
+/* ============================================================
    PARTICLES
    ============================================================ */
 
@@ -12,72 +63,77 @@ function Particles() {
   const canvasRef = useRef(null);
 
   useEffect(() => {
+    log("Particles mounted.");
+
     const canvas = canvasRef.current;
 
-    if (!canvas) return;
+    if (!canvas) {
+      logWarn("Particles: canvas reference is missing.");
+      return;
+    }
 
     const ctx = canvas.getContext("2d");
 
-    if (!ctx) return;
+    if (!ctx) {
+      logWarn("Particles: unable to obtain 2D canvas context.");
+      return;
+    }
 
     let animId;
 
     const resize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
+
+      log("Particles canvas resized:", {
+        width: canvas.width,
+        height: canvas.height,
+      });
     };
 
     resize();
 
     window.addEventListener("resize", resize);
 
-    const particles = Array.from(
-      { length: 80 },
-      () => ({
-        x: Math.random() * window.innerWidth,
-        y: Math.random() * window.innerHeight,
-        r: Math.random() * 2 + 0.5,
-        dx: (Math.random() - 0.5) * 0.4,
-        dy: (Math.random() - 0.5) * 0.4,
-        alpha: Math.random() * 0.6 + 0.2,
-      })
-    );
+    const particles = Array.from({ length: 80 }, () => ({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      r: Math.random() * 2 + 0.5,
+      dx: (Math.random() - 0.5) * 0.4,
+      dy: (Math.random() - 0.5) * 0.4,
+      alpha: Math.random() * 0.6 + 0.2,
+    }));
+
+    log("Particles initialized:", {
+      count: particles.length,
+    });
 
     const draw = () => {
-      ctx.clearRect(
-        0,
-        0,
-        canvas.width,
-        canvas.height
-      );
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       particles.forEach((p, i) => {
-        particles
-          .slice(i + 1)
-          .forEach((p2) => {
-            const dist = Math.hypot(
-              p.x - p2.x,
-              p.y - p2.y
-            );
+        particles.slice(i + 1).forEach((p2) => {
+          const dist = Math.hypot(
+            p.x - p2.x,
+            p.y - p2.y
+          );
 
-            if (dist < 120) {
-              ctx.beginPath();
+          if (dist < 120) {
+            ctx.beginPath();
 
-              ctx.strokeStyle = `rgba(
-                0,
-                180,
-                255,
-                ${0.15 * (1 - dist / 120)}
-              )`;
+            ctx.strokeStyle = `rgba(
+              0,
+              180,
+              255,
+              ${0.15 * (1 - dist / 120)}
+            )`;
 
-              ctx.lineWidth = 0.5;
-
-              ctx.moveTo(p.x, p.y);
-              ctx.lineTo(p2.x, p2.y);
-
-              ctx.stroke();
-            }
-          });
+            ctx.lineWidth = 0.5;
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+          }
+        });
       });
 
       particles.forEach((p) => {
@@ -130,6 +186,8 @@ function Particles() {
         "resize",
         resize
       );
+
+      log("Particles unmounted.");
     };
   }, []);
 
@@ -235,8 +293,7 @@ function InputField({
               ? "rgba(0,180,255,0.5)"
               : "rgba(100,150,255,0.15)"
           }`,
-          transition:
-            "border-color 0.3s",
+          transition: "border-color 0.3s",
         }}
       >
         <div className="pl-4 pr-3 flex items-center">
@@ -250,8 +307,7 @@ function InputField({
                 focusedField === id
                   ? "#38bdf8"
                   : "rgba(150,180,255,0.5)",
-              transition:
-                "color 0.3s",
+              transition: "color 0.3s",
             }}
           >
             {icon}
@@ -264,19 +320,19 @@ function InputField({
           placeholder={placeholder}
           value={value}
           onChange={onChange}
-          onFocus={() =>
-            setFocusedField(id)
-          }
-          onBlur={() =>
-            setFocusedField(null)
-          }
+          onFocus={() => {
+            log(`Input focused: ${id}`);
+            setFocusedField(id);
+          }}
+          onBlur={() => {
+            log(`Input blurred: ${id}`);
+            setFocusedField(null);
+          }}
           autoComplete={autoComplete}
           className="flex-1 py-3.5 pr-4 bg-transparent outline-none text-sm"
           style={{
-            color:
-              "rgba(220,235,255,0.9)",
-            fontFamily:
-              "'Rajdhani', sans-serif",
+            color: "rgba(220,235,255,0.9)",
+            fontFamily: "'Rajdhani', sans-serif",
             fontSize: "14px",
             letterSpacing: "0.02em",
           }}
@@ -401,8 +457,9 @@ function StrengthBar({ password }) {
     },
   ];
 
-  const metCount =
-    criteria.filter((c) => c.met).length;
+  const metCount = criteria.filter(
+    (c) => c.met
+  ).length;
 
   const labels = [
     "Empty",
@@ -449,8 +506,7 @@ function StrengthBar({ password }) {
         <span
           className="text-xs font-semibold"
           style={{
-            color:
-              colors[strengthIndex],
+            color: colors[strengthIndex],
             fontFamily:
               "'Rajdhani', sans-serif",
           }}
@@ -506,11 +562,16 @@ function OTPInput({
       placeholder="000000"
       value={value}
       disabled={disabled}
-      onChange={(e) =>
-        onChange(
-          e.target.value.replace(/\D/g, "")
-        )
-      }
+      onChange={(e) => {
+        const cleanValue =
+          e.target.value.replace(/\D/g, "");
+
+        log("OTP input changed:", {
+          length: cleanValue.length,
+        });
+
+        onChange(cleanValue);
+      }}
       className="w-full rounded-xl py-4 px-4 text-center tracking-[0.5em] text-xl font-bold outline-none"
       style={{
         background:
@@ -566,18 +627,14 @@ export default function RegisterPage() {
      EMAIL OTP
      ========================================================== */
 
-  const [emailOtp, setEmailOtp] =
-    useState("");
+  const [emailOtp, setEmailOtp] = useState("");
 
   /* ==========================================================
      PHONE
      ========================================================== */
 
-  const [phone, setPhone] =
-    useState("");
-
-  const [phoneOtp, setPhoneOtp] =
-    useState("");
+  const [phone, setPhone] = useState("");
+  const [phoneOtp, setPhoneOtp] = useState("");
 
   /* ==========================================================
      REGISTRATION SESSION
@@ -637,24 +694,74 @@ export default function RegisterPage() {
      ========================================================== */
 
   useEffect(() => {
-    const timer = setTimeout(
-      () => setMounted(true),
-      100
-    );
+    log("RegisterPage mounted.");
 
-    return () =>
+    const timer = setTimeout(() => {
+      setMounted(true);
+      log("RegisterPage entrance animation completed.");
+    }, 100);
+
+    return () => {
       clearTimeout(timer);
+      log("RegisterPage unmounted.");
+    };
   }, []);
+
+  /* ==========================================================
+     STEP CHANGE LOGGER
+     ========================================================== */
+
+  useEffect(() => {
+    logInfo(`Registration step changed: STEP ${step}`);
+
+    const descriptions = {
+      1: "Create Account",
+      2: "Verify Your Email",
+      3: "Add Your Phone",
+      4: "Verify Your Phone",
+    };
+
+    log("Current step details:", {
+      step,
+      title: descriptions[step],
+    });
+  }, [step]);
+
+  /* ==========================================================
+     STORE LOADING LOGGER
+     ========================================================== */
+
+  useEffect(() => {
+    log("Auth store loading state changed:", isLoading);
+  }, [isLoading]);
 
   /* ==========================================================
      FORM SETTER
      ========================================================== */
 
   const set = (field) => (e) => {
+    const value = e.target.value;
+
     setForm((prev) => ({
       ...prev,
-      [field]: e.target.value,
+      [field]: value,
     }));
+
+    /*
+     * Don't log passwords or password confirmation.
+     */
+    if (
+      field !== "password" &&
+      field !== "confirmPassword"
+    ) {
+      log(`Form field changed: ${field}`, {
+        value,
+      });
+    } else {
+      log(`Form field changed: ${field}`, {
+        length: value.length,
+      });
+    }
   };
 
   /* ==========================================================
@@ -662,6 +769,8 @@ export default function RegisterPage() {
      ========================================================== */
 
   const validateStepOne = () => {
+    log("Starting Step 1 validation.");
+
     const {
       firstName,
       lastName,
@@ -670,6 +779,17 @@ export default function RegisterPage() {
       confirmPassword,
     } = form;
 
+    log("Step 1 form presence check:", {
+      hasFirstName: Boolean(firstName.trim()),
+      hasLastName: Boolean(lastName.trim()),
+      hasEmail: Boolean(email.trim()),
+      hasPassword: Boolean(password),
+      hasConfirmPassword: Boolean(
+        confirmPassword
+      ),
+      agreed,
+    });
+
     if (
       !firstName.trim() ||
       !lastName.trim() ||
@@ -677,6 +797,10 @@ export default function RegisterPage() {
       !password ||
       !confirmPassword
     ) {
+      logWarn(
+        "Step 1 validation failed: required field missing."
+      );
+
       toast.error(
         "Please complete all required fields."
       );
@@ -684,11 +808,24 @@ export default function RegisterPage() {
       return false;
     }
 
+    const normalizedEmail =
+      email.trim().toLowerCase();
+
+    /*
+     * Correct email regex.
+     */
     if (
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-        email.trim()
+        normalizedEmail
       )
     ) {
+      logWarn(
+        "Step 1 validation failed: invalid email format.",
+        {
+          email: normalizedEmail,
+        }
+      );
+
       toast.error(
         "Please enter a valid email address."
       );
@@ -697,6 +834,13 @@ export default function RegisterPage() {
     }
 
     if (password.length < 6) {
+      logWarn(
+        "Step 1 validation failed: password too short.",
+        {
+          length: password.length,
+        }
+      );
+
       toast.error(
         "Password must be at least 6 characters."
       );
@@ -705,6 +849,10 @@ export default function RegisterPage() {
     }
 
     if (!/[A-Z]/.test(password)) {
+      logWarn(
+        "Step 1 validation failed: missing uppercase letter."
+      );
+
       toast.error(
         "Password must contain at least one uppercase letter."
       );
@@ -713,6 +861,10 @@ export default function RegisterPage() {
     }
 
     if (!/[a-z]/.test(password)) {
+      logWarn(
+        "Step 1 validation failed: missing lowercase letter."
+      );
+
       toast.error(
         "Password must contain at least one lowercase letter."
       );
@@ -721,6 +873,10 @@ export default function RegisterPage() {
     }
 
     if (!/[0-9]/.test(password)) {
+      logWarn(
+        "Step 1 validation failed: missing number."
+      );
+
       toast.error(
         "Password must contain at least one number."
       );
@@ -729,6 +885,10 @@ export default function RegisterPage() {
     }
 
     if (!/[^A-Za-z0-9]/.test(password)) {
+      logWarn(
+        "Step 1 validation failed: missing special character."
+      );
+
       toast.error(
         "Password must contain at least one special symbol."
       );
@@ -739,6 +899,10 @@ export default function RegisterPage() {
     if (
       password !== confirmPassword
     ) {
+      logWarn(
+        "Step 1 validation failed: passwords do not match."
+      );
+
       toast.error(
         "Passwords do not match."
       );
@@ -747,12 +911,20 @@ export default function RegisterPage() {
     }
 
     if (!agreed) {
+      logWarn(
+        "Step 1 validation failed: terms not accepted."
+      );
+
       toast.error(
         "Please agree to the Terms of Service and Privacy Policy."
       );
 
       return false;
     }
+
+    logInfo(
+      "Step 1 validation successful."
+    );
 
     return true;
   };
@@ -766,14 +938,21 @@ export default function RegisterPage() {
   ) => {
     e.preventDefault();
 
+    log("================================================");
+    log("CREATE ACCOUNT BUTTON SUBMITTED");
+    log("================================================");
+
     if (!validateStepOne()) {
+      logWarn(
+        "Create account stopped because validation failed."
+      );
       return;
     }
 
     try {
       setLoading(true);
 
-      const response = await register({
+      const payload = {
         firstName:
           form.firstName.trim(),
 
@@ -787,25 +966,70 @@ export default function RegisterPage() {
 
         password:
           form.password,
-      });
+      };
+
+      /*
+       * SECURITY:
+       * Do NOT console.log payload because it contains password.
+       */
+      logInfo(
+        "Calling authStore.register()...",
+        {
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          email: payload.email,
+          hasPassword: Boolean(
+            payload.password
+          ),
+          passwordLength:
+            payload.password.length,
+        }
+      );
+
+      const response =
+        await register(payload);
+
+      logInfo(
+        "authStore.register() returned.",
+        {
+          responseExists:
+            Boolean(response),
+          responseType:
+            typeof response,
+        }
+      );
+
+      log("Register response:", response);
 
       const data =
         response?.data ||
         response ||
         {};
 
+      log("Register response data:", data);
+
       const returnedEmail =
         data?.registration?.email ||
         data?.email ||
-        form.email
-          .trim()
-          .toLowerCase();
+        payload.email;
+
+      log("Resolved registration email:", {
+        returnedEmail,
+      });
 
       if (!returnedEmail) {
+        logError(
+          "Registration response did not contain an email address."
+        );
+
         throw new Error(
           "Registration response did not contain an email address."
         );
       }
+
+      logInfo(
+        "Registration API flow completed successfully."
+      );
 
       toast.success(
         "Account created. Check your email for the verification code."
@@ -817,10 +1041,14 @@ export default function RegisterPage() {
         top: 0,
         behavior: "smooth",
       });
+
+      log(
+        "Moved registration flow to STEP 2."
+      );
     } catch (err) {
-      console.error(
-        "Registration failed:",
-        err
+      logError(
+        "Registration failed.",
+        sanitizeError(err)
       );
 
       toast.error(
@@ -830,6 +1058,10 @@ export default function RegisterPage() {
       );
     } finally {
       setLoading(false);
+
+      log(
+        "Create account loading state reset."
+      );
     }
   };
 
@@ -842,10 +1074,25 @@ export default function RegisterPage() {
   ) => {
     e.preventDefault();
 
+    log("================================================");
+    log("EMAIL VERIFICATION SUBMITTED");
+    log("================================================");
+
     const code =
       emailOtp.trim();
 
+    /*
+     * Never log actual OTP.
+     */
+    log("Email OTP received:", {
+      length: code.length,
+    });
+
     if (!/^\d{6}$/.test(code)) {
+      logWarn(
+        "Email verification failed local validation."
+      );
+
       toast.error(
         "Please enter the 6-digit email verification code."
       );
@@ -861,29 +1108,79 @@ export default function RegisterPage() {
           .trim()
           .toLowerCase();
 
+      logInfo(
+        "Calling authStore.verifyEmail()...",
+        {
+          email,
+          otpLength: code.length,
+        }
+      );
+
       const response =
         await verifyEmail(
           email,
           code
         );
 
+      logInfo(
+        "authStore.verifyEmail() returned."
+      );
+
+      log("Email verification response:", response);
+
       const data =
         response?.data ||
         response ||
         {};
 
+      log(
+        "Email verification response data:",
+        {
+          keys: Object.keys(data || {}),
+          hasRegistrationToken:
+            Boolean(
+              data?.registrationToken ||
+                data?.registration
+                  ?.registrationToken
+            ),
+          registration: data?.registration
+            ? {
+                keys: Object.keys(
+                  data.registration
+                ),
+              }
+            : null,
+        }
+      );
+
       const token =
         data?.registrationToken ||
-        data?.registration?.registrationToken ||
+        data?.registration
+          ?.registrationToken ||
         "";
 
+      /*
+       * Do not log token.
+       */
       if (!token) {
+        logError(
+          "Email verified but no registrationToken was returned."
+        );
+
         throw new Error(
           "Email verified, but the registration verification session was not returned."
         );
       }
 
       setRegistrationToken(token);
+
+      logInfo(
+        "Registration verification session stored successfully.",
+        {
+          tokenReceived: true,
+          tokenLength: token.length,
+        }
+      );
 
       toast.success(
         "Email verified successfully!"
@@ -895,10 +1192,14 @@ export default function RegisterPage() {
         top: 0,
         behavior: "smooth",
       });
+
+      log(
+        "Moved registration flow to STEP 3."
+      );
     } catch (err) {
-      console.error(
-        "Email verification failed:",
-        err
+      logError(
+        "Email verification failed.",
+        sanitizeError(err)
       );
 
       toast.error(
@@ -908,6 +1209,10 @@ export default function RegisterPage() {
       );
     } finally {
       setLoading(false);
+
+      log(
+        "Email verification loading state reset."
+      );
     }
   };
 
@@ -917,7 +1222,20 @@ export default function RegisterPage() {
 
   const handleResendEmailOTP =
     async () => {
-      if (!form.email.trim()) {
+      log("================================================");
+      log("RESEND EMAIL OTP REQUESTED");
+      log("================================================");
+
+      const email =
+        form.email
+          .trim()
+          .toLowerCase();
+
+      if (!email) {
+        logWarn(
+          "Cannot resend email OTP: email is missing."
+        );
+
         toast.error(
           "Your email address is missing."
         );
@@ -928,10 +1246,29 @@ export default function RegisterPage() {
       try {
         setEmailResendLoading(true);
 
-        await resendVerification(
-          form.email
-            .trim()
-            .toLowerCase()
+        logInfo(
+          "Calling authStore.resendVerification()...",
+          {
+            email,
+          }
+        );
+
+        const response =
+          await resendVerification(
+            email
+          );
+
+        logInfo(
+          "authStore.resendVerification() returned.",
+          {
+            responseExists:
+              Boolean(response),
+          }
+        );
+
+        log(
+          "Resend email response:",
+          response
         );
 
         setEmailOtp("");
@@ -939,10 +1276,14 @@ export default function RegisterPage() {
         toast.success(
           "A new email verification code has been sent."
         );
+
+        logInfo(
+          "Email OTP resend completed successfully."
+        );
       } catch (err) {
-        console.error(
-          "Resend email OTP failed:",
-          err
+        logError(
+          "Resend email OTP failed.",
+          sanitizeError(err)
         );
 
         toast.error(
@@ -952,6 +1293,10 @@ export default function RegisterPage() {
         );
       } finally {
         setEmailResendLoading(false);
+
+        log(
+          "Email resend loading state reset."
+        );
       }
     };
 
@@ -960,10 +1305,16 @@ export default function RegisterPage() {
      ========================================================== */
 
   const validatePhone = () => {
+    log("Starting phone validation.");
+
     const cleanPhone =
       phone.trim();
 
     if (!cleanPhone) {
+      logWarn(
+        "Phone validation failed: phone is empty."
+      );
+
       toast.error(
         "Please enter your phone number."
       );
@@ -977,16 +1328,31 @@ export default function RegisterPage() {
         ""
       );
 
+    log("Phone validation data:", {
+      originalLength:
+        cleanPhone.length,
+      digitLength:
+        digits.length,
+    });
+
     if (
       digits.length < 10 ||
       digits.length > 15
     ) {
+      logWarn(
+        "Phone validation failed: invalid digit length."
+      );
+
       toast.error(
         "Please enter a valid phone number."
       );
 
       return false;
     }
+
+    logInfo(
+      "Phone validation successful."
+    );
 
     return true;
   };
@@ -997,11 +1363,23 @@ export default function RegisterPage() {
 
   const handleSendPhoneOTP =
     async () => {
+      log("================================================");
+      log("SEND PHONE OTP REQUESTED");
+      log("================================================");
+
       if (!validatePhone()) {
+        logWarn(
+          "Send phone OTP stopped because phone validation failed."
+        );
+
         return;
       }
 
       if (!registrationToken) {
+        logError(
+          "Send phone OTP stopped: registration token is missing."
+        );
+
         toast.error(
           "Your registration session has expired. Please restart registration."
         );
@@ -1017,29 +1395,79 @@ export default function RegisterPage() {
         const cleanPhone =
           phone.trim();
 
-        /*
-         * First attach the phone number
-         * to the registration session.
-         */
-
-        await updateRegistrationPhone(
-          registrationToken,
-          cleanPhone
+        logInfo(
+          "Registration session exists.",
+          {
+            tokenPresent: true,
+            tokenLength:
+              registrationToken.length,
+          }
         );
 
-        /*
-         * Then request the Robase OTP.
-         */
+        logInfo(
+          "Updating registration phone..."
+        );
+
+        const phoneUpdateResponse =
+          await updateRegistrationPhone(
+            registrationToken,
+            cleanPhone
+          );
+
+        log(
+          "updateRegistrationPhone() response:",
+          phoneUpdateResponse
+        );
+
+        logInfo(
+          "Phone number attached to registration session."
+        );
+
+        logInfo(
+          "Calling authStore.sendPhoneOTP()..."
+        );
 
         const response =
           await sendPhoneOTP(
             registrationToken
           );
 
+        logInfo(
+          "authStore.sendPhoneOTP() returned."
+        );
+
+        log(
+          "Phone OTP response:",
+          response
+        );
+
         const data =
           response?.data ||
           response ||
           {};
+
+        log(
+          "Phone OTP response data:",
+          {
+            keys: Object.keys(
+              data || {}
+            ),
+            phoneVerification:
+              data?.phoneVerification
+                ? {
+                    keys: Object.keys(
+                      data.phoneVerification
+                    ),
+                  }
+                : null,
+            hasOtpId: Boolean(
+              data?.phoneVerification
+                ?.otpId ||
+                data?.otpId ||
+                data?.phoneOtpId
+            ),
+          }
+        );
 
         const returnedOtpId =
           data?.phoneVerification
@@ -1049,13 +1477,30 @@ export default function RegisterPage() {
           "";
 
         if (!returnedOtpId) {
+          logError(
+            "Phone OTP request succeeded but no OTP ID was returned."
+          );
+
           throw new Error(
             "Phone verification session was not returned."
           );
         }
 
+        /*
+         * OTP ID itself is generally less sensitive than the OTP,
+         * but we only log its presence/length.
+         */
         setPhoneOtpId(
           returnedOtpId
+        );
+
+        logInfo(
+          "Phone OTP session stored.",
+          {
+            otpIdPresent: true,
+            otpIdLength:
+              returnedOtpId.length,
+          }
         );
 
         setPhoneOtp("");
@@ -1070,10 +1515,14 @@ export default function RegisterPage() {
           top: 0,
           behavior: "smooth",
         });
+
+        log(
+          "Moved registration flow to STEP 4."
+        );
       } catch (err) {
-        console.error(
-          "Phone OTP failed:",
-          err
+        logError(
+          "Phone OTP request failed.",
+          sanitizeError(err)
         );
 
         toast.error(
@@ -1083,6 +1532,10 @@ export default function RegisterPage() {
         );
       } finally {
         setPhoneSendLoading(false);
+
+        log(
+          "Phone send loading state reset."
+        );
       }
     };
 
@@ -1094,10 +1547,25 @@ export default function RegisterPage() {
     async (e) => {
       e.preventDefault();
 
+      log("================================================");
+      log("PHONE VERIFICATION SUBMITTED");
+      log("================================================");
+
       const code =
         phoneOtp.trim();
 
+      /*
+       * Never log actual OTP.
+       */
+      log("Phone OTP received:", {
+        length: code.length,
+      });
+
       if (!/^\d{6}$/.test(code)) {
+        logWarn(
+          "Phone verification failed local validation."
+        );
+
         toast.error(
           "Please enter the 6-digit phone verification code."
         );
@@ -1106,6 +1574,10 @@ export default function RegisterPage() {
       }
 
       if (!registrationToken) {
+        logError(
+          "Phone verification failed: registration token missing."
+        );
+
         toast.error(
           "Your registration session has expired."
         );
@@ -1116,6 +1588,10 @@ export default function RegisterPage() {
       }
 
       if (!phoneOtpId) {
+        logError(
+          "Phone verification failed: phone OTP ID missing."
+        );
+
         toast.error(
           "Phone verification session is missing. Please request a new code."
         );
@@ -1126,37 +1602,76 @@ export default function RegisterPage() {
       try {
         setLoading(true);
 
-        await verifyPhone(
-          registrationToken,
-          phoneOtpId,
-          code
+        logInfo(
+          "Calling authStore.verifyPhone()...",
+          {
+            tokenPresent:
+              Boolean(registrationToken),
+            tokenLength:
+              registrationToken.length,
+            otpIdPresent:
+              Boolean(phoneOtpId),
+            otpIdLength:
+              phoneOtpId.length,
+            otpLength:
+              code.length,
+          }
+        );
+
+        const response =
+          await verifyPhone(
+            registrationToken,
+            phoneOtpId,
+            code
+          );
+
+        logInfo(
+          "authStore.verifyPhone() returned successfully."
+        );
+
+        log(
+          "Phone verification response:",
+          response
         );
 
         toast.success(
           "Registration completed successfully!"
         );
 
-        /*
-         * Give the success toast a moment
-         * before moving to login.
-         */
+        logInfo(
+          "REGISTRATION COMPLETED SUCCESSFULLY."
+        );
+
+        logInfo(
+          "Scheduling navigation to login in 1 second..."
+        );
 
         setTimeout(() => {
+          const email =
+            form.email
+              .trim()
+              .toLowerCase();
+
+          logInfo(
+            "Navigating to /login...",
+            {
+              registered: true,
+              email,
+            }
+          );
+
           navigate("/login", {
             replace: true,
             state: {
               registered: true,
-              email:
-                form.email
-                  .trim()
-                  .toLowerCase(),
+              email,
             },
           });
         }, 1000);
       } catch (err) {
-        console.error(
-          "Phone verification failed:",
-          err
+        logError(
+          "Phone verification failed.",
+          sanitizeError(err)
         );
 
         toast.error(
@@ -1166,6 +1681,10 @@ export default function RegisterPage() {
         );
       } finally {
         setLoading(false);
+
+        log(
+          "Phone verification loading state reset."
+        );
       }
     };
 
@@ -1175,7 +1694,15 @@ export default function RegisterPage() {
 
   const handleResendPhoneOTP =
     async () => {
+      log("================================================");
+      log("RESEND PHONE OTP REQUESTED");
+      log("================================================");
+
       if (!registrationToken) {
+        logError(
+          "Cannot resend phone OTP: registration token missing."
+        );
+
         toast.error(
           "Your registration session has expired."
         );
@@ -1186,10 +1713,28 @@ export default function RegisterPage() {
       try {
         setPhoneResendLoading(true);
 
+        logInfo(
+          "Calling authStore.sendPhoneOTP() for resend...",
+          {
+            tokenPresent: true,
+            tokenLength:
+              registrationToken.length,
+          }
+        );
+
         const response =
           await sendPhoneOTP(
             registrationToken
           );
+
+        logInfo(
+          "Resend phone OTP API returned."
+        );
+
+        log(
+          "Resend phone OTP response:",
+          response
+        );
 
         const data =
           response?.data ||
@@ -1203,9 +1748,31 @@ export default function RegisterPage() {
           data?.phoneOtpId ||
           "";
 
+        log(
+          "Resend phone OTP parsed data:",
+          {
+            hasOtpId:
+              Boolean(newOtpId),
+            responseKeys:
+              Object.keys(data || {}),
+          }
+        );
+
         if (newOtpId) {
           setPhoneOtpId(
             newOtpId
+          );
+
+          logInfo(
+            "New phone OTP ID stored.",
+            {
+              otpIdLength:
+                newOtpId.length,
+            }
+          );
+        } else {
+          logWarn(
+            "Resend phone OTP response did not return a new OTP ID."
           );
         }
 
@@ -1214,10 +1781,14 @@ export default function RegisterPage() {
         toast.success(
           "A new phone verification code has been sent."
         );
+
+        logInfo(
+          "Phone OTP resend completed."
+        );
       } catch (err) {
-        console.error(
-          "Resend phone OTP failed:",
-          err
+        logError(
+          "Resend phone OTP failed.",
+          sanitizeError(err)
         );
 
         toast.error(
@@ -1227,6 +1798,10 @@ export default function RegisterPage() {
         );
       } finally {
         setPhoneResendLoading(false);
+
+        log(
+          "Phone resend loading state reset."
+        );
       }
     };
 
@@ -1238,11 +1813,33 @@ export default function RegisterPage() {
     async (
       credentialResponse
     ) => {
+      log("================================================");
+      log("GOOGLE AUTH SUCCESS CALLBACK");
+      log("================================================");
+
       try {
         const googleToken =
           credentialResponse?.credential;
 
+        log(
+          "Google credential received:",
+          {
+            exists:
+              Boolean(googleToken),
+            length:
+              googleToken?.length || 0,
+          }
+        );
+
+        /*
+         * NEVER log the actual Google token.
+         */
+
         if (!googleToken) {
+          logError(
+            "Google credential was missing."
+          );
+
           toast.error(
             "Google authentication token was not received."
           );
@@ -1250,10 +1847,23 @@ export default function RegisterPage() {
           return;
         }
 
+        logInfo(
+          "Calling authStore.googleLogin()..."
+        );
+
         const response =
           await googleLogin(
             googleToken
           );
+
+        logInfo(
+          "authStore.googleLogin() returned."
+        );
+
+        log(
+          "Google login response:",
+          response
+        );
 
         const user =
           response?.user ||
@@ -1261,17 +1871,45 @@ export default function RegisterPage() {
           response?.data ||
           null;
 
+        log(
+          "Google authentication resolved user:",
+          user
+            ? {
+                id:
+                  user._id ||
+                  user.id ||
+                  null,
+                email:
+                  user.email ||
+                  null,
+                role:
+                  user.role ||
+                  null,
+                isPhoneVerified:
+                  user.isPhoneVerified,
+              }
+            : null
+        );
+
         /*
-         * Google authentication may succeed
-         * before phone verification.
+         * Google authentication may succeed before
+         * phone verification.
          */
 
         if (
           user &&
           !user.isPhoneVerified
         ) {
+          logWarn(
+            "Google authentication succeeded but phone verification is still required."
+          );
+
           toast.success(
             "Google account authenticated. Phone verification is required."
+          );
+
+          logInfo(
+            "Navigating to /verify-phone."
           );
 
           navigate(
@@ -1290,10 +1928,18 @@ export default function RegisterPage() {
           "Welcome to Devad Tech Academy!"
         );
 
+        logInfo(
+          "Google authentication completed. Determining dashboard..."
+        );
+
         if (
           user?.role ===
           "super_admin"
         ) {
+          logInfo(
+            "Google user role: super_admin. Navigating to admin dashboard."
+          );
+
           navigate(
             "/admin/dashboard"
           );
@@ -1301,18 +1947,26 @@ export default function RegisterPage() {
           user?.role ===
           "instructor"
         ) {
+          logInfo(
+            "Google user role: instructor. Navigating to instructor dashboard."
+          );
+
           navigate(
             "/instructor/dashboard"
           );
         } else {
+          logInfo(
+            "Google user role: student/default. Navigating to student dashboard."
+          );
+
           navigate(
             "/student/dashboard"
           );
         }
       } catch (err) {
-        console.error(
-          "Google authentication failed:",
-          err
+        logError(
+          "Google authentication failed.",
+          sanitizeError(err)
         );
 
         toast.error(
@@ -1323,8 +1977,16 @@ export default function RegisterPage() {
       }
     };
 
+  /* ==========================================================
+     GOOGLE AUTH ERROR
+     ========================================================== */
+
   const handleGoogleError =
     () => {
+      logError(
+        "Google authentication failed at GoogleLogin component level."
+      );
+
       toast.error(
         "Google authentication could not be completed."
       );
@@ -1335,24 +1997,81 @@ export default function RegisterPage() {
      ========================================================== */
 
   const goBack = () => {
+    log(
+      "Back navigation requested.",
+      {
+        currentStep: step,
+      }
+    );
+
     if (step === 2) {
+      log(
+        "STEP 2 → STEP 1: clearing email OTP."
+      );
+
       setEmailOtp("");
       setStep(1);
+
       return;
     }
 
     if (step === 3) {
+      log(
+        "STEP 3 → STEP 2: clearing phone."
+      );
+
       setPhone("");
       setStep(2);
+
       return;
     }
 
     if (step === 4) {
+      log(
+        "STEP 4 → STEP 3: clearing phone OTP and OTP ID."
+      );
+
       setPhoneOtp("");
       setPhoneOtpId("");
       setStep(3);
+
+      return;
     }
+
+    logWarn(
+      "Back navigation called on STEP 1."
+    );
   };
+
+  /* ==========================================================
+     TERMS TOGGLE
+     ========================================================== */
+
+  const handleTermsToggle = () => {
+    setAgreed((prev) => {
+      const next = !prev;
+
+      log(
+        "Terms agreement changed:",
+        next
+      );
+
+      return next;
+    });
+  };
+
+  /* ==========================================================
+     LOGIN NAVIGATION
+     ========================================================== */
+
+  const handleLoginNavigation =
+    () => {
+      log(
+        "Login navigation requested from registration page."
+      );
+
+      navigate("/login");
+    };
 
   /* ==========================================================
      STYLES
@@ -1520,8 +2239,7 @@ export default function RegisterPage() {
                       {index < 3 && (
                         <div
                           className={`w-6 sm:w-8 h-px ${
-                            step >
-                            item
+                            step > item
                               ? "bg-cyan-400"
                               : "bg-slate-700"
                           }`}
@@ -1687,11 +2405,19 @@ export default function RegisterPage() {
                     rightSlot={
                       <button
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
+                          const next =
+                            !showPass;
+
+                          log(
+                            "Password visibility toggled:",
+                            next
+                          );
+
                           setShowPass(
-                            !showPass
-                          )
-                        }
+                            next
+                          );
+                        }}
                         className="px-4 flex items-center transition-colors duration-200"
                         style={{
                           color:
@@ -1745,11 +2471,19 @@ export default function RegisterPage() {
                   rightSlot={
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
+                        const next =
+                          !showConfirm;
+
+                        log(
+                          "Confirm password visibility toggled:",
+                          next
+                        );
+
                         setShowConfirm(
-                          !showConfirm
-                        )
-                      }
+                          next
+                        );
+                      }}
                       className="px-4 flex items-center transition-colors duration-200"
                       style={{
                         color:
@@ -1800,10 +2534,8 @@ export default function RegisterPage() {
                   }}
                 >
                   <div
-                    onClick={() =>
-                      setAgreed(
-                        !agreed
-                      )
+                    onClick={
+                      handleTermsToggle
                     }
                     className="mt-0.5 w-4 h-4 rounded flex-shrink-0 flex items-center justify-center transition-all duration-200"
                     style={{
@@ -1892,8 +2624,7 @@ export default function RegisterPage() {
                     fontFamily:
                       "'Orbitron', 'Rajdhani', sans-serif",
 
-                    fontSize:
-                      "13px",
+                    fontSize: "13px",
 
                     letterSpacing:
                       "0.15em",
@@ -1968,7 +2699,8 @@ export default function RegisterPage() {
                     width="350px"
                     containerProps={{
                       style: {
-                        width: "350px",
+                        width:
+                          "350px",
                         display:
                           "flex",
                         justifyContent:
@@ -2167,11 +2899,20 @@ export default function RegisterPage() {
                 type="tel"
                 placeholder="08012345678"
                 value={phone}
-                onChange={(e) =>
-                  setPhone(
-                    e.target.value
-                  )
-                }
+                onChange={(e) => {
+                  const value =
+                    e.target.value;
+
+                  log(
+                    "Phone input changed:",
+                    {
+                      length:
+                        value.length,
+                    }
+                  );
+
+                  setPhone(value);
+                }}
                 focusedField={
                   focusedField
                 }
@@ -2391,7 +3132,6 @@ export default function RegisterPage() {
             style={{
               color:
                 "rgba(150,180,255,0.55)",
-
               fontFamily:
                 "'Rajdhani', sans-serif",
             }}
@@ -2400,16 +3140,14 @@ export default function RegisterPage() {
 
             <button
               type="button"
-              onClick={() =>
-                navigate("/login")
+              onClick={
+                handleLoginNavigation
               }
               className="font-bold transition-all duration-200 hover:brightness-125 cursor-pointer"
               style={{
                 color: "#38bdf8",
-
                 fontFamily:
                   "'Orbitron', sans-serif",
-
                 fontSize: "12px",
               }}
             >

@@ -229,16 +229,18 @@ export const register = asyncHandler(async (req, res) => {
   // Generate unique referral code
   // ----------------------------------------------------------
 
-  let newReferralCode =
-    generateReferralCode();
+  let newReferralCode = generateReferralCode(
+  `${firstName} ${lastName}`
+);
 
   let referralExists = await User.findOne({
     referralCode: newReferralCode,
   });
 
   while (referralExists) {
-    newReferralCode =
-      generateReferralCode();
+    newReferralCode = generateReferralCode(
+  `${firstName} ${lastName}`
+);
 
     referralExists = await User.findOne({
       referralCode: newReferralCode,
