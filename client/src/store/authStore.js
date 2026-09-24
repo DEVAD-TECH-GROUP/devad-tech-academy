@@ -231,44 +231,43 @@ const useAuthStore = create(
       //
       // ============================================================
 
-      updateRegistrationPhone: async (
+updateRegistrationPhone: async (
+  registrationToken,
+  phone
+) => {
+  set({
+    isLoading: true,
+    error: null,
+  });
+
+  try {
+    const { data } = await api.post(
+      "/auth/registration-phone",
+      {
         registrationToken,
-        phone
-      ) => {
-        set({
-          isLoading: true,
-          error: null,
-        });
+        phone,
+      }
+    );
 
-        try {
-          const { data } =
-            await api.post(
-              "/auth/update-registration-phone",
-              {
-                registrationToken,
-                phone,
-              }
-            );
+    set({
+      isLoading: false,
+      error: null,
+    });
 
-          set({
-            isLoading: false,
-            error: null,
-          });
+    return data;
+  } catch (err) {
+    const message =
+      err.response?.data?.message ||
+      "Unable to save phone number";
 
-          return data;
-        } catch (err) {
-          const message =
-            err.response?.data?.message ||
-            "Unable to save phone number";
+    set({
+      isLoading: false,
+      error: message,
+    });
 
-          set({
-            isLoading: false,
-            error: message,
-          });
-
-          throw err;
-        }
-      },
+    throw err;
+  }
+},
 
       // ============================================================
       // SEND PHONE OTP
