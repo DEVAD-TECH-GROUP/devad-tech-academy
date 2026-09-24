@@ -13,14 +13,20 @@ import {
 } from "../../utils/generateToken.js";
 
 import { generateReferralCode } from "../../utils/generateCode.js";
+
 import env from "../../config/env.js";
 import { ROLES } from "../../utils/constants.js";
 
 // ============================================================
-// GOOGLE REGISTRATION SESSION
+// CONSTANTS
 // ============================================================
 
 const GOOGLE_REGISTRATION_MINUTES = 15;
+const REFRESH_TOKEN_DAYS = 30;
+
+// ============================================================
+// HELPERS
+// ============================================================
 
 const generateGoogleRegistrationToken = () => {
   return crypto.randomBytes(32).toString("hex");
@@ -31,27 +37,37 @@ const getExpirationDate = (minutes) => {
 };
 
 // ============================================================
-// COOKIE OPTIONS
+// REFRESH TOKEN COOKIE
 // ============================================================
 
 const getRefreshCookieOptions = () => ({
-  expires: new Date(
-    Date.now() + 30 * 24 * 60 * 60 * 1000
-  ),
   httpOnly: true,
   secure: env.NODE_ENV === "production",
-  sameSite: "strict",
+
+  // IMPORTANT:
+  // "strict" can interfere with some OAuth redirect flows.
+  sameSite: "lax",
+
+  expires: new Date(
+    Date.now() +
+      REFRESH_TOKEN_DAYS *
+        24 *
+        60 *
+        60 *
+        1000
+  ),
+
+  path: "/",
 });
 
 // ============================================================
-// REDIRECT HELPER
+// FRONTEND REDIRECT
 // ============================================================
 
 const redirectToFrontend = (res, params = {}) => {
-  const baseUrl = String(env.CLIENT_URL || "").replace(
-    /\/+$/,
-    ""
-  );
+  const baseUrl = String(
+    env.CLIENT_URL || "http://localhost:5173"
+  ).replace(/\/+$/, "");
 
   const searchParams = new URLSearchParams();
 
@@ -71,10 +87,10 @@ const redirectToFrontend = (res, params = {}) => {
     ? `${baseUrl}/auth/google/callback?${query}`
     : `${baseUrl}/auth/google/callback`;
 
-  console.log("────────────────────────────────────────");
+  console.log("================================================");
   console.log("🔀 [GOOGLE] Redirecting to frontend");
   console.log("🔀 [GOOGLE] URL:", redirectUrl);
-  console.log("────────────────────────────────────────");
+  console.log("================================================");
 
   return res.redirect(redirectUrl);
 };
@@ -87,19 +103,26 @@ console.log("================================================");
 console.log("🔐 [GOOGLE] Initializing Google OAuth strategy");
 console.log("================================================");
 
-console.log("🔐 [GOOGLE] Client ID present:", Boolean(env.GOOGLE_CLIENT_ID));
+console.log(
+  "🔐 [GOOGLE] Client ID present:",
+  Boolean(env.GOOGLE_CLIENT_ID)
+);
+
 console.log(
   "🔐 [GOOGLE] Client Secret present:",
   Boolean(env.GOOGLE_CLIENT_SECRET)
 );
+
 console.log(
   "🔐 [GOOGLE] Callback URL:",
   env.GOOGLE_CALLBACK_URL || "NOT SET"
 );
+
 console.log(
   "🔐 [GOOGLE] Frontend URL:",
   env.CLIENT_URL || "NOT SET"
 );
+
 console.log("================================================");
 
 // ============================================================
@@ -115,14 +138,17 @@ passport.use(
     },
 
     async (
-      accessToken,
-      refreshToken,
+      googleAccessToken,
+      googleRefreshToken,
       profile,
       done
     ) => {
       console.log("================================================");
       console.log("🔵 [GOOGLE STRATEGY] Callback reached");
-      console.log("🔵 [GOOGLE STRATEGY] Profile ID:", profile?.id);
+      console.log(
+        "🔵 [GOOGLE STRATEGY] Profile ID:",
+        profile?.id
+      );
       console.log(
         "🔵 [GOOGLE STRATEGY] Display name:",
         profile?.displayName
@@ -134,9 +160,9 @@ passport.use(
       console.log("================================================");
 
       try {
-        // ------------------------------------------------------
-        // Extract Google information
-        // ------------------------------------------------------
+        // ======================================================
+        // GOOGLE DATA
+        // ======================================================
 
         const googleId = profile?.id;
 
@@ -145,10 +171,6 @@ passport.use(
           .trim();
 
         if (!googleId) {
-          console.error(
-            "❌ [GOOGLE STRATEGY] Google profile has no ID."
-          );
-
           return done(
             new Error(
               "Google account did not provide a valid account ID."
@@ -158,10 +180,6 @@ passport.use(
         }
 
         if (!googleEmail) {
-          console.error(
-            "❌ [GOOGLE STRATEGY] Google profile has no email."
-          );
-
           return done(
             new Error(
               "Google account did not provide an email address."
@@ -170,66 +188,31 @@ passport.use(
           );
         }
 
-        console.log(
-          "✅ [GOOGLE STRATEGY] Google account:",
-          googleEmail
-        );
-
-        // ------------------------------------------------------
-        // Find user by Google ID
-        // ------------------------------------------------------
-
-        console.log(
-          "🔎 [GOOGLE STRATEGY] Searching user by googleId..."
-        );
+        // ======================================================
+        // FIND USER BY GOOGLE ID
+        // ======================================================
 
         let user = await User.findOne({
           googleId,
         });
 
-        if (user) {
-          console.log(
-            "✅ [GOOGLE STRATEGY] User found by googleId:",
-            user._id.toString()
-          );
-        } else {
-          console.log(
-            "ℹ️ [GOOGLE STRATEGY] No user found by googleId."
-          );
-        }
-
-        // ------------------------------------------------------
-        // Find user by email
-        // ------------------------------------------------------
+        // ======================================================
+        // FIND USER BY EMAIL
+        // ======================================================
 
         if (!user) {
-          console.log(
-            "🔎 [GOOGLE STRATEGY] Searching user by email..."
-          );
-
           user = await User.findOne({
             email: googleEmail,
           });
-
-          if (user) {
-            console.log(
-              "✅ [GOOGLE STRATEGY] Existing user found by email:",
-              user._id.toString()
-            );
-          } else {
-            console.log(
-              "ℹ️ [GOOGLE STRATEGY] No existing user found."
-            );
-          }
         }
 
         // ======================================================
-        // CREATE NEW GOOGLE ACCOUNT
+        // CREATE NEW GOOGLE USER
         // ======================================================
 
         if (!user) {
           console.log(
-            "🆕 [GOOGLE STRATEGY] Creating new Google account..."
+            "🆕 [GOOGLE] Creating new Google account..."
           );
 
           const registrationToken =
@@ -255,6 +238,7 @@ passport.use(
           user = await User.create({
             firstName,
             lastName,
+
             email: googleEmail,
 
             googleId,
@@ -262,6 +246,8 @@ passport.use(
             isGoogleAuth: true,
 
             isEmailVerified: true,
+
+            isPhoneVerified: false,
 
             role: ROLES.STUDENT,
 
@@ -278,10 +264,6 @@ passport.use(
               google: true,
             },
 
-            // Google verified email,
-            // but phone still needs verification.
-            isPhoneVerified: false,
-
             registrationVerificationToken:
               registrationToken,
 
@@ -292,38 +274,25 @@ passport.use(
           });
 
           console.log(
-            "✅ [GOOGLE STRATEGY] Google user created:",
+            "✅ [GOOGLE] User created:",
             user._id.toString()
           );
 
-          console.log(
-            "📱 [GOOGLE STRATEGY] Phone verification required."
-          );
-
-          // ----------------------------------------------------
-          // Create student profile
-          // ----------------------------------------------------
+          // ====================================================
+          // CREATE STUDENT PROFILE
+          // ====================================================
 
           await Student.create({
             user: user._id,
           });
 
           console.log(
-            "✅ [GOOGLE STRATEGY] Student profile created."
+            "✅ [GOOGLE] Student profile created."
           );
 
-          // ----------------------------------------------------
-          // Important:
-          // Return token on the user object because the field
-          // may be select:false in the User model.
-          // ----------------------------------------------------
-
+          // select:false protection
           user.registrationVerificationToken =
             registrationToken;
-
-          console.log(
-            "✅ [GOOGLE STRATEGY] Registration token prepared."
-          );
 
           return done(null, user);
         }
@@ -333,79 +302,57 @@ passport.use(
         // ======================================================
 
         console.log(
-          "👤 [GOOGLE STRATEGY] Processing existing user:",
+          "👤 [GOOGLE] Existing user:",
           user._id.toString()
         );
 
         let changed = false;
 
-        // ------------------------------------------------------
-        // Link Google account
-        // ------------------------------------------------------
+        // ======================================================
+        // LINK GOOGLE ID
+        // ======================================================
 
         if (!user.googleId) {
-          console.log(
-            "🔗 [GOOGLE STRATEGY] Linking Google ID..."
-          );
-
           user.googleId = googleId;
           changed = true;
         }
 
-        // ------------------------------------------------------
-        // Mark Google authentication
-        // ------------------------------------------------------
+        // ======================================================
+        // GOOGLE AUTH FLAG
+        // ======================================================
 
         if (!user.isGoogleAuth) {
-          console.log(
-            "🔗 [GOOGLE STRATEGY] Marking isGoogleAuth=true..."
-          );
-
           user.isGoogleAuth = true;
           changed = true;
         }
 
-        // ------------------------------------------------------
-        // Connected accounts
-        // ------------------------------------------------------
+        // ======================================================
+        // CONNECTED ACCOUNTS
+        // ======================================================
 
         if (!user.connectedAccounts?.google) {
-          console.log(
-            "🔗 [GOOGLE STRATEGY] Updating connectedAccounts..."
-          );
-
           user.connectedAccounts = {
-            ...user.connectedAccounts,
+            ...(user.connectedAccounts || {}),
             google: true,
           };
 
           changed = true;
         }
 
-        // ------------------------------------------------------
-        // Google verified email
-        // ------------------------------------------------------
+        // ======================================================
+        // GOOGLE EMAIL IS VERIFIED
+        // ======================================================
 
         if (!user.isEmailVerified) {
-          console.log(
-            "✉️ [GOOGLE STRATEGY] Marking email as verified..."
-          );
-
           user.isEmailVerified = true;
           changed = true;
         }
 
-        // ------------------------------------------------------
-        // Existing user without phone
-        // ------------------------------------------------------
+        // ======================================================
+        // PHONE NOT VERIFIED
+        // ======================================================
 
         if (!user.isPhoneVerified) {
-          console.log(
-            "📱 [GOOGLE STRATEGY] Existing user requires phone verification."
-          );
-
-          // The fields are select:false in User model,
-          // so generate a fresh temporary registration token.
           const registrationToken =
             generateGoogleRegistrationToken();
 
@@ -420,47 +367,47 @@ passport.use(
           changed = true;
         }
 
-        // ------------------------------------------------------
-        // Save changes
-        // ------------------------------------------------------
+        // ======================================================
+        // SAVE
+        // ======================================================
 
         if (changed) {
           await user.save({
             validateBeforeSave: false,
           });
+        }
 
-          console.log(
-            "✅ [GOOGLE STRATEGY] Existing user updated."
-          );
+        // ======================================================
+        // MAKE SURE TOKEN IS AVAILABLE TO CALLBACK
+        // ======================================================
+
+        if (!user.isPhoneVerified) {
+          const token =
+            user.registrationVerificationToken;
+
+          if (token) {
+            user.registrationVerificationToken =
+              token;
+          }
         }
 
         console.log(
-          "✅ [GOOGLE STRATEGY] Authentication user ready."
+          "✅ [GOOGLE] Existing user ready."
         );
 
         return done(null, user);
       } catch (error) {
-        console.error(
-          "================================================"
-        );
-
-        console.error(
-          "❌ [GOOGLE STRATEGY] ERROR"
-        );
-
+        console.error("================================================");
+        console.error("❌ [GOOGLE STRATEGY] ERROR");
         console.error(
           "❌ Message:",
           error?.message
         );
-
         console.error(
           "❌ Stack:",
           error?.stack
         );
-
-        console.error(
-          "================================================"
-        );
+        console.error("================================================");
 
         return done(error, null);
       }
@@ -473,85 +420,44 @@ passport.use(
 // ============================================================
 
 passport.serializeUser((user, done) => {
-  console.log(
-    "🔐 [GOOGLE PASSPORT] serializeUser:",
-    user?._id?.toString()
-  );
-
   done(null, user._id);
 });
 
 passport.deserializeUser(async (id, done) => {
-  console.log(
-    "🔐 [GOOGLE PASSPORT] deserializeUser:",
-    id
-  );
-
   try {
     const user = await User.findById(id);
 
     if (!user) {
-      console.error(
-        "❌ [GOOGLE PASSPORT] User not found during deserialize."
-      );
-
       return done(
         new Error("User not found."),
         null
       );
     }
 
-    done(null, user);
+    return done(null, user);
   } catch (error) {
-    console.error(
-      "❌ [GOOGLE PASSPORT] Deserialize error:",
-      error?.message
-    );
-
-    done(error, null);
+    return done(error, null);
   }
 });
 
 // ============================================================
-// GOOGLE AUTH INITIATE
+// START GOOGLE LOGIN
 // ============================================================
 
 export const googleAuth = (req, res, next) => {
   console.log("================================================");
-  console.log("🚀 [GOOGLE AUTH] Google login route reached");
-  console.log("🚀 [GOOGLE AUTH] Method:", req.method);
-  console.log("🚀 [GOOGLE AUTH] URL:", req.originalUrl);
-  console.log(
-    "🚀 [GOOGLE AUTH] IP:",
-    req.ip
-  );
-  console.log(
-    "🚀 [GOOGLE AUTH] Authorization header:",
-    req.headers.authorization
-      ? "PRESENT"
-      : "NOT PRESENT"
-  );
-  console.log(
-    "🚀 [GOOGLE AUTH] Google Client ID:",
-    env.GOOGLE_CLIENT_ID
-      ? "PRESENT"
-      : "MISSING"
-  );
-  console.log(
-    "🚀 [GOOGLE AUTH] Google Client Secret:",
-    env.GOOGLE_CLIENT_SECRET
-      ? "PRESENT"
-      : "MISSING"
-  );
-  console.log(
-    "🚀 [GOOGLE AUTH] Callback URL:",
-    env.GOOGLE_CALLBACK_URL ||
-      "MISSING"
-  );
+  console.log("🚀 [GOOGLE AUTH] ROUTE REACHED");
+  console.log("🚀 Method:", req.method);
+  console.log("🚀 URL:", req.originalUrl);
+  console.log("🚀 IP:", req.ip);
   console.log("================================================");
 
   return passport.authenticate("google", {
-    scope: ["profile", "email"],
+    scope: [
+      "profile",
+      "email",
+    ],
+
     session: false,
   })(req, res, next);
 };
@@ -562,14 +468,11 @@ export const googleAuth = (req, res, next) => {
 
 export const googleCallback = async (req, res) => {
   console.log("================================================");
-  console.log("🔄 [GOOGLE CALLBACK] Callback route reached");
+  console.log("🔄 [GOOGLE CALLBACK] ROUTE REACHED");
+  console.log("🔄 URL:", req.originalUrl);
   console.log(
-    "🔄 [GOOGLE CALLBACK] URL:",
-    req.originalUrl
-  );
-  console.log(
-    "🔄 [GOOGLE CALLBACK] User exists:",
-    Boolean(req.user)
+    "🔄 User:",
+    req.user?._id?.toString() || "NONE"
   );
   console.log("================================================");
 
@@ -577,34 +480,19 @@ export const googleCallback = async (req, res) => {
     const user = req.user;
 
     if (!user) {
-      console.error(
-        "❌ [GOOGLE CALLBACK] No user found on request."
-      );
-
       return redirectToFrontend(res, {
         error: "Google authentication failed.",
       });
     }
 
-    console.log(
-      "✅ [GOOGLE CALLBACK] User:",
-      user._id.toString()
-    );
-
-    console.log(
-      "📧 [GOOGLE CALLBACK] Email:",
-      user.email
-    );
-
-    console.log(
-      "📱 [GOOGLE CALLBACK] Phone verified:",
-      Boolean(user.isPhoneVerified)
-    );
+    // ========================================================
+    // UPDATE LAST LOGIN
+    // ========================================================
 
     await user.updateLastLogin();
 
     // ========================================================
-    // PHONE NOT VERIFIED
+    // PHONE VERIFICATION REQUIRED
     // ========================================================
 
     if (!user.isPhoneVerified) {
@@ -612,17 +500,14 @@ export const googleCallback = async (req, res) => {
         "📱 [GOOGLE CALLBACK] Phone verification required."
       );
 
-      // The token is select:false on the schema, but our
-      // strategy explicitly placed it on the object.
       let registrationToken =
         user.registrationVerificationToken;
 
-      // Safety fallback in case the token isn't available.
-      if (!registrationToken) {
-        console.log(
-          "⚠️ [GOOGLE CALLBACK] Registration token missing."
-        );
+      // ------------------------------------------------------
+      // Generate token if unavailable
+      // ------------------------------------------------------
 
+      if (!registrationToken) {
         registrationToken =
           generateGoogleRegistrationToken();
 
@@ -637,11 +522,11 @@ export const googleCallback = async (req, res) => {
         await user.save({
           validateBeforeSave: false,
         });
-
-        console.log(
-          "✅ [GOOGLE CALLBACK] New registration token generated."
-        );
       }
+
+      console.log(
+        "📱 [GOOGLE CALLBACK] Redirecting to phone verification."
+      );
 
       return redirectToFrontend(res, {
         status: "phone-required",
@@ -651,25 +536,25 @@ export const googleCallback = async (req, res) => {
     }
 
     // ========================================================
-    // PHONE VERIFIED → NORMAL LOGIN
+    // PHONE VERIFIED → COMPLETE LOGIN
     // ========================================================
 
     console.log(
       "✅ [GOOGLE CALLBACK] Phone already verified."
     );
 
-    console.log(
-      "🔐 [GOOGLE CALLBACK] Generating access token..."
-    );
+    // ========================================================
+    // GENERATE DEVAD ACCESS TOKEN
+    // ========================================================
 
     const accessToken = generateAccessToken(
       user._id,
       user.role
     );
 
-    console.log(
-      "🔐 [GOOGLE CALLBACK] Generating refresh token..."
-    );
+    // ========================================================
+    // GENERATE DEVAD REFRESH TOKEN
+    // ========================================================
 
     const refreshToken = generateRefreshToken(
       user._id,
@@ -677,7 +562,7 @@ export const googleCallback = async (req, res) => {
     );
 
     // ========================================================
-    // REFRESH TOKEN COOKIE
+    // STORE REFRESH TOKEN IN HTTP-ONLY COOKIE
     // ========================================================
 
     res.cookie(
@@ -694,36 +579,22 @@ export const googleCallback = async (req, res) => {
     // REDIRECT TO FRONTEND
     // ========================================================
 
-    console.log(
-      "🎉 [GOOGLE CALLBACK] Google login successful."
-    );
-
     return redirectToFrontend(res, {
       status: "success",
       accessToken,
     });
   } catch (error) {
-    console.error(
-      "================================================"
-    );
-
-    console.error(
-      "❌ [GOOGLE CALLBACK] ERROR"
-    );
-
+    console.error("================================================");
+    console.error("❌ [GOOGLE CALLBACK] ERROR");
     console.error(
       "❌ Message:",
       error?.message
     );
-
     console.error(
       "❌ Stack:",
       error?.stack
     );
-
-    console.error(
-      "================================================"
-    );
+    console.error("================================================");
 
     return redirectToFrontend(res, {
       error:
@@ -733,17 +604,12 @@ export const googleCallback = async (req, res) => {
 };
 
 // ============================================================
-// GOOGLE AUTH ERROR HANDLER
+// GOOGLE AUTH FAILURE
 // ============================================================
 
 export const googleAuthFailure = (req, res) => {
   console.error(
-    "❌ [GOOGLE AUTH FAILURE] Google authentication failed."
-  );
-
-  console.error(
-    "❌ [GOOGLE AUTH FAILURE] URL:",
-    req.originalUrl
+    "❌ [GOOGLE AUTH FAILURE]"
   );
 
   return redirectToFrontend(res, {
