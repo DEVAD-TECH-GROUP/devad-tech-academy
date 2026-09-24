@@ -36,12 +36,14 @@ export const authService = {
   // ============================================================
   // PHONE REGISTRATION VERIFICATION
   // ============================================================
+  // These routes are PUBLIC during registration.
+  // They use registrationToken instead of JWT.
 
   updateRegistrationPhone: (
     registrationToken,
     phone
   ) =>
-    api.post("/auth/update-registration-phone", {
+    api.post("/auth/registration-phone", {
       registrationToken,
       phone,
     }),
@@ -84,8 +86,9 @@ export const authService = {
   getVerificationStatus: () =>
     api.get("/auth/verification-status"),
 
+  // This is a protected route after login.
   updatePhone: (phone) =>
-    api.post("/auth/update-phone", {
+    api.put("/auth/phone", {
       phone,
     }),
 
