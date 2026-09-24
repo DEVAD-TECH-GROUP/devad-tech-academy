@@ -9,10 +9,11 @@ import {
   verifyEmail,
   resendVerification,
 
+  updateRegistrationPhone,
   sendPhoneOTP,
   verifyPhone,
-  updatePhone,
 
+  updatePhone,
   getVerificationStatus,
 } from "../../controllers/auth/authController.js";
 
@@ -23,6 +24,7 @@ import {
 } from "../../middlewares/security/rateLimiter.js";
 
 const router = express.Router();
+
 
 /* ============================================================
    PUBLIC AUTH ROUTES
@@ -39,6 +41,7 @@ router.post(
   register
 );
 
+
 /**
  * @route   POST /api/auth/login
  * @desc    Login user
@@ -50,9 +53,14 @@ router.post(
   login
 );
 
+
+/* ============================================================
+   PUBLIC EMAIL VERIFICATION
+   ============================================================ */
+
 /**
  * @route   POST /api/auth/verify-email
- * @desc    Verify user's email address
+ * @desc    Verify user's email using 6-digit OTP
  * @access  Public
  */
 router.post(
@@ -61,14 +69,11 @@ router.post(
   verifyEmail
 );
 
+
 /**
  * @route   POST /api/auth/resend-verification
- * @desc    Resend email verification code
+ * @desc    Resend email verification OTP
  * @access  Public
- *
- * NOTE:
- * This must remain public because a newly registered user
- * has not logged in yet.
  */
 router.post(
   "/resend-verification",
@@ -78,11 +83,63 @@ router.post(
 
 
 /* ============================================================
+   PUBLIC REGISTRATION PHONE VERIFICATION
+   ============================================================ */
+
+/**
+ * These routes happen BEFORE login.
+ *
+ * They use registrationToken instead of JWT.
+ */
+
+
+/**
+ * @route   POST /api/auth/registration-phone
+ * @desc    Add phone number during registration
+ * @access  Public
+ */
+router.post(
+  "/registration-phone",
+  authLimiter,
+  updateRegistrationPhone
+);
+
+
+/**
+ * @route   POST /api/auth/send-phone-otp
+ * @desc    Send phone verification OTP through Robase
+ * @access  Public
+ */
+router.post(
+  "/send-phone-otp",
+  authLimiter,
+  sendPhoneOTP
+);
+
+
+/**
+ * @route   POST /api/auth/verify-phone
+ * @desc    Verify phone using Robase OTP
+ * @access  Public
+ */
+router.post(
+  "/verify-phone",
+  authLimiter,
+  verifyPhone
+);
+
+
+/* ============================================================
    PROTECTED AUTH ROUTES
    ============================================================ */
 
 /**
- * All routes below this point require authentication.
+ * IMPORTANT:
+ *
+ * Authentication starts HERE.
+ *
+ * Everything below this middleware requires
+ * a valid JWT/access token.
  */
 router.use(authenticate);
 
@@ -101,6 +158,7 @@ router.post(
   logout
 );
 
+
 /**
  * @route   GET /api/auth/me
  * @desc    Get current authenticated user
@@ -113,39 +171,12 @@ router.get(
 
 
 /* ============================================================
-   PHONE VERIFICATION — ROBASE OTP
-   ============================================================ */
-
-/**
- * @route   POST /api/auth/send-phone-otp
- * @desc    Send phone verification OTP through Robase
- * @access  Private
- */
-router.post(
-  "/send-phone-otp",
-  authLimiter,
-  sendPhoneOTP
-);
-
-/**
- * @route   POST /api/auth/verify-phone
- * @desc    Verify phone using Robase OTP
- * @access  Private
- */
-router.post(
-  "/verify-phone",
-  authLimiter,
-  verifyPhone
-);
-
-
-/* ============================================================
    PHONE NUMBER MANAGEMENT
    ============================================================ */
 
 /**
  * @route   PUT /api/auth/phone
- * @desc    Change/update phone number and send new OTP
+ * @desc    Change authenticated user's phone number
  * @access  Private
  */
 router.put(
@@ -161,7 +192,7 @@ router.put(
 
 /**
  * @route   GET /api/auth/verification-status
- * @desc    Get current user's email/phone verification status
+ * @desc    Get current user's verification status
  * @access  Private
  */
 router.get(
