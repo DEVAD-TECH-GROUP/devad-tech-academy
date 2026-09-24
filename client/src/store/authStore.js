@@ -124,7 +124,7 @@ const useAuthStore = create(
           return data;
         } catch (err) {
           const message =
-            err.response?.data?.message ||
+            err.response?.data ||
             "Registration failed";
 
           set({
