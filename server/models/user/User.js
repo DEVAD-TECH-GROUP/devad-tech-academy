@@ -3,7 +3,10 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
-import { ROLES, USER_STATUS } from "../../utils/constants.js";
+import {
+  ROLES,
+  USER_STATUS,
+} from "../../utils/constants.js";
 
 const userSchema = new mongoose.Schema(
   {
@@ -15,14 +18,20 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, "First name is required"],
       trim: true,
-      maxlength: [50, "First name cannot exceed 50 characters"],
+      maxlength: [
+        50,
+        "First name cannot exceed 50 characters",
+      ],
     },
 
     lastName: {
       type: String,
       required: [true, "Last name is required"],
       trim: true,
-      maxlength: [50, "Last name cannot exceed 50 characters"],
+      maxlength: [
+        50,
+        "Last name cannot exceed 50 characters",
+      ],
     },
 
     email: {
@@ -32,14 +41,17 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
       match: [
-        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
         "Please enter a valid email",
       ],
     },
 
     password: {
       type: String,
-      minlength: [8, "Password must be at least 8 characters"],
+      minlength: [
+        8,
+        "Password must be at least 8 characters",
+      ],
       select: false,
     },
 
@@ -51,55 +63,50 @@ const userSchema = new mongoose.Schema(
      * Phone is intentionally NOT required here.
      *
      * Why?
-     * Google OAuth does not reliably provide the user's phone number.
      *
-     * Therefore:
+     * Google OAuth does not reliably provide the user's
+     * phone number.
      *
-     * Normal registration:
-     *   Account → Email verification → Phone verification
+     * Manual registration:
+     *
+     *   Account
+     *      ↓
+     *   Email verification
+     *      ↓
+     *   Phone verification
      *
      * Google registration:
-     *   Google → Phone verification
      *
-     * The phone is collected during the phone-verification step.
+     *   Google
+     *      ↓
+     *   Phone collection
+     *      ↓
+     *   Phone verification
+     *
+     * Robase handles the SMS OTP.
      */
-// ============================================================
-// PHONE
-// ============================================================
 
-/*
- * Phone is intentionally NOT required here.
- *
- * Normal registration:
- *   Account → Email verification → Phone verification
- *
- * Google registration:
- *   Google → Phone collection → Phone verification
- *
- * Robase handles the SMS OTP.
- */
+    phone: {
+      type: String,
+      trim: true,
+      unique: true,
+      sparse: true,
+    },
 
-phone: {
-  type: String,
-  trim: true,
-  unique: true,
-  sparse: true,
-},
+    isPhoneVerified: {
+      type: Boolean,
+      default: false,
+    },
 
-isPhoneVerified: {
-  type: Boolean,
-  default: false,
-},
+    phoneVerificationToken: {
+      type: String,
+      select: false,
+    },
 
-phoneVerificationToken: {
-  type: String,
-  select: false,
-},
-
-phoneVerificationExpire: {
-  type: Date,
-  select: false,
-},
+    phoneVerificationExpire: {
+      type: Date,
+      select: false,
+    },
 
     // ============================================================
     // ROLE & ACCOUNT STATUS
@@ -148,6 +155,41 @@ phoneVerificationExpire: {
     },
 
     emailVerificationExpire: {
+      type: Date,
+      select: false,
+    },
+
+    // ============================================================
+    // REGISTRATION VERIFICATION SESSION
+    // ============================================================
+
+    /*
+     * This is NOT the normal login JWT.
+     *
+     * It is a temporary token used only while a new account
+     * is completing registration.
+     *
+     * Flow:
+     *
+     * Register
+     *    ↓
+     * Email verification
+     *    ↓
+     * registrationVerificationToken
+     *    ↓
+     * Phone verification
+     *    ↓
+     * Token deleted
+     *
+     * The user is NOT authenticated during this process.
+     */
+
+    registrationVerificationToken: {
+      type: String,
+      select: false,
+    },
+
+    registrationVerificationExpire: {
       type: Date,
       select: false,
     },
@@ -340,13 +382,19 @@ phoneVerificationExpire: {
 
     bio: {
       type: String,
-      maxlength: [500, "Bio cannot exceed 500 characters"],
+      maxlength: [
+        500,
+        "Bio cannot exceed 500 characters",
+      ],
       default: null,
     },
 
     headline: {
       type: String,
-      maxlength: [100, "Headline cannot exceed 100 characters"],
+      maxlength: [
+        100,
+        "Headline cannot exceed 100 characters",
+      ],
       default: null,
     },
 
@@ -422,15 +470,23 @@ userSchema.pre("save", async function () {
 
   const salt = await bcrypt.genSalt(12);
 
-  this.password = await bcrypt.hash(this.password, salt);
+  this.password = await bcrypt.hash(
+    this.password,
+    salt
+  );
 });
 
 // ================================================================
 // PASSWORD COMPARISON
 // ================================================================
 
-userSchema.methods.comparePassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
+userSchema.methods.comparePassword = async function (
+  enteredPassword
+) {
+  return await bcrypt.compare(
+    enteredPassword,
+    this.password
+  );
 };
 
 // ================================================================
@@ -449,6 +505,9 @@ userSchema.methods.updateLastLogin = async function () {
 // USER MODEL
 // ================================================================
 
-const User = mongoose.model("User", userSchema);
+const User = mongoose.model(
+  "User",
+  userSchema
+);
 
 export default User;

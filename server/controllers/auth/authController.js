@@ -7,6 +7,7 @@ import SuperAdmin from "../../models/user/SuperAdmin.js";
 import Token from "../../models/auth/Token.js";
 
 import { sendTokenResponse } from "../../utils/generateToken.js";
+
 import {
   generateReferralCode,
   generateOTP,
@@ -19,10 +20,13 @@ import registerValidator from "../../validators/auth/registerValidator.js";
 import loginValidator from "../../validators/auth/loginValidator.js";
 
 import sendEmail from "../../services/email/emailService.js";
+
 import {
   sendOTP,
   verifyOTP,
 } from "../../services/sms/smsService.js";
+
+import { normalizePhone } from "../../config/robase.js";
 
 import welcomeTemplate from "../../templates/email/welcome.js";
 import verifyEmailTemplate from "../../templates/email/verifyEmail.js";
@@ -36,26 +40,109 @@ import {
 import auditLogger from "../../services/audit/auditLogger.js";
 
 /* ============================================================
+   CONSTANTS
+   ============================================================ */
+
+// Email OTP lifetime
+const EMAIL_VERIFICATION_MINUTES = 10;
+
+// Phone OTP lifetime
+const PHONE_VERIFICATION_MINUTES = 10;
+
+// Temporary registration session lifetime
+// Starts after email verification.
+const REGISTRATION_SESSION_MINUTES = 15;
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+
+/**
+ * Generate a secure temporary registration token.
+ *
+ * This token is used between:
+ *
+ * Email verification
+ *        ↓
+ * Phone verification
+ *
+ * It is NOT a login token and does NOT authenticate the user.
+ */
+const generateRegistrationVerificationToken = () => {
+  return crypto.randomBytes(32).toString("hex");
+};
+
+/**
+ * Generate expiration date.
+ */
+const getExpirationDate = (minutes) => {
+  return new Date(Date.now() + minutes * 60 * 1000);
+};
+
+/**
+ * Safely write an audit log without allowing audit failures
+ * to break authentication.
+ */
+const createAuditLog = async ({
+  actor,
+  actorRole,
+  action,
+  req,
+}) => {
+  try {
+    await auditLogger({
+      actor,
+      actorRole,
+      action,
+      type: AUDIT_TYPES.AUTH,
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+  } catch (error) {
+    console.error(
+      "Authentication audit log failed:",
+      error.message
+    );
+  }
+};
+
+/* ============================================================
    REGISTER
    ============================================================ */
 
+/**
+ * MANUAL REGISTRATION
+ *
+ * Flow:
+ *
+ * POST /auth/register
+ *       ↓
+ * Create user
+ *       ↓
+ * Send EMAIL OTP
+ *       ↓
+ * No JWT
+ *       ↓
+ * Frontend moves to email verification
+ */
 export const register = asyncHandler(async (req, res) => {
   // ----------------------------------------------------------
   // Validate request
   // ----------------------------------------------------------
 
-  const { error } = registerValidator.validate(req.body);
+  const { error, value } = registerValidator(req.body);
 
   if (error) {
     return sendResponse(
       res,
       400,
-      error.details[0]?.message || "Invalid registration details"
+      error.details[0]?.message ||
+        "Invalid registration details"
     );
   }
 
   // ----------------------------------------------------------
-  // Extract fields
+  // Extract validated fields
   // ----------------------------------------------------------
 
   const {
@@ -66,13 +153,29 @@ export const register = asyncHandler(async (req, res) => {
     phone,
     role,
     referralCode,
-  } = req.body;
+  } = value;
 
   // ----------------------------------------------------------
   // Normalize email
   // ----------------------------------------------------------
 
-  const normalizedEmail = String(email).trim().toLowerCase();
+  const normalizedEmail = String(email)
+    .trim()
+    .toLowerCase();
+
+  // ----------------------------------------------------------
+  // Normalize phone
+  // ----------------------------------------------------------
+
+  const normalizedPhone = normalizePhone(phone);
+
+  if (!normalizedPhone) {
+    return sendResponse(
+      res,
+      400,
+      "Please enter a valid phone number"
+    );
+  }
 
   // ----------------------------------------------------------
   // Check existing email
@@ -91,23 +194,11 @@ export const register = asyncHandler(async (req, res) => {
   }
 
   // ----------------------------------------------------------
-  // Phone is required for manual registration
-  // ----------------------------------------------------------
-
-  if (!phone) {
-    return sendResponse(
-      res,
-      400,
-      "Phone number is required for registration"
-    );
-  }
-
-  // ----------------------------------------------------------
   // Check existing phone
   // ----------------------------------------------------------
 
   const existingPhone = await User.findOne({
-    phone: String(phone).trim(),
+    phone: normalizedPhone,
   });
 
   if (existingPhone) {
@@ -119,13 +210,14 @@ export const register = asyncHandler(async (req, res) => {
   }
 
   // ----------------------------------------------------------
-  // Validate role
+  // Public registration roles
+  //
+  // NEVER allow SUPER_ADMIN through public registration.
   // ----------------------------------------------------------
 
   const allowedRoles = [
     ROLES.STUDENT,
     ROLES.INSTRUCTOR,
-    ROLES.SUPER_ADMIN,
   ];
 
   const selectedRole = role || ROLES.STUDENT;
@@ -145,8 +237,14 @@ export const register = asyncHandler(async (req, res) => {
   let referredBy = null;
 
   if (referralCode) {
+    const normalizedReferralCode = String(
+      referralCode
+    )
+      .trim()
+      .toUpperCase();
+
     const referringUser = await User.findOne({
-      referralCode: String(referralCode).trim().toUpperCase(),
+      referralCode: normalizedReferralCode,
     });
 
     if (!referringUser) {
@@ -166,23 +264,25 @@ export const register = asyncHandler(async (req, res) => {
 
   const emailVerificationToken = generateOTP();
 
-  const emailVerificationExpire = new Date(
-    Date.now() + 10 * 60 * 1000
-  );
+  const emailVerificationExpire =
+    getExpirationDate(
+      EMAIL_VERIFICATION_MINUTES
+    );
 
   // ----------------------------------------------------------
-  // Generate referral code for new user
+  // Generate unique referral code
   // ----------------------------------------------------------
 
-  let newReferralCode = generateReferralCode();
+  let newReferralCode =
+    generateReferralCode();
 
-  // Make sure referral code is unique
   let referralExists = await User.findOne({
     referralCode: newReferralCode,
   });
 
   while (referralExists) {
-    newReferralCode = generateReferralCode();
+    newReferralCode =
+      generateReferralCode();
 
     referralExists = await User.findOne({
       referralCode: newReferralCode,
@@ -191,28 +291,47 @@ export const register = asyncHandler(async (req, res) => {
 
   // ----------------------------------------------------------
   // Create user
+  //
+  // IMPORTANT:
+  //
+  // We DO NOT:
+  // - send phone OTP here
+  // - send welcome email here
+  // - issue JWT here
+  //
+  // Email verification comes first.
   // ----------------------------------------------------------
 
   const user = await User.create({
     firstName: String(firstName).trim(),
     lastName: String(lastName).trim(),
+
     email: normalizedEmail,
+
     password,
-    phone: String(phone).trim(),
+
+    phone: normalizedPhone,
 
     role: selectedRole,
 
     status: "active",
 
     referralCode: newReferralCode,
+
     referredBy,
 
+    // Email verification
     isEmailVerified: false,
     emailVerificationToken,
     emailVerificationExpire,
 
+    // Phone verification
     isPhoneVerified: false,
 
+    phoneVerificationToken: undefined,
+    phoneVerificationExpire: undefined,
+
+    // Manual registration
     isGoogleAuth: false,
   });
 
@@ -233,69 +352,27 @@ export const register = asyncHandler(async (req, res) => {
       });
     }
 
+    /*
+     * This should never be reached through public registration
+     * because SUPER_ADMIN is not an allowed public role.
+     *
+     * Keeping this branch here protects the controller if the
+     * role system changes later.
+     */
     if (selectedRole === ROLES.SUPER_ADMIN) {
       await SuperAdmin.create({
         user: user._id,
       });
     }
   } catch (profileError) {
-    // Remove user if role profile creation fails
+    // Remove user if profile creation fails
     await User.findByIdAndDelete(user._id);
 
     throw profileError;
   }
 
   // ----------------------------------------------------------
-  // Send Robase phone OTP
-  // ----------------------------------------------------------
-
-  let phoneOtpResult;
-
-  try {
-    phoneOtpResult = await sendOTP(user.phone);
-  } catch (error) {
-    // Account has been created but phone OTP failed.
-    // User can use resend-phone-otp after authentication.
-    console.error(
-      "Initial phone OTP failed:",
-      error.message
-    );
-  }
-
-  if (phoneOtpResult?.success && phoneOtpResult?.otpId) {
-    user.phoneVerificationToken = phoneOtpResult.otpId;
-
-    user.phoneVerificationExpire = new Date(
-      Date.now() + 10 * 60 * 1000
-    );
-
-    await user.save({
-      validateBeforeSave: false,
-    });
-  }
-
-  // ----------------------------------------------------------
-  // Send welcome email
-  // ----------------------------------------------------------
-
-  try {
-    await sendEmail({
-      to: user.email,
-      subject: EMAIL_SUBJECTS.WELCOME,
-      html: welcomeTemplate({
-        firstName: user.firstName,
-        lastName: user.lastName,
-      }),
-    });
-  } catch (error) {
-    console.error(
-      "Welcome email failed:",
-      error.message
-    );
-  }
-
-  // ----------------------------------------------------------
-  // Send email verification
+  // Send EMAIL verification OTP
   // ----------------------------------------------------------
 
   try {
@@ -308,6 +385,12 @@ export const register = asyncHandler(async (req, res) => {
       }),
     });
   } catch (error) {
+    /*
+     * The account already exists.
+     *
+     * We do not delete the account because the user can use
+     * resend-verification.
+     */
     console.error(
       "Verification email failed:",
       error.message
@@ -318,31 +401,35 @@ export const register = asyncHandler(async (req, res) => {
   // Audit registration
   // ----------------------------------------------------------
 
-  try {
-    await auditLogger({
-      actor: user._id,
-      actorRole: user.role,
-      action: `New account registered: ${user.email}`,
-      type: AUDIT_TYPES.AUTH,
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"],
-    });
-  } catch (error) {
-    console.error(
-      "Registration audit log failed:",
-      error.message
-    );
-  }
+  await createAuditLog({
+    actor: user._id,
+    actorRole: user.role,
+    action: `New account registered: ${user.email}`,
+    req,
+  });
 
   // ----------------------------------------------------------
-  // Response
+  // IMPORTANT:
+  //
+  // DO NOT call sendTokenResponse().
+  //
+  // The user is not authenticated yet.
   // ----------------------------------------------------------
 
-  return sendTokenResponse(
-    user,
-    201,
+  return sendResponse(
     res,
-    "Registration successful. Please verify your email and phone number."
+    201,
+    "Registration successful. Please verify your email.",
+    {
+      registration: {
+        userId: user._id,
+        email: user.email,
+        phone: user.phone,
+        emailVerified: false,
+        phoneVerified: false,
+        nextStep: "email-verification",
+      },
+    }
   );
 });
 
@@ -350,25 +437,40 @@ export const register = asyncHandler(async (req, res) => {
    LOGIN
    ============================================================ */
 
+/**
+ * LOGIN
+ *
+ * Requirements:
+ *
+ * Email verified
+ *       +
+ * Phone verified
+ *       +
+ * Correct password
+ *       ↓
+ * JWT/session issued
+ */
 export const login = asyncHandler(async (req, res) => {
   // ----------------------------------------------------------
   // Validate request
   // ----------------------------------------------------------
 
-  const { error } = loginValidator.validate(req.body);
+  const { error, value } =
+    loginValidator(req.body);
 
   if (error) {
     return sendResponse(
       res,
       400,
-      error.details[0]?.message || "Invalid login details"
+      error.details[0]?.message ||
+        "Invalid login details"
     );
   }
 
   const {
     email,
     password,
-  } = req.body;
+  } = value;
 
   // ----------------------------------------------------------
   // Normalize email
@@ -418,13 +520,47 @@ export const login = asyncHandler(async (req, res) => {
   // Check password
   // ----------------------------------------------------------
 
-  const passwordMatch = await user.comparePassword(password);
+  const passwordMatch =
+    await user.comparePassword(password);
 
   if (!passwordMatch) {
     return sendResponse(
       res,
       401,
       "Invalid email or password"
+    );
+  }
+
+  // ----------------------------------------------------------
+  // EMAIL VERIFICATION GATE
+  // ----------------------------------------------------------
+
+  if (!user.isEmailVerified) {
+    return sendResponse(
+      res,
+      403,
+      "Please verify your email before logging in.",
+      {
+        verificationRequired: "email",
+        email: user.email,
+      }
+    );
+  }
+
+  // ----------------------------------------------------------
+  // PHONE VERIFICATION GATE
+  // ----------------------------------------------------------
+
+  if (!user.isPhoneVerified) {
+    return sendResponse(
+      res,
+      403,
+      "Please verify your phone number before logging in.",
+      {
+        verificationRequired: "phone",
+        email: user.email,
+        phone: user.phone,
+      }
     );
   }
 
@@ -438,21 +574,12 @@ export const login = asyncHandler(async (req, res) => {
   // Audit login
   // ----------------------------------------------------------
 
-  try {
-    await auditLogger({
-      actor: user._id,
-      actorRole: user.role,
-      action: `User logged in: ${user.email}`,
-      type: AUDIT_TYPES.AUTH,
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"],
-    });
-  } catch (error) {
-    console.error(
-      "Login audit log failed:",
-      error.message
-    );
-  }
+  await createAuditLog({
+    actor: user._id,
+    actorRole: user.role,
+    action: `User logged in: ${user.email}`,
+    req,
+  });
 
   // ----------------------------------------------------------
   // Send authentication response
@@ -472,7 +599,7 @@ export const login = asyncHandler(async (req, res) => {
 
 export const logout = asyncHandler(async (req, res) => {
   // ----------------------------------------------------------
-  // Delete refresh token
+  // Delete refresh tokens
   // ----------------------------------------------------------
 
   if (req.user?._id) {
@@ -487,11 +614,15 @@ export const logout = asyncHandler(async (req, res) => {
 
   res.cookie("refreshToken", "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+
+    secure:
+      process.env.NODE_ENV === "production",
+
     sameSite:
       process.env.NODE_ENV === "production"
         ? "none"
         : "lax",
+
     expires: new Date(0),
   });
 
@@ -499,22 +630,13 @@ export const logout = asyncHandler(async (req, res) => {
   // Audit logout
   // ----------------------------------------------------------
 
-  try {
-    if (req.user?._id) {
-      await auditLogger({
-        actor: req.user._id,
-        actorRole: req.user.role,
-        action: `User logged out: ${req.user.email}`,
-        type: AUDIT_TYPES.AUTH,
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-      });
-    }
-  } catch (error) {
-    console.error(
-      "Logout audit log failed:",
-      error.message
-    );
+  if (req.user?._id) {
+    await createAuditLog({
+      actor: req.user._id,
+      actorRole: req.user.role,
+      action: `User logged out: ${req.user.email}`,
+      req,
+    });
   }
 
   return sendResponse(
@@ -529,7 +651,9 @@ export const logout = asyncHandler(async (req, res) => {
    ============================================================ */
 
 export const getMe = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user._id);
+  const user = await User.findById(
+    req.user._id
+  );
 
   if (!user) {
     return sendResponse(
@@ -553,85 +677,73 @@ export const getMe = asyncHandler(async (req, res) => {
    VERIFY EMAIL
    ============================================================ */
 
-export const verifyEmail = asyncHandler(async (req, res) => {
-  const {
-    token,
-  } = req.body;
-
-  if (!token) {
-    return sendResponse(
-      res,
-      400,
-      "Email verification token is required"
-    );
-  }
-
-  // ----------------------------------------------------------
-  // Find user
-  // ----------------------------------------------------------
-
-  const user = await User.findOne({
-    emailVerificationToken: token,
-    emailVerificationExpire: {
-      $gt: new Date(),
-    },
-  });
-
-  if (!user) {
-    return sendResponse(
-      res,
-      400,
-      "Invalid or expired email verification token"
-    );
-  }
-
-  // ----------------------------------------------------------
-  // Verify email
-  // ----------------------------------------------------------
-
-  user.isEmailVerified = true;
-
-  user.emailVerificationToken = undefined;
-  user.emailVerificationExpire = undefined;
-
-  await user.save({
-    validateBeforeSave: false,
-  });
-
-  // ----------------------------------------------------------
-  // Audit
-  // ----------------------------------------------------------
-
-  try {
-    await auditLogger({
-      actor: user._id,
-      actorRole: user.role,
-      action: `Email verified: ${user.email}`,
-      type: AUDIT_TYPES.AUTH,
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"],
-    });
-  } catch (error) {
-    console.error(
-      "Email verification audit failed:",
-      error.message
-    );
-  }
-
-  return sendResponse(
-    res,
-    200,
-    "Email verified successfully"
-  );
-});
-
-/* ============================================================
-   RESEND EMAIL VERIFICATION
-   ============================================================ */
-
-export const resendVerification = asyncHandler(
+/**
+ * PUBLIC ENDPOINT
+ *
+ * Request:
+ *
+ * {
+ *   email: "user@example.com",
+ *   token: "123456"
+ * }
+ *
+ * After successful verification:
+ *
+ * Email verified
+ *       ↓
+ * Create temporary registration session
+ *       ↓
+ * Send phone OTP
+ *       ↓
+ * Return registrationToken
+ */
+export const verifyEmail = asyncHandler(
   async (req, res) => {
-    const user = await User.findById(req.user._id);
+    const {
+      email,
+      token,
+    } = req.body;
+
+    // --------------------------------------------------------
+    // Validate input
+    // --------------------------------------------------------
+
+    if (!email) {
+      return sendResponse(
+        res,
+        400,
+        "Email is required"
+      );
+    }
+
+    if (!token) {
+      return sendResponse(
+        res,
+        400,
+        "Email verification code is required"
+      );
+    }
+
+    // --------------------------------------------------------
+    // Normalize email
+    // --------------------------------------------------------
+
+    const normalizedEmail = String(email)
+      .trim()
+      .toLowerCase();
+
+    // --------------------------------------------------------
+    // Find user
+    //
+    // Verification fields are select:false in User.js,
+    // therefore explicitly select them.
+    // --------------------------------------------------------
+
+    const user = await User.findOne({
+      email: normalizedEmail,
+    }).select(
+      "+emailVerificationToken +emailVerificationExpire"
+    );
 
     if (!user) {
       return sendResponse(
@@ -654,17 +766,251 @@ export const resendVerification = asyncHandler(
     }
 
     // --------------------------------------------------------
-    // Generate new OTP
+    // Check token
     // --------------------------------------------------------
 
-    const emailVerificationToken = generateOTP();
+    if (
+      !user.emailVerificationToken ||
+      user.emailVerificationToken !==
+        String(token).trim()
+    ) {
+      return sendResponse(
+        res,
+        400,
+        "Invalid email verification code"
+      );
+    }
+
+    // --------------------------------------------------------
+    // Check expiration
+    // --------------------------------------------------------
+
+    if (
+      !user.emailVerificationExpire ||
+      user.emailVerificationExpire < new Date()
+    ) {
+      return sendResponse(
+        res,
+        400,
+        "Email verification code has expired. Please request a new code."
+      );
+    }
+
+    // --------------------------------------------------------
+    // Verify email
+    // --------------------------------------------------------
+
+    user.isEmailVerified = true;
+
+    user.emailVerificationToken = undefined;
+
+    user.emailVerificationExpire = undefined;
+
+    // --------------------------------------------------------
+    // Create temporary registration verification session
+    //
+    // This is NOT a JWT.
+    // It only allows the user to continue registration.
+    // --------------------------------------------------------
+
+    const registrationVerificationToken =
+      generateRegistrationVerificationToken();
+
+    user.registrationVerificationToken =
+      registrationVerificationToken;
+
+    user.registrationVerificationExpire =
+      getExpirationDate(
+        REGISTRATION_SESSION_MINUTES
+      );
+
+    await user.save({
+      validateBeforeSave: false,
+    });
+
+    // --------------------------------------------------------
+    // Audit email verification
+    // --------------------------------------------------------
+
+    await createAuditLog({
+      actor: user._id,
+      actorRole: user.role,
+      action: `Email verified: ${user.email}`,
+      req,
+    });
+
+    // --------------------------------------------------------
+    // SEND PHONE OTP
+    // --------------------------------------------------------
+
+    let phoneOtpResult;
+
+    try {
+      phoneOtpResult =
+        await sendOTP(user.phone);
+    } catch (error) {
+      console.error(
+        "Phone OTP after email verification failed:",
+        error.message
+      );
+
+      return sendResponse(
+        res,
+        502,
+        "Email verified, but we could not send the phone verification code. Please try sending the phone code again.",
+        {
+          registrationToken:
+            registrationVerificationToken,
+
+          emailVerified: true,
+
+          phoneVerified: false,
+
+          nextStep: "phone-verification",
+        }
+      );
+    }
+
+    // --------------------------------------------------------
+    // Make sure Robase returned OTP ID
+    // --------------------------------------------------------
+
+    if (
+      !phoneOtpResult?.success ||
+      !phoneOtpResult?.otpId
+    ) {
+      return sendResponse(
+        res,
+        502,
+        phoneOtpResult?.error ||
+          "Email verified, but we could not send the phone verification code.",
+        {
+          registrationToken:
+            registrationVerificationToken,
+
+          emailVerified: true,
+
+          phoneVerified: false,
+
+          nextStep: "phone-verification",
+        }
+      );
+    }
+
+    // --------------------------------------------------------
+    // Store Robase OTP ID
+    // --------------------------------------------------------
+
+    user.phoneVerificationToken =
+      phoneOtpResult.otpId;
+
+    user.phoneVerificationExpire =
+      getExpirationDate(
+        PHONE_VERIFICATION_MINUTES
+      );
+
+    await user.save({
+      validateBeforeSave: false,
+    });
+
+    // --------------------------------------------------------
+    // Response
+    // --------------------------------------------------------
+
+    return sendResponse(
+      res,
+      200,
+      "Email verified successfully. A phone verification code has been sent.",
+      {
+        registrationToken:
+          registrationVerificationToken,
+
+        emailVerified: true,
+
+        phoneVerified: false,
+
+        nextStep: "phone-verification",
+
+        phone: user.phone,
+      }
+    );
+  }
+);
+
+/* ============================================================
+   RESEND EMAIL VERIFICATION
+   ============================================================ */
+
+/**
+ * PUBLIC ENDPOINT
+ *
+ * The user is not logged in yet, therefore this endpoint
+ * cannot depend on req.user.
+ */
+export const resendVerification =
+  asyncHandler(async (req, res) => {
+    const { email } = req.body;
+
+    // --------------------------------------------------------
+    // Validate email
+    // --------------------------------------------------------
+
+    if (!email) {
+      return sendResponse(
+        res,
+        400,
+        "Email is required"
+      );
+    }
+
+    const normalizedEmail = String(email)
+      .trim()
+      .toLowerCase();
+
+    // --------------------------------------------------------
+    // Find user
+    // --------------------------------------------------------
+
+    const user = await User.findOne({
+      email: normalizedEmail,
+    }).select(
+      "+emailVerificationToken +emailVerificationExpire"
+    );
+
+    if (!user) {
+      return sendResponse(
+        res,
+        404,
+        "No account was found with this email"
+      );
+    }
+
+    // --------------------------------------------------------
+    // Already verified
+    // --------------------------------------------------------
+
+    if (user.isEmailVerified) {
+      return sendResponse(
+        res,
+        400,
+        "Your email is already verified"
+      );
+    }
+
+    // --------------------------------------------------------
+    // Generate new email OTP
+    // --------------------------------------------------------
+
+    const emailVerificationToken =
+      generateOTP();
 
     user.emailVerificationToken =
       emailVerificationToken;
 
-    user.emailVerificationExpire = new Date(
-      Date.now() + 10 * 60 * 1000
-    );
+    user.emailVerificationExpire =
+      getExpirationDate(
+        EMAIL_VERIFICATION_MINUTES
+      );
 
     await user.save({
       validateBeforeSave: false,
@@ -674,36 +1020,119 @@ export const resendVerification = asyncHandler(
     // Send email
     // --------------------------------------------------------
 
-    await sendEmail({
-      to: user.email,
-      subject: EMAIL_SUBJECTS.VERIFY_EMAIL,
-      html: verifyEmailTemplate({
-        firstName: user.firstName,
-        token: emailVerificationToken,
-      }),
-    });
+    try {
+      await sendEmail({
+        to: user.email,
+
+        subject:
+          EMAIL_SUBJECTS.VERIFY_EMAIL,
+
+        html: verifyEmailTemplate({
+          firstName: user.firstName,
+          token: emailVerificationToken,
+        }),
+      });
+    } catch (error) {
+      console.error(
+        "Resend verification email failed:",
+        error.message
+      );
+
+      return sendResponse(
+        res,
+        502,
+        "Unable to send verification email. Please try again."
+      );
+    }
+
+    // --------------------------------------------------------
+    // Response
+    // --------------------------------------------------------
 
     return sendResponse(
       res,
       200,
       "A new email verification code has been sent"
     );
-  }
-);
+  });
 
 /* ============================================================
    SEND PHONE OTP
    ============================================================ */
 
-export const sendPhoneOTP = asyncHandler(
-  async (req, res) => {
-    const user = await User.findById(req.user._id);
+/**
+ * PUBLIC ENDPOINT
+ *
+ * Used after email verification.
+ *
+ * Request:
+ *
+ * {
+ *   registrationToken: "..."
+ * }
+ */
+export const sendPhoneOTP =
+  asyncHandler(async (req, res) => {
+    const {
+      registrationToken,
+    } = req.body;
+
+    // --------------------------------------------------------
+    // Validate registration token
+    // --------------------------------------------------------
+
+    if (!registrationToken) {
+      return sendResponse(
+        res,
+        400,
+        "Registration verification token is required"
+      );
+    }
+
+    // --------------------------------------------------------
+    // Find registration session
+    // --------------------------------------------------------
+
+    const user = await User.findOne({
+      registrationVerificationToken:
+        String(registrationToken).trim(),
+
+      registrationVerificationExpire: {
+        $gt: new Date(),
+      },
+    }).select(
+      "+registrationVerificationToken +registrationVerificationExpire"
+    );
 
     if (!user) {
       return sendResponse(
         res,
-        404,
-        "User account not found"
+        400,
+        "Registration verification session is invalid or expired. Please verify your email again."
+      );
+    }
+
+    // --------------------------------------------------------
+    // Email must already be verified
+    // --------------------------------------------------------
+
+    if (!user.isEmailVerified) {
+      return sendResponse(
+        res,
+        403,
+        "Please verify your email before verifying your phone."
+      );
+    }
+
+    // --------------------------------------------------------
+    // Phone already verified
+    // --------------------------------------------------------
+
+    if (user.isPhoneVerified) {
+      return sendResponse(
+        res,
+        400,
+        "Your phone number is already verified"
       );
     }
 
@@ -720,24 +1149,30 @@ export const sendPhoneOTP = asyncHandler(
     }
 
     // --------------------------------------------------------
-    // Already verified
-    // --------------------------------------------------------
-
-    if (user.isPhoneVerified) {
-      return sendResponse(
-        res,
-        400,
-        "Your phone number is already verified"
-      );
-    }
-
-    // --------------------------------------------------------
     // Send Robase OTP
     // --------------------------------------------------------
 
-    const result = await sendOTP(user.phone);
+    let result;
 
-    if (!result?.success || !result?.otpId) {
+    try {
+      result = await sendOTP(user.phone);
+    } catch (error) {
+      console.error(
+        "Phone OTP send failed:",
+        error.message
+      );
+
+      return sendResponse(
+        res,
+        502,
+        "Unable to send phone verification code. Please try again."
+      );
+    }
+
+    if (
+      !result?.success ||
+      !result?.otpId
+    ) {
       return sendResponse(
         res,
         502,
@@ -750,31 +1185,59 @@ export const sendPhoneOTP = asyncHandler(
     // Store Robase OTP ID
     // --------------------------------------------------------
 
-    user.phoneVerificationToken = result.otpId;
+    user.phoneVerificationToken =
+      result.otpId;
 
-    user.phoneVerificationExpire = new Date(
-      Date.now() + 10 * 60 * 1000
-    );
+    user.phoneVerificationExpire =
+      getExpirationDate(
+        PHONE_VERIFICATION_MINUTES
+      );
 
     await user.save({
       validateBeforeSave: false,
     });
 
+    // --------------------------------------------------------
+    // Response
+    // --------------------------------------------------------
+
     return sendResponse(
       res,
       200,
-      "Phone verification code sent successfully"
+      "Phone verification code sent successfully",
+      {
+        nextStep: "phone-verification",
+        phone: user.phone,
+      }
     );
-  }
-);
+  });
 
 /* ============================================================
    VERIFY PHONE
    ============================================================ */
 
-export const verifyPhone = asyncHandler(
-  async (req, res) => {
+/**
+ * PUBLIC ENDPOINT
+ *
+ * Request:
+ *
+ * {
+ *   registrationToken: "...",
+ *   otpId: "...",
+ *   code: "123456"
+ * }
+ *
+ * Successful result:
+ *
+ * Email verified
+ * Phone verified
+ * Registration complete
+ * No JWT yet
+ */
+export const verifyPhone =
+  asyncHandler(async (req, res) => {
     const {
+      registrationToken,
       otpId,
       code,
     } = req.body;
@@ -782,6 +1245,14 @@ export const verifyPhone = asyncHandler(
     // --------------------------------------------------------
     // Validate input
     // --------------------------------------------------------
+
+    if (!registrationToken) {
+      return sendResponse(
+        res,
+        400,
+        "Registration verification token is required"
+      );
+    }
 
     if (!otpId) {
       return sendResponse(
@@ -800,14 +1271,61 @@ export const verifyPhone = asyncHandler(
     }
 
     // --------------------------------------------------------
-    // Find user using stored Robase OTP ID
+    // Find registration session
     // --------------------------------------------------------
 
     const user = await User.findOne({
-      phoneVerificationToken: otpId,
-    });
+      registrationVerificationToken:
+        String(registrationToken).trim(),
+
+      registrationVerificationExpire: {
+        $gt: new Date(),
+      },
+    }).select(
+      "+registrationVerificationToken +registrationVerificationExpire +phoneVerificationToken +phoneVerificationExpire"
+    );
 
     if (!user) {
+      return sendResponse(
+        res,
+        400,
+        "Registration verification session is invalid or expired. Please verify your email again."
+      );
+    }
+
+    // --------------------------------------------------------
+    // Email must be verified
+    // --------------------------------------------------------
+
+    if (!user.isEmailVerified) {
+      return sendResponse(
+        res,
+        403,
+        "Please verify your email first."
+      );
+    }
+
+    // --------------------------------------------------------
+    // Already verified
+    // --------------------------------------------------------
+
+    if (user.isPhoneVerified) {
+      return sendResponse(
+        res,
+        400,
+        "Your phone number is already verified"
+      );
+    }
+
+    // --------------------------------------------------------
+    // Check stored OTP ID
+    // --------------------------------------------------------
+
+    if (
+      !user.phoneVerificationToken ||
+      user.phoneVerificationToken !==
+        String(otpId).trim()
+    ) {
       return sendResponse(
         res,
         400,
@@ -820,7 +1338,7 @@ export const verifyPhone = asyncHandler(
     // --------------------------------------------------------
 
     if (
-      user.phoneVerificationExpire &&
+      !user.phoneVerificationExpire ||
       user.phoneVerificationExpire < new Date()
     ) {
       return sendResponse(
@@ -831,13 +1349,28 @@ export const verifyPhone = asyncHandler(
     }
 
     // --------------------------------------------------------
-    // Verify with Robase
+    // Verify OTP with Robase
     // --------------------------------------------------------
 
-    const result = await verifyOTP(
-      otpId,
-      code
-    );
+    let result;
+
+    try {
+      result = await verifyOTP(
+        otpId,
+        code
+      );
+    } catch (error) {
+      console.error(
+        "Robase phone OTP verification failed:",
+        error.message
+      );
+
+      return sendResponse(
+        res,
+        400,
+        "Invalid or expired OTP"
+      );
+    }
 
     if (!result?.success) {
       return sendResponse(
@@ -849,55 +1382,140 @@ export const verifyPhone = asyncHandler(
     }
 
     // --------------------------------------------------------
-    // Mark phone as verified
+    // Mark phone verified
     // --------------------------------------------------------
 
     user.isPhoneVerified = true;
 
-    user.phoneVerificationToken = undefined;
-    user.phoneVerificationExpire = undefined;
+    user.phoneVerificationToken =
+      undefined;
+
+    user.phoneVerificationExpire =
+      undefined;
+
+    // --------------------------------------------------------
+    // Registration session is now complete.
+    //
+    // Clear the temporary registration token.
+    // --------------------------------------------------------
+
+    user.registrationVerificationToken =
+      undefined;
+
+    user.registrationVerificationExpire =
+      undefined;
 
     await user.save({
       validateBeforeSave: false,
     });
 
     // --------------------------------------------------------
-    // Audit
+    // Audit phone verification
+    // --------------------------------------------------------
+
+    await createAuditLog({
+      actor: user._id,
+      actorRole: user.role,
+      action: `Phone number verified: ${user.phone}`,
+      req,
+    });
+
+    // --------------------------------------------------------
+    // SEND WELCOME EMAIL
+    //
+    // This happens ONLY after both:
+    //
+    // Email = verified
+    // Phone = verified
     // --------------------------------------------------------
 
     try {
-      await auditLogger({
-        actor: user._id,
-        actorRole: user.role,
-        action: `Phone number verified: ${user.phone}`,
-        type: AUDIT_TYPES.AUTH,
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
+      await sendEmail({
+        to: user.email,
+
+        subject:
+          EMAIL_SUBJECTS.WELCOME,
+
+        html: welcomeTemplate({
+          firstName: user.firstName,
+          lastName: user.lastName,
+        }),
       });
     } catch (error) {
+      /*
+       * Do not fail registration because of a welcome-email
+       * delivery problem.
+       *
+       * The account is already completely verified.
+       */
       console.error(
-        "Phone verification audit failed:",
+        "Welcome email failed:",
         error.message
       );
     }
 
+    // --------------------------------------------------------
+    // Audit completed registration
+    // --------------------------------------------------------
+
+    await createAuditLog({
+      actor: user._id,
+      actorRole: user.role,
+      action: `Registration verification completed: ${user.email}`,
+      req,
+    });
+
+    // --------------------------------------------------------
+    // FINAL RESPONSE
+    //
+    // IMPORTANT:
+    //
+    // Still do NOT authenticate here.
+    //
+    // User should now be redirected to LOGIN.
+    // --------------------------------------------------------
+
     return sendResponse(
       res,
       200,
-      "Phone number verified successfully"
+      "Registration completed successfully. You can now log in.",
+      {
+        registration: {
+          complete: true,
+          emailVerified:
+            user.isEmailVerified,
+          phoneVerified:
+            user.isPhoneVerified,
+          nextStep: "login",
+        },
+      }
     );
-  }
-);
+  });
 
 /* ============================================================
    UPDATE PHONE NUMBER
    ============================================================ */
 
-export const updatePhone = asyncHandler(
-  async (req, res) => {
+/**
+ * AUTHENTICATED ENDPOINT
+ *
+ * Used by an already logged-in user to change their phone.
+ *
+ * After changing the phone:
+ *
+ * isPhoneVerified = false
+ *
+ * A new OTP is sent.
+ */
+export const updatePhone =
+  asyncHandler(async (req, res) => {
     const {
       phone,
     } = req.body;
+
+    // --------------------------------------------------------
+    // Validate phone
+    // --------------------------------------------------------
 
     if (!phone) {
       return sendResponse(
@@ -907,19 +1525,29 @@ export const updatePhone = asyncHandler(
       );
     }
 
-    const normalizedPhone = String(phone)
-      .trim();
+    const normalizedPhone =
+      normalizePhone(phone);
+
+    if (!normalizedPhone) {
+      return sendResponse(
+        res,
+        400,
+        "Please enter a valid phone number"
+      );
+    }
 
     // --------------------------------------------------------
     // Check if phone belongs to another user
     // --------------------------------------------------------
 
-    const existingUser = await User.findOne({
-      phone: normalizedPhone,
-      _id: {
-        $ne: req.user._id,
-      },
-    });
+    const existingUser =
+      await User.findOne({
+        phone: normalizedPhone,
+
+        _id: {
+          $ne: req.user._id,
+        },
+      });
 
     if (existingUser) {
       return sendResponse(
@@ -928,6 +1556,10 @@ export const updatePhone = asyncHandler(
         "This phone number is already associated with another account"
       );
     }
+
+    // --------------------------------------------------------
+    // Get current user
+    // --------------------------------------------------------
 
     const user = await User.findById(
       req.user._id
@@ -949,8 +1581,11 @@ export const updatePhone = asyncHandler(
 
     user.isPhoneVerified = false;
 
-    user.phoneVerificationToken = undefined;
-    user.phoneVerificationExpire = undefined;
+    user.phoneVerificationToken =
+      undefined;
+
+    user.phoneVerificationExpire =
+      undefined;
 
     await user.save({
       validateBeforeSave: false,
@@ -960,38 +1595,67 @@ export const updatePhone = asyncHandler(
     // Send new OTP
     // --------------------------------------------------------
 
-    const result = await sendOTP(
-      user.phone
-    );
+    let result;
 
-    if (!result?.success || !result?.otpId) {
+    try {
+      result = await sendOTP(
+        user.phone
+      );
+    } catch (error) {
+      console.error(
+        "Phone update OTP failed:",
+        error.message
+      );
+
+      return sendResponse(
+        res,
+        502,
+        "Phone number was updated, but the verification code could not be sent. Please request a new code."
+      );
+    }
+
+    if (
+      !result?.success ||
+      !result?.otpId
+    ) {
       return sendResponse(
         res,
         502,
         result?.error ||
-          "Phone number updated but verification code could not be sent"
+          "Phone number was updated, but the verification code could not be sent."
       );
     }
+
+    // --------------------------------------------------------
+    // Store new OTP
+    // --------------------------------------------------------
 
     user.phoneVerificationToken =
       result.otpId;
 
     user.phoneVerificationExpire =
-      new Date(
-        Date.now() + 10 * 60 * 1000
+      getExpirationDate(
+        PHONE_VERIFICATION_MINUTES
       );
 
     await user.save({
       validateBeforeSave: false,
     });
 
+    // --------------------------------------------------------
+    // Response
+    // --------------------------------------------------------
+
     return sendResponse(
       res,
       200,
-      "Phone number updated. Verification code sent successfully."
+      "Phone number updated. Verification code sent successfully.",
+      {
+        phone: user.phone,
+        phoneVerified: false,
+      }
     );
-  }
-);
+  });
 
 /* ============================================================
    CHECK VERIFICATION STATUS
@@ -999,11 +1663,12 @@ export const updatePhone = asyncHandler(
 
 export const getVerificationStatus =
   asyncHandler(async (req, res) => {
-    const user = await User.findById(
-      req.user._id
-    ).select(
-      "isEmailVerified isPhoneVerified email phone role status"
-    );
+    const user =
+      await User.findById(
+        req.user._id
+      ).select(
+        "isEmailVerified isPhoneVerified email phone role status"
+      );
 
     if (!user) {
       return sendResponse(
@@ -1020,11 +1685,13 @@ export const getVerificationStatus =
       {
         verification: {
           email: {
-            verified: user.isEmailVerified,
+            verified:
+              user.isEmailVerified,
           },
 
           phone: {
-            verified: user.isPhoneVerified,
+            verified:
+              user.isPhoneVerified,
           },
 
           complete:
