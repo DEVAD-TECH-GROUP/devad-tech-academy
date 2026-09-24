@@ -57,7 +57,23 @@ router.post(
  */
 router.post(
   "/verify-email",
+  authLimiter,
   verifyEmail
+);
+
+/**
+ * @route   POST /api/auth/resend-verification
+ * @desc    Resend email verification code
+ * @access  Public
+ *
+ * NOTE:
+ * This must remain public because a newly registered user
+ * has not logged in yet.
+ */
+router.post(
+  "/resend-verification",
+  authLimiter,
+  resendVerification
 );
 
 
@@ -93,21 +109,6 @@ router.post(
 router.get(
   "/me",
   getMe
-);
-
-
-/* ============================================================
-   EMAIL VERIFICATION
-   ============================================================ */
-
-/**
- * @route   POST /api/auth/resend-verification
- * @desc    Resend email verification code
- * @access  Private
- */
-router.post(
-  "/resend-verification",
-  resendVerification
 );
 
 
