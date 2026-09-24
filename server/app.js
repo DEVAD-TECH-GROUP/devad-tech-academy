@@ -105,9 +105,17 @@ import { notFound } from "./middlewares/error/notFound.js";
 // ── App setup ─────────────────────────────────────────────
 const app = express();
 
+// ── Reverse proxy configuration ───────────────────────────
+// Render sits behind a reverse proxy and forwards the original
+// client IP through X-Forwarded-For.
+//
+// Trust only the first proxy hop so express-rate-limit can
+// safely identify the real client IP.
+app.set("trust proxy", 1);
+
 // ── Security middlewares ──────────────────────────────────
-// Express 5 compatible security middleware
 app.use(helmet());
+
 
 // ── Rate limiting ─────────────────────────────────────────
 const limiter = rateLimit({
