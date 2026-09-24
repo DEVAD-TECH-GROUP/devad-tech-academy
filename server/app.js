@@ -107,6 +107,21 @@ import { notFound } from "./middlewares/error/notFound.js";
 
 const app = express();
 
+
+app.use((req, res, next) => {
+  console.log("🌐 ================================");
+  console.log("🌐 REQUEST RECEIVED");
+  console.log("🌐 Method:", req.method);
+  console.log("🌐 URL:", req.originalUrl);
+  console.log(
+    "🌐 Authorization:",
+    req.headers.authorization ? "PRESENT" : "NOT PRESENT"
+  );
+  console.log("🌐 ================================");
+
+  next();
+});
+
 // ── Reverse proxy configuration ───────────────────────────
 
 app.set("trust proxy", 1);
