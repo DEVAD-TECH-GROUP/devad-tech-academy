@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import {
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
 import { toast } from "react-hot-toast";
-import { GoogleLogin } from "@react-oauth/google";
 import useAuthStore from "../../store/authStore";
 
 /* ============================================================
@@ -84,11 +86,6 @@ function Particles() {
     const resize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-
-      log("Particles canvas resized:", {
-        width: canvas.width,
-        height: canvas.height,
-      });
     };
 
     resize();
@@ -104,12 +101,13 @@ function Particles() {
       alpha: Math.random() * 0.6 + 0.2,
     }));
 
-    log("Particles initialized:", {
-      count: particles.length,
-    });
-
     const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
 
       particles.forEach((p, i) => {
         particles.slice(i + 1).forEach((p2) => {
@@ -593,6 +591,7 @@ function OTPInput({
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const {
     register,
@@ -610,6 +609,13 @@ export default function RegisterPage() {
      ========================================================== */
 
   const [step, setStep] = useState(1);
+
+  /*
+   * This is only used to identify that Step 3 was reached
+   * through Google authentication.
+   */
+  const [isGoogleRegistration, setIsGoogleRegistration] =
+    useState(false);
 
   /* ==========================================================
      REGISTRATION FORM
@@ -708,11 +714,111 @@ export default function RegisterPage() {
   }, []);
 
   /* ==========================================================
+     GOOGLE REGISTRATION RETURN
+     ========================================================== */
+
+  useEffect(() => {
+    const state = location.state;
+
+    if (!state?.googleAuth) {
+      return;
+    }
+
+    const googleRegistrationToken =
+      state?.registrationToken || "";
+
+    const googleEmail =
+      state?.email || "";
+
+    /*
+     * The backend must provide a registration token
+     * when Google authentication requires phone verification.
+     */
+    if (!googleRegistrationToken) {
+      logWarn(
+        "Google registration state received without registration token."
+      );
+
+      toast.error(
+        "Google registration session is invalid. Please try again."
+      );
+
+      navigate("/register", {
+        replace: true,
+        state: {},
+      });
+
+      return;
+    }
+
+    logInfo(
+      "Google registration flow detected."
+    );
+
+    /*
+     * Do NOT log the actual token.
+     */
+    logInfo(
+      "Google registration session received.",
+      {
+        tokenPresent: true,
+        tokenLength:
+          googleRegistrationToken.length,
+        emailPresent:
+          Boolean(googleEmail),
+      }
+    );
+
+    setIsGoogleRegistration(true);
+
+    setRegistrationToken(
+      googleRegistrationToken
+    );
+
+    if (googleEmail) {
+      setForm((previous) => ({
+        ...previous,
+        email: googleEmail,
+      }));
+    }
+
+    /*
+     * Google has already verified the email.
+     * Therefore we skip:
+     *
+     * STEP 1 Create account
+     * STEP 2 Email verification
+     *
+     * and continue directly with:
+     *
+     * STEP 3 Phone collection
+     */
+    setStep(3);
+
+    /*
+     * Clear the sensitive Google registration data
+     * from React Router history state.
+     *
+     * The token is already stored in React state above.
+     */
+    navigate("/register", {
+      replace: true,
+      state: {},
+    });
+
+    toast.success(
+      "Google account verified. Please add your phone number."
+    );
+  }, [location.state, navigate]);
+
+  /* ==========================================================
      STEP CHANGE LOGGER
      ========================================================== */
 
   useEffect(() => {
-    logInfo(`Registration step changed: STEP ${step}`);
+    logInfo(
+      `Registration step changed: STEP ${step}`
+    );
 
     const descriptions = {
       1: "Create Account",
@@ -724,15 +830,20 @@ export default function RegisterPage() {
     log("Current step details:", {
       step,
       title: descriptions[step],
+      googleRegistration:
+        isGoogleRegistration,
     });
-  }, [step]);
+  }, [step, isGoogleRegistration]);
 
   /* ==========================================================
      STORE LOADING LOGGER
      ========================================================== */
 
   useEffect(() => {
-    log("Auth store loading state changed:", isLoading);
+    log(
+      "Auth store loading state changed:",
+      isLoading
+    );
   }, [isLoading]);
 
   /* ==========================================================
@@ -747,9 +858,6 @@ export default function RegisterPage() {
       [field]: value,
     }));
 
-    /*
-     * Don't log passwords or password confirmation.
-     */
     if (
       field !== "password" &&
       field !== "confirmPassword"
@@ -779,17 +887,6 @@ export default function RegisterPage() {
       confirmPassword,
     } = form;
 
-    log("Step 1 form presence check:", {
-      hasFirstName: Boolean(firstName.trim()),
-      hasLastName: Boolean(lastName.trim()),
-      hasEmail: Boolean(email.trim()),
-      hasPassword: Boolean(password),
-      hasConfirmPassword: Boolean(
-        confirmPassword
-      ),
-      agreed,
-    });
-
     if (
       !firstName.trim() ||
       !lastName.trim() ||
@@ -811,21 +908,11 @@ export default function RegisterPage() {
     const normalizedEmail =
       email.trim().toLowerCase();
 
-    /*
-     * Correct email regex.
-     */
     if (
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
         normalizedEmail
       )
     ) {
-      logWarn(
-        "Step 1 validation failed: invalid email format.",
-        {
-          email: normalizedEmail,
-        }
-      );
-
       toast.error(
         "Please enter a valid email address."
       );
@@ -833,26 +920,22 @@ export default function RegisterPage() {
       return false;
     }
 
-    if (password.length < 6) {
-      logWarn(
-        "Step 1 validation failed: password too short.",
-        {
-          length: password.length,
-        }
-      );
-
+    /*
+     * Backend requires at least 8 characters,
+     * uppercase, lowercase and number.
+     *
+     * We also require a special character
+     * on the frontend.
+     */
+    if (password.length < 8) {
       toast.error(
-        "Password must be at least 6 characters."
+        "Password must be at least 8 characters."
       );
 
       return false;
     }
 
     if (!/[A-Z]/.test(password)) {
-      logWarn(
-        "Step 1 validation failed: missing uppercase letter."
-      );
-
       toast.error(
         "Password must contain at least one uppercase letter."
       );
@@ -861,10 +944,6 @@ export default function RegisterPage() {
     }
 
     if (!/[a-z]/.test(password)) {
-      logWarn(
-        "Step 1 validation failed: missing lowercase letter."
-      );
-
       toast.error(
         "Password must contain at least one lowercase letter."
       );
@@ -873,10 +952,6 @@ export default function RegisterPage() {
     }
 
     if (!/[0-9]/.test(password)) {
-      logWarn(
-        "Step 1 validation failed: missing number."
-      );
-
       toast.error(
         "Password must contain at least one number."
       );
@@ -885,10 +960,6 @@ export default function RegisterPage() {
     }
 
     if (!/[^A-Za-z0-9]/.test(password)) {
-      logWarn(
-        "Step 1 validation failed: missing special character."
-      );
-
       toast.error(
         "Password must contain at least one special symbol."
       );
@@ -899,10 +970,6 @@ export default function RegisterPage() {
     if (
       password !== confirmPassword
     ) {
-      logWarn(
-        "Step 1 validation failed: passwords do not match."
-      );
-
       toast.error(
         "Passwords do not match."
       );
@@ -911,10 +978,6 @@ export default function RegisterPage() {
     }
 
     if (!agreed) {
-      logWarn(
-        "Step 1 validation failed: terms not accepted."
-      );
-
       toast.error(
         "Please agree to the Terms of Service and Privacy Policy."
       );
@@ -933,19 +996,10 @@ export default function RegisterPage() {
      STEP 1 → REGISTER → EMAIL OTP
      ========================================================== */
 
-  const handleCreateAccount = async (
-    e
-  ) => {
+  const handleCreateAccount = async (e) => {
     e.preventDefault();
 
-    log("================================================");
-    log("CREATE ACCOUNT BUTTON SUBMITTED");
-    log("================================================");
-
     if (!validateStepOne()) {
-      logWarn(
-        "Create account stopped because validation failed."
-      );
       return;
     }
 
@@ -968,19 +1022,14 @@ export default function RegisterPage() {
           form.password,
       };
 
-      /*
-       * SECURITY:
-       * Do NOT console.log payload because it contains password.
-       */
       logInfo(
         "Calling authStore.register()...",
         {
           firstName: payload.firstName,
           lastName: payload.lastName,
           email: payload.email,
-          hasPassword: Boolean(
-            payload.password
-          ),
+          hasPassword:
+            Boolean(payload.password),
           passwordLength:
             payload.password.length,
         }
@@ -990,7 +1039,7 @@ export default function RegisterPage() {
         await register(payload);
 
       logInfo(
-        "authStore.register() returned.",
+        "Registration API returned.",
         {
           responseExists:
             Boolean(response),
@@ -999,37 +1048,21 @@ export default function RegisterPage() {
         }
       );
 
-      log("Register response:", response);
-
       const data =
         response?.data ||
         response ||
         {};
-
-      log("Register response data:", data);
 
       const returnedEmail =
         data?.registration?.email ||
         data?.email ||
         payload.email;
 
-      log("Resolved registration email:", {
-        returnedEmail,
-      });
-
       if (!returnedEmail) {
-        logError(
-          "Registration response did not contain an email address."
-        );
-
         throw new Error(
           "Registration response did not contain an email address."
         );
       }
-
-      logInfo(
-        "Registration API flow completed successfully."
-      );
 
       toast.success(
         "Account created. Check your email for the verification code."
@@ -1041,10 +1074,6 @@ export default function RegisterPage() {
         top: 0,
         behavior: "smooth",
       });
-
-      log(
-        "Moved registration flow to STEP 2."
-      );
     } catch (err) {
       logError(
         "Registration failed.",
@@ -1058,10 +1087,6 @@ export default function RegisterPage() {
       );
     } finally {
       setLoading(false);
-
-      log(
-        "Create account loading state reset."
-      );
     }
   };
 
@@ -1069,30 +1094,13 @@ export default function RegisterPage() {
      VERIFY EMAIL
      ========================================================== */
 
-  const handleVerifyEmail = async (
-    e
-  ) => {
+  const handleVerifyEmail = async (e) => {
     e.preventDefault();
-
-    log("================================================");
-    log("EMAIL VERIFICATION SUBMITTED");
-    log("================================================");
 
     const code =
       emailOtp.trim();
 
-    /*
-     * Never log actual OTP.
-     */
-    log("Email OTP received:", {
-      length: code.length,
-    });
-
     if (!/^\d{6}$/.test(code)) {
-      logWarn(
-        "Email verification failed local validation."
-      );
-
       toast.error(
         "Please enter the 6-digit email verification code."
       );
@@ -1108,50 +1116,16 @@ export default function RegisterPage() {
           .trim()
           .toLowerCase();
 
-      logInfo(
-        "Calling authStore.verifyEmail()...",
-        {
-          email,
-          otpLength: code.length,
-        }
-      );
-
       const response =
         await verifyEmail(
           email,
           code
         );
 
-      logInfo(
-        "authStore.verifyEmail() returned."
-      );
-
-      log("Email verification response:", response);
-
       const data =
         response?.data ||
         response ||
         {};
-
-      log(
-        "Email verification response data:",
-        {
-          keys: Object.keys(data || {}),
-          hasRegistrationToken:
-            Boolean(
-              data?.registrationToken ||
-                data?.registration
-                  ?.registrationToken
-            ),
-          registration: data?.registration
-            ? {
-                keys: Object.keys(
-                  data.registration
-                ),
-              }
-            : null,
-        }
-      );
 
       const token =
         data?.registrationToken ||
@@ -1159,14 +1133,7 @@ export default function RegisterPage() {
           ?.registrationToken ||
         "";
 
-      /*
-       * Do not log token.
-       */
       if (!token) {
-        logError(
-          "Email verified but no registrationToken was returned."
-        );
-
         throw new Error(
           "Email verified, but the registration verification session was not returned."
         );
@@ -1174,13 +1141,7 @@ export default function RegisterPage() {
 
       setRegistrationToken(token);
 
-      logInfo(
-        "Registration verification session stored successfully.",
-        {
-          tokenReceived: true,
-          tokenLength: token.length,
-        }
-      );
+      setIsGoogleRegistration(false);
 
       toast.success(
         "Email verified successfully!"
@@ -1192,10 +1153,6 @@ export default function RegisterPage() {
         top: 0,
         behavior: "smooth",
       });
-
-      log(
-        "Moved registration flow to STEP 3."
-      );
     } catch (err) {
       logError(
         "Email verification failed.",
@@ -1209,10 +1166,6 @@ export default function RegisterPage() {
       );
     } finally {
       setLoading(false);
-
-      log(
-        "Email verification loading state reset."
-      );
     }
   };
 
@@ -1220,101 +1173,57 @@ export default function RegisterPage() {
      RESEND EMAIL OTP
      ========================================================== */
 
-  const handleResendEmailOTP =
-    async () => {
-      log("================================================");
-      log("RESEND EMAIL OTP REQUESTED");
-      log("================================================");
+  const handleResendEmailOTP = async () => {
+    const email =
+      form.email
+        .trim()
+        .toLowerCase();
 
-      const email =
-        form.email
-          .trim()
-          .toLowerCase();
+    if (!email) {
+      toast.error(
+        "Your email address is missing."
+      );
 
-      if (!email) {
-        logWarn(
-          "Cannot resend email OTP: email is missing."
-        );
+      return;
+    }
 
-        toast.error(
-          "Your email address is missing."
-        );
+    try {
+      setEmailResendLoading(true);
 
-        return;
-      }
+      await resendVerification(
+        email
+      );
 
-      try {
-        setEmailResendLoading(true);
+      setEmailOtp("");
 
-        logInfo(
-          "Calling authStore.resendVerification()...",
-          {
-            email,
-          }
-        );
+      toast.success(
+        "A new email verification code has been sent."
+      );
+    } catch (err) {
+      logError(
+        "Resend email OTP failed.",
+        sanitizeError(err)
+      );
 
-        const response =
-          await resendVerification(
-            email
-          );
-
-        logInfo(
-          "authStore.resendVerification() returned.",
-          {
-            responseExists:
-              Boolean(response),
-          }
-        );
-
-        log(
-          "Resend email response:",
-          response
-        );
-
-        setEmailOtp("");
-
-        toast.success(
-          "A new email verification code has been sent."
-        );
-
-        logInfo(
-          "Email OTP resend completed successfully."
-        );
-      } catch (err) {
-        logError(
-          "Resend email OTP failed.",
-          sanitizeError(err)
-        );
-
-        toast.error(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Unable to resend email verification code."
-        );
-      } finally {
-        setEmailResendLoading(false);
-
-        log(
-          "Email resend loading state reset."
-        );
-      }
-    };
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Unable to resend email verification code."
+      );
+    } finally {
+      setEmailResendLoading(false);
+    }
+  };
 
   /* ==========================================================
      VALIDATE PHONE
      ========================================================== */
 
   const validatePhone = () => {
-    log("Starting phone validation.");
-
     const cleanPhone =
       phone.trim();
 
     if (!cleanPhone) {
-      logWarn(
-        "Phone validation failed: phone is empty."
-      );
-
       toast.error(
         "Please enter your phone number."
       );
@@ -1328,31 +1237,16 @@ export default function RegisterPage() {
         ""
       );
 
-    log("Phone validation data:", {
-      originalLength:
-        cleanPhone.length,
-      digitLength:
-        digits.length,
-    });
-
     if (
       digits.length < 10 ||
       digits.length > 15
     ) {
-      logWarn(
-        "Phone validation failed: invalid digit length."
-      );
-
       toast.error(
         "Please enter a valid phone number."
       );
 
       return false;
     }
-
-    logInfo(
-      "Phone validation successful."
-    );
 
     return true;
   };
@@ -1361,636 +1255,273 @@ export default function RegisterPage() {
      STEP 3 → SAVE PHONE + SEND OTP
      ========================================================== */
 
-  const handleSendPhoneOTP =
-    async () => {
-      log("================================================");
-      log("SEND PHONE OTP REQUESTED");
-      log("================================================");
+  const handleSendPhoneOTP = async () => {
+    if (!validatePhone()) {
+      return;
+    }
 
-      if (!validatePhone()) {
-        logWarn(
-          "Send phone OTP stopped because phone validation failed."
+    if (!registrationToken) {
+      logError(
+        "Registration token is missing."
+      );
+
+      toast.error(
+        "Your registration session has expired. Please restart registration."
+      );
+
+      setStep(1);
+
+      return;
+    }
+
+    try {
+      setPhoneSendLoading(true);
+
+      const cleanPhone =
+        phone.trim();
+
+      /*
+       * First save the phone against the
+       * temporary registration session.
+       */
+      await updateRegistrationPhone(
+        registrationToken,
+        cleanPhone
+      );
+
+      /*
+       * Then request Robase OTP.
+       */
+      const response =
+        await sendPhoneOTP(
+          registrationToken
         );
 
-        return;
-      }
+      const data =
+        response?.data ||
+        response ||
+        {};
 
-      if (!registrationToken) {
-        logError(
-          "Send phone OTP stopped: registration token is missing."
-        );
+      const returnedOtpId =
+        data?.phoneVerification
+          ?.otpId ||
+        data?.otpId ||
+        data?.phoneOtpId ||
+        "";
 
-        toast.error(
-          "Your registration session has expired. Please restart registration."
-        );
-
-        setStep(1);
-
-        return;
-      }
-
-      try {
-        setPhoneSendLoading(true);
-
-        const cleanPhone =
-          phone.trim();
-
-        logInfo(
-          "Registration session exists.",
-          {
-            tokenPresent: true,
-            tokenLength:
-              registrationToken.length,
-          }
-        );
-
-        logInfo(
-          "Updating registration phone..."
-        );
-
-        const phoneUpdateResponse =
-          await updateRegistrationPhone(
-            registrationToken,
-            cleanPhone
-          );
-
-        log(
-          "updateRegistrationPhone() response:",
-          phoneUpdateResponse
-        );
-
-        logInfo(
-          "Phone number attached to registration session."
-        );
-
-        logInfo(
-          "Calling authStore.sendPhoneOTP()..."
-        );
-
-        const response =
-          await sendPhoneOTP(
-            registrationToken
-          );
-
-        logInfo(
-          "authStore.sendPhoneOTP() returned."
-        );
-
-        log(
-          "Phone OTP response:",
-          response
-        );
-
-        const data =
-          response?.data ||
-          response ||
-          {};
-
-        log(
-          "Phone OTP response data:",
-          {
-            keys: Object.keys(
-              data || {}
-            ),
-            phoneVerification:
-              data?.phoneVerification
-                ? {
-                    keys: Object.keys(
-                      data.phoneVerification
-                    ),
-                  }
-                : null,
-            hasOtpId: Boolean(
-              data?.phoneVerification
-                ?.otpId ||
-                data?.otpId ||
-                data?.phoneOtpId
-            ),
-          }
-        );
-
-        const returnedOtpId =
-          data?.phoneVerification
-            ?.otpId ||
-          data?.otpId ||
-          data?.phoneOtpId ||
-          "";
-
-        if (!returnedOtpId) {
-          logError(
-            "Phone OTP request succeeded but no OTP ID was returned."
-          );
-
-          throw new Error(
-            "Phone verification session was not returned."
-          );
-        }
-
-        /*
-         * OTP ID itself is generally less sensitive than the OTP,
-         * but we only log its presence/length.
-         */
-        setPhoneOtpId(
-          returnedOtpId
-        );
-
-        logInfo(
-          "Phone OTP session stored.",
-          {
-            otpIdPresent: true,
-            otpIdLength:
-              returnedOtpId.length,
-          }
-        );
-
-        setPhoneOtp("");
-
-        toast.success(
-          "Verification code sent to your phone."
-        );
-
-        setStep(4);
-
-        window.scrollTo({
-          top: 0,
-          behavior: "smooth",
-        });
-
-        log(
-          "Moved registration flow to STEP 4."
-        );
-      } catch (err) {
-        logError(
-          "Phone OTP request failed.",
-          sanitizeError(err)
-        );
-
-        toast.error(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Unable to send phone verification code."
-        );
-      } finally {
-        setPhoneSendLoading(false);
-
-        log(
-          "Phone send loading state reset."
+      if (!returnedOtpId) {
+        throw new Error(
+          "Phone verification session was not returned."
         );
       }
-    };
+
+      setPhoneOtpId(
+        returnedOtpId
+      );
+
+      setPhoneOtp("");
+
+      toast.success(
+        "Verification code sent to your phone."
+      );
+
+      setStep(4);
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    } catch (err) {
+      logError(
+        "Phone OTP request failed.",
+        sanitizeError(err)
+      );
+
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Unable to send phone verification code."
+      );
+    } finally {
+      setPhoneSendLoading(false);
+    }
+  };
 
   /* ==========================================================
      VERIFY PHONE
      ========================================================== */
 
-  const handleVerifyPhone =
-    async (e) => {
-      e.preventDefault();
+  const handleVerifyPhone = async (e) => {
+    e.preventDefault();
 
-      log("================================================");
-      log("PHONE VERIFICATION SUBMITTED");
-      log("================================================");
+    const code =
+      phoneOtp.trim();
 
-      const code =
-        phoneOtp.trim();
+    if (!/^\d{6}$/.test(code)) {
+      toast.error(
+        "Please enter the 6-digit phone verification code."
+      );
 
-      /*
-       * Never log actual OTP.
-       */
-      log("Phone OTP received:", {
-        length: code.length,
-      });
+      return;
+    }
 
-      if (!/^\d{6}$/.test(code)) {
-        logWarn(
-          "Phone verification failed local validation."
-        );
+    if (!registrationToken) {
+      toast.error(
+        "Your registration session has expired."
+      );
 
-        toast.error(
-          "Please enter the 6-digit phone verification code."
-        );
+      setStep(1);
 
-        return;
-      }
+      return;
+    }
 
-      if (!registrationToken) {
-        logError(
-          "Phone verification failed: registration token missing."
-        );
+    if (!phoneOtpId) {
+      toast.error(
+        "Phone verification session is missing. Please request a new code."
+      );
 
-        toast.error(
-          "Your registration session has expired."
-        );
+      return;
+    }
 
-        setStep(1);
+    try {
+      setLoading(true);
 
-        return;
-      }
+      await verifyPhone(
+        registrationToken,
+        phoneOtpId,
+        code
+      );
 
-      if (!phoneOtpId) {
-        logError(
-          "Phone verification failed: phone OTP ID missing."
-        );
+      toast.success(
+        "Registration completed successfully!"
+      );
 
-        toast.error(
-          "Phone verification session is missing. Please request a new code."
-        );
+      setTimeout(() => {
+        const email =
+          form.email
+            .trim()
+            .toLowerCase();
 
-        return;
-      }
+        navigate("/login", {
+          replace: true,
+          state: {
+            registered: true,
+            email,
+          },
+        });
+      }, 1000);
+    } catch (err) {
+      logError(
+        "Phone verification failed.",
+        sanitizeError(err)
+      );
 
-      try {
-        setLoading(true);
-
-        logInfo(
-          "Calling authStore.verifyPhone()...",
-          {
-            tokenPresent:
-              Boolean(registrationToken),
-            tokenLength:
-              registrationToken.length,
-            otpIdPresent:
-              Boolean(phoneOtpId),
-            otpIdLength:
-              phoneOtpId.length,
-            otpLength:
-              code.length,
-          }
-        );
-
-        const response =
-          await verifyPhone(
-            registrationToken,
-            phoneOtpId,
-            code
-          );
-
-        logInfo(
-          "authStore.verifyPhone() returned successfully."
-        );
-
-        log(
-          "Phone verification response:",
-          response
-        );
-
-        toast.success(
-          "Registration completed successfully!"
-        );
-
-        logInfo(
-          "REGISTRATION COMPLETED SUCCESSFULLY."
-        );
-
-        logInfo(
-          "Scheduling navigation to login in 1 second..."
-        );
-
-        setTimeout(() => {
-          const email =
-            form.email
-              .trim()
-              .toLowerCase();
-
-          logInfo(
-            "Navigating to /login...",
-            {
-              registered: true,
-              email,
-            }
-          );
-
-          navigate("/login", {
-            replace: true,
-            state: {
-              registered: true,
-              email,
-            },
-          });
-        }, 1000);
-      } catch (err) {
-        logError(
-          "Phone verification failed.",
-          sanitizeError(err)
-        );
-
-        toast.error(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Phone verification failed."
-        );
-      } finally {
-        setLoading(false);
-
-        log(
-          "Phone verification loading state reset."
-        );
-      }
-    };
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Phone verification failed."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   /* ==========================================================
      RESEND PHONE OTP
      ========================================================== */
 
-  const handleResendPhoneOTP =
-    async () => {
-      log("================================================");
-      log("RESEND PHONE OTP REQUESTED");
-      log("================================================");
+  const handleResendPhoneOTP = async () => {
+    if (!registrationToken) {
+      toast.error(
+        "Your registration session has expired."
+      );
 
-      if (!registrationToken) {
-        logError(
-          "Cannot resend phone OTP: registration token missing."
+      return;
+    }
+
+    try {
+      setPhoneResendLoading(true);
+
+      const response =
+        await sendPhoneOTP(
+          registrationToken
         );
 
-        toast.error(
-          "Your registration session has expired."
-        );
+      const data =
+        response?.data ||
+        response ||
+        {};
 
-        return;
-      }
+      const newOtpId =
+        data?.phoneVerification
+          ?.otpId ||
+        data?.otpId ||
+        data?.phoneOtpId ||
+        "";
 
-      try {
-        setPhoneResendLoading(true);
-
-        logInfo(
-          "Calling authStore.sendPhoneOTP() for resend...",
-          {
-            tokenPresent: true,
-            tokenLength:
-              registrationToken.length,
-          }
-        );
-
-        const response =
-          await sendPhoneOTP(
-            registrationToken
-          );
-
-        logInfo(
-          "Resend phone OTP API returned."
-        );
-
-        log(
-          "Resend phone OTP response:",
-          response
-        );
-
-        const data =
-          response?.data ||
-          response ||
-          {};
-
-        const newOtpId =
-          data?.phoneVerification
-            ?.otpId ||
-          data?.otpId ||
-          data?.phoneOtpId ||
-          "";
-
-        log(
-          "Resend phone OTP parsed data:",
-          {
-            hasOtpId:
-              Boolean(newOtpId),
-            responseKeys:
-              Object.keys(data || {}),
-          }
-        );
-
-        if (newOtpId) {
-          setPhoneOtpId(
-            newOtpId
-          );
-
-          logInfo(
-            "New phone OTP ID stored.",
-            {
-              otpIdLength:
-                newOtpId.length,
-            }
-          );
-        } else {
-          logWarn(
-            "Resend phone OTP response did not return a new OTP ID."
-          );
-        }
-
-        setPhoneOtp("");
-
-        toast.success(
-          "A new phone verification code has been sent."
-        );
-
-        logInfo(
-          "Phone OTP resend completed."
-        );
-      } catch (err) {
-        logError(
-          "Resend phone OTP failed.",
-          sanitizeError(err)
-        );
-
-        toast.error(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Unable to resend phone verification code."
-        );
-      } finally {
-        setPhoneResendLoading(false);
-
-        log(
-          "Phone resend loading state reset."
+      if (newOtpId) {
+        setPhoneOtpId(
+          newOtpId
         );
       }
-    };
+
+      setPhoneOtp("");
+
+      toast.success(
+        "A new phone verification code has been sent."
+      );
+    } catch (err) {
+      logError(
+        "Resend phone OTP failed.",
+        sanitizeError(err)
+      );
+
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Unable to resend phone verification code."
+      );
+    } finally {
+      setPhoneResendLoading(false);
+    }
+  };
 
   /* ==========================================================
      GOOGLE AUTH
      ========================================================== */
 
-  const handleGoogleSuccess =
-    async (
-      credentialResponse
-    ) => {
-      log("================================================");
-      log("GOOGLE AUTH SUCCESS CALLBACK");
-      log("================================================");
+  /*
+   * IMPORTANT:
+   *
+   * Google is now handled by Passport on the backend.
+   *
+   * There is NO credential here.
+   * There is NO POST /auth/google.
+   *
+   * googleLogin() simply redirects the browser to:
+   *
+   * GET /api/auth/google
+   *
+   * Passport then sends the user to Google.
+   */
+  const handleGoogleLogin = () => {
+    log(
+      "Starting Google authentication redirect..."
+    );
 
-      try {
-        const googleToken =
-          credentialResponse?.credential;
-
-        log(
-          "Google credential received:",
-          {
-            exists:
-              Boolean(googleToken),
-            length:
-              googleToken?.length || 0,
-          }
-        );
-
-        /*
-         * NEVER log the actual Google token.
-         */
-
-        if (!googleToken) {
-          logError(
-            "Google credential was missing."
-          );
-
-          toast.error(
-            "Google authentication token was not received."
-          );
-
-          return;
-        }
-
-        logInfo(
-          "Calling authStore.googleLogin()..."
-        );
-
-        const response =
-          await googleLogin(
-            googleToken
-          );
-
-        logInfo(
-          "authStore.googleLogin() returned."
-        );
-
-        log(
-          "Google login response:",
-          response
-        );
-
-        const user =
-          response?.user ||
-          response?.data?.user ||
-          response?.data ||
-          null;
-
-        log(
-          "Google authentication resolved user:",
-          user
-            ? {
-                id:
-                  user._id ||
-                  user.id ||
-                  null,
-                email:
-                  user.email ||
-                  null,
-                role:
-                  user.role ||
-                  null,
-                isPhoneVerified:
-                  user.isPhoneVerified,
-              }
-            : null
-        );
-
-        /*
-         * Google authentication may succeed before
-         * phone verification.
-         */
-
-        if (
-          user &&
-          !user.isPhoneVerified
-        ) {
-          logWarn(
-            "Google authentication succeeded but phone verification is still required."
-          );
-
-          toast.success(
-            "Google account authenticated. Phone verification is required."
-          );
-
-          logInfo(
-            "Navigating to /verify-phone."
-          );
-
-          navigate(
-            "/verify-phone",
-            {
-              state: {
-                fromGoogle: true,
-              },
-            }
-          );
-
-          return;
-        }
-
-        toast.success(
-          "Welcome to Devad Tech Academy!"
-        );
-
-        logInfo(
-          "Google authentication completed. Determining dashboard..."
-        );
-
-        if (
-          user?.role ===
-          "super_admin"
-        ) {
-          logInfo(
-            "Google user role: super_admin. Navigating to admin dashboard."
-          );
-
-          navigate(
-            "/admin/dashboard"
-          );
-        } else if (
-          user?.role ===
-          "instructor"
-        ) {
-          logInfo(
-            "Google user role: instructor. Navigating to instructor dashboard."
-          );
-
-          navigate(
-            "/instructor/dashboard"
-          );
-        } else {
-          logInfo(
-            "Google user role: student/default. Navigating to student dashboard."
-          );
-
-          navigate(
-            "/student/dashboard"
-          );
-        }
-      } catch (err) {
-        logError(
-          "Google authentication failed.",
-          sanitizeError(err)
-        );
-
-        toast.error(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Google authentication failed."
-        );
-      }
-    };
-
-  /* ==========================================================
-     GOOGLE AUTH ERROR
-     ========================================================== */
-
-  const handleGoogleError =
-    () => {
+    try {
+      googleLogin();
+    } catch (err) {
       logError(
-        "Google authentication failed at GoogleLogin component level."
+        "Unable to start Google authentication.",
+        sanitizeError(err)
       );
 
       toast.error(
-        "Google authentication could not be completed."
+        "Unable to start Google authentication. Please try again."
       );
-    };
+    }
+  };
 
   /* ==========================================================
      STEP NAVIGATION
@@ -2001,24 +1532,33 @@ export default function RegisterPage() {
       "Back navigation requested.",
       {
         currentStep: step,
+        googleRegistration:
+          isGoogleRegistration,
       }
     );
 
     if (step === 2) {
-      log(
-        "STEP 2 → STEP 1: clearing email OTP."
-      );
-
       setEmailOtp("");
       setStep(1);
 
       return;
     }
 
+    /*
+     * Google users should not go back to
+     * account creation or email verification.
+     *
+     * Their Google account has already been
+     * authenticated.
+     */
     if (step === 3) {
-      log(
-        "STEP 3 → STEP 2: clearing phone."
-      );
+      if (isGoogleRegistration) {
+        toast(
+          "Your Google account has already been verified. Continue with phone verification."
+        );
+
+        return;
+      }
 
       setPhone("");
       setStep(2);
@@ -2027,20 +1567,12 @@ export default function RegisterPage() {
     }
 
     if (step === 4) {
-      log(
-        "STEP 4 → STEP 3: clearing phone OTP and OTP ID."
-      );
-
       setPhoneOtp("");
       setPhoneOtpId("");
       setStep(3);
 
       return;
     }
-
-    logWarn(
-      "Back navigation called on STEP 1."
-    );
   };
 
   /* ==========================================================
@@ -2064,14 +1596,9 @@ export default function RegisterPage() {
      LOGIN NAVIGATION
      ========================================================== */
 
-  const handleLoginNavigation =
-    () => {
-      log(
-        "Login navigation requested from registration page."
-      );
-
-      navigate("/login");
-    };
+  const handleLoginNavigation = () => {
+    navigate("/login");
+  };
 
   /* ==========================================================
      STYLES
@@ -2112,7 +1639,9 @@ export default function RegisterPage() {
   const stepDescription = {
     1: "Start your learning journey today",
     2: "Check your email for your verification code",
-    3: "Secure your account with phone verification",
+    3: isGoogleRegistration
+      ? "Complete your Google account registration"
+      : "Secure your account with phone verification",
     4: "Enter the code sent to your phone",
   };
 
@@ -2405,19 +1934,12 @@ export default function RegisterPage() {
                     rightSlot={
                       <button
                         type="button"
-                        onClick={() => {
-                          const next =
-                            !showPass;
-
-                          log(
-                            "Password visibility toggled:",
-                            next
-                          );
-
+                        onClick={() =>
                           setShowPass(
-                            next
-                          );
-                        }}
+                            (prev) =>
+                              !prev
+                          )
+                        }
                         className="px-4 flex items-center transition-colors duration-200"
                         style={{
                           color:
@@ -2471,19 +1993,12 @@ export default function RegisterPage() {
                   rightSlot={
                     <button
                       type="button"
-                      onClick={() => {
-                        const next =
-                          !showConfirm;
-
-                        log(
-                          "Confirm password visibility toggled:",
-                          next
-                        );
-
+                      onClick={() =>
                         setShowConfirm(
-                          next
-                        );
-                      }}
+                          (prev) =>
+                            !prev
+                        )
+                      }
                       className="px-4 flex items-center transition-colors duration-200"
                       style={{
                         color:
@@ -2679,35 +2194,55 @@ export default function RegisterPage() {
                 <div className="flex-1 h-px bg-slate-800" />
               </div>
 
-              {/* Google */}
+              {/* ==================================================
+                  GOOGLE
+                  ================================================== */}
 
               <div
                 style={fadeIn(0.55)}
                 className="w-full flex justify-center"
               >
-                <div className="w-[350px] overflow-hidden rounded-xl bg-[#0b1426] flex justify-center">
-                  <GoogleLogin
-                    onSuccess={
-                      handleGoogleSuccess
+                <div className="w-full overflow-hidden rounded-xl">
+                  <button
+                    type="button"
+                    onClick={
+                      handleGoogleLogin
                     }
-                    onError={
-                      handleGoogleError
+                    disabled={
+                      isLoading ||
+                      loading
                     }
-                    text="continue_with"
-                    theme="filled_dark"
-                    shape="rectangular"
-                    width="350px"
-                    containerProps={{
-                      style: {
-                        width:
-                          "350px",
-                        display:
-                          "flex",
-                        justifyContent:
-                          "center",
-                      },
-                    }}
-                  />
+                    className="w-full flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        fill="#4285F4"
+                        d="M21.35 12.23c0-.79-.07-1.55-.23-2.27H12v4.3h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.69 2.91-4.18 2.91-7.42z"
+                      />
+
+                      <path
+                        fill="#34A853"
+                        d="M12 21.6c2.63 0 4.84-.87 6.45-2.35l-3.14-2.45c-.87.58-1.98.92-3.31.92-2.54 0-4.69-1.72-5.46-4.03H3.3v2.53A9.74 9.74 0 0 0 12 21.6z"
+                      />
+
+                      <path
+                        fill="#FBBC05"
+                        d="M6.54 13.69A5.86 5.86 0 0 1 6.23 12c0-.59.11-1.16.31-1.69V7.78H3.3A9.74 9.74 0 0 0 2.25 12c0 1.57.38 3.05 1.05 4.22l3.24-2.53z"
+                      />
+
+                      <path
+                        fill="#EA4335"
+                        d="M12 6.28c1.43 0 2.72.49 3.73 1.45l2.8-2.8C16.84 3.37 14.63 2.4 12 2.4a9.74 9.74 0 0 0-8.7 5.38l3.24 2.53C7.31 8 9.46 6.28 12 6.28z"
+                      />
+                    </svg>
+
+                    Continue with Google
+                  </button>
                 </div>
               </div>
             </>
@@ -2884,15 +2419,62 @@ export default function RegisterPage() {
                       "'Rajdhani', sans-serif",
                   }}
                 >
-                  Your email is verified.
-                  Now add your Nigerian
-                  phone number. We will
-                  send you a verification
-                  code to secure your
-                  account and prevent fake
-                  registrations.
+                  {isGoogleRegistration ? (
+                    <>
+                      Your Google account has
+                      been verified successfully.
+                      Now add your Nigerian phone
+                      number. We will send you a
+                      verification code to secure
+                      your account.
+                    </>
+                  ) : (
+                    <>
+                      Your email is verified.
+                      Now add your Nigerian phone
+                      number. We will send you a
+                      verification code to secure
+                      your account and prevent fake
+                      registrations.
+                    </>
+                  )}
                 </p>
               </div>
+
+              {isGoogleRegistration &&
+                form.email && (
+                  <div
+                    className="rounded-lg px-4 py-3 text-center"
+                    style={{
+                      background:
+                        "rgba(0,180,255,0.04)",
+                      border:
+                        "1px solid rgba(0,180,255,0.10)",
+                    }}
+                  >
+                    <span
+                      className="text-xs"
+                      style={{
+                        color:
+                          "rgba(150,180,255,0.55)",
+                        fontFamily:
+                          "'Rajdhani', sans-serif",
+                      }}
+                    >
+                      Google account
+                    </span>
+
+                    <div
+                      className="text-sm font-semibold mt-1"
+                      style={{
+                        color:
+                          "#38bdf8",
+                      }}
+                    >
+                      {form.email}
+                    </div>
+                  </div>
+                )}
 
               <InputField
                 id="phone"
@@ -2902,14 +2484,6 @@ export default function RegisterPage() {
                 onChange={(e) => {
                   const value =
                     e.target.value;
-
-                  log(
-                    "Phone input changed:",
-                    {
-                      length:
-                        value.length,
-                    }
-                  );
 
                   setPhone(value);
                 }}
@@ -2976,7 +2550,9 @@ export default function RegisterPage() {
                     "'Rajdhani', sans-serif",
                 }}
               >
-                ← Back to email verification
+                {isGoogleRegistration
+                  ? "← Continue with Google account"
+                  : "← Back to email verification"}
               </button>
             </div>
           )}
@@ -3179,13 +2755,6 @@ export default function RegisterPage() {
 
         * {
           -webkit-font-smoothing: antialiased;
-        }
-
-        @media (max-width: 420px) {
-          .GoogleLoginWrapper > div {
-            width: 100% !important;
-            max-width: 350px;
-          }
         }
       `}</style>
     </div>

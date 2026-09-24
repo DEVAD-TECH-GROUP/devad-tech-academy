@@ -41,6 +41,7 @@ import Register from "../pages/auth/Register";
 import ForgotPassword from "../pages/auth/ForgotPassword";
 import ResetPassword from "../pages/auth/ResetPassword";
 import VerifyEmail from "../pages/auth/VerifyEmail";
+import GoogleCallback from "../pages/auth/GoogleCallback";
 
 // ─────────────────────────────────────────────────────────────
 // Student Pages
@@ -197,6 +198,11 @@ const router = createBrowserRouter([
         element: <Contact />,
       },
     ],
+  },
+
+  {
+    path: "/auth/google/callback",
+    element: <GoogleCallback />,
   },
 
   // ═══════════════════════════════════════════════════════════

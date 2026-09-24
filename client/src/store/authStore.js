@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+
 import api from "../api/Api";
 
 const useAuthStore = create(
@@ -34,8 +35,10 @@ const useAuthStore = create(
             }
           );
 
-          const { user, accessToken } =
-            data.data;
+          const {
+            user,
+            accessToken,
+          } = data.data;
 
           localStorage.setItem(
             "accessToken",
@@ -68,25 +71,6 @@ const useAuthStore = create(
       // ============================================================
       // REGISTER
       // ============================================================
-      //
-      // IMPORTANT:
-      // Registration does NOT authenticate the user.
-      //
-      // Backend should return something like:
-      //
-      // {
-      //   success: true,
-      //   data: {
-      //     registration: {
-      //       userId,
-      //       email,
-      //       emailVerified: false,
-      //       phoneVerified: false
-      //     }
-      //   }
-      // }
-      //
-      // ============================================================
 
       register: async (payload) => {
         set({
@@ -100,22 +84,6 @@ const useAuthStore = create(
             payload
           );
 
-          /*
-           * DO NOT:
-           *
-           * localStorage.setItem("accessToken", ...)
-           *
-           * DO NOT:
-           *
-           * set({
-           *   user,
-           *   token,
-           *   isAuthenticated: true
-           * })
-           *
-           * The user has NOT completed registration yet.
-           */
-
           set({
             isLoading: false,
             error: null,
@@ -124,7 +92,7 @@ const useAuthStore = create(
           return data;
         } catch (err) {
           const message =
-            err.response?.data ||
+            err.response?.data?.message ||
             "Registration failed";
 
           set({
@@ -223,51 +191,45 @@ const useAuthStore = create(
       // ============================================================
       // UPDATE REGISTRATION PHONE
       // ============================================================
-      //
-      // This is for a user who has verified email but
-      // has not completed registration yet.
-      //
-      // No JWT is required.
-      //
-      // ============================================================
 
-updateRegistrationPhone: async (
-  registrationToken,
-  phone
-) => {
-  set({
-    isLoading: true,
-    error: null,
-  });
-
-  try {
-    const { data } = await api.post(
-      "/auth/registration-phone",
-      {
+      updateRegistrationPhone: async (
         registrationToken,
-        phone,
-      }
-    );
+        phone
+      ) => {
+        set({
+          isLoading: true,
+          error: null,
+        });
 
-    set({
-      isLoading: false,
-      error: null,
-    });
+        try {
+          const { data } =
+            await api.post(
+              "/auth/registration-phone",
+              {
+                registrationToken,
+                phone,
+              }
+            );
 
-    return data;
-  } catch (err) {
-    const message =
-      err.response?.data?.message ||
-      "Unable to save phone number";
+          set({
+            isLoading: false,
+            error: null,
+          });
 
-    set({
-      isLoading: false,
-      error: message,
-    });
+          return data;
+        } catch (err) {
+          const message =
+            err.response?.data?.message ||
+            "Unable to save phone number";
 
-    throw err;
-  }
-},
+          set({
+            isLoading: false,
+            error: message,
+          });
+
+          throw err;
+        }
+      },
 
       // ============================================================
       // SEND PHONE OTP
@@ -335,18 +297,6 @@ updateRegistrationPhone: async (
               }
             );
 
-          /*
-           * IMPORTANT:
-           *
-           * Even after this succeeds, your backend should
-           * NOT automatically create a JWT if the intended
-           * flow is:
-           *
-           * registration complete → login page.
-           *
-           * The frontend therefore does not save a token here.
-           */
-
           set({
             isLoading: false,
             error: null,
@@ -370,75 +320,42 @@ updateRegistrationPhone: async (
       // ============================================================
       // GOOGLE LOGIN
       // ============================================================
+      //
+      // Google authentication is handled by Passport.
+      //
+      // We DO NOT send a Google credential through Axios.
+      //
+      // ============================================================
 
-      googleLogin: async (
-        credential
+      googleLogin: () => {
+        const API_BASE_URL =
+          import.meta.env.VITE_API_URL ||
+          "https://devad-academy-backend.onrender.com/api";
+
+        window.location.href =
+          `${API_BASE_URL}/auth/google`;
+      },
+
+      // ============================================================
+      // SET GOOGLE AUTH
+      // ============================================================
+
+      setGoogleAuth: (
+        accessToken,
+        user = null
       ) => {
+        localStorage.setItem(
+          "accessToken",
+          accessToken
+        );
+
         set({
-          isLoading: true,
+          user,
+          token: accessToken,
+          isAuthenticated: true,
+          isLoading: false,
           error: null,
         });
-
-        try {
-          const { data } =
-            await api.post(
-              "/auth/google",
-              {
-                credential,
-              }
-            );
-
-          /*
-           * Google login is different from manual
-           * registration.
-           *
-           * If backend returns a JWT immediately,
-           * save it.
-           *
-           * If backend requires phone verification first,
-           * your backend should return the appropriate
-           * verification state instead.
-           */
-
-          const responseData =
-            data?.data || data;
-
-          const accessToken =
-            responseData?.accessToken;
-
-          const user =
-            responseData?.user;
-
-          if (accessToken) {
-            localStorage.setItem(
-              "accessToken",
-              accessToken
-            );
-          }
-
-          set({
-            user: user || null,
-            token:
-              accessToken || null,
-            isAuthenticated:
-              Boolean(accessToken),
-            isLoading: false,
-            error: null,
-          });
-
-          return responseData;
-        } catch (err) {
-          const message =
-            err.response?.data?.message ||
-            "Google authentication failed";
-
-          set({
-            isLoading: false,
-            error: message,
-          });
-
-          throw err;
-        }
       },
 
       // ============================================================
@@ -451,8 +368,7 @@ updateRegistrationPhone: async (
             "/auth/logout"
           );
         } catch {
-          // Logout locally even if
-          // backend request fails.
+          // Continue with local logout.
         }
 
         localStorage.removeItem(
@@ -493,13 +409,6 @@ updateRegistrationPhone: async (
 
           return user;
         } catch (err) {
-          /*
-           * Don't immediately destroy the token here
-           * for every possible error. But if /me fails
-           * because authentication is invalid, your API
-           * interceptor can handle the token expiration.
-           */
-
           set({
             user: null,
             isAuthenticated: false,
