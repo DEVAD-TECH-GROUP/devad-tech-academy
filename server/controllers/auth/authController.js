@@ -584,19 +584,25 @@ export const login = asyncHandler(async (req, res) => {
      Email verification
      ---------------------------------------------------------- */
 
-  if (!user.isEmailVerified) {
-    return sendResponse(
-      res,
-      403,
-      "Please verify your email before logging in.",
-      {
-        verificationRequired:
-          "email",
-
+  if (!user.isPhoneVerified) {
+  return res.status(200).json({
+    success: true,
+    message: "Phone verification required.",
+    data: {
+      requiresPhone: true,
+      user: {
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email,
-      }
-    );
-  }
+        role: user.role,
+        avatar: user.avatar,
+        isEmailVerified: user.isEmailVerified,
+        isPhoneVerified: false,
+      },
+    },
+  });
+}
 
 
   /* ----------------------------------------------------------
