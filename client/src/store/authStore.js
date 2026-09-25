@@ -27,19 +27,24 @@ const useAuthStore = create(
         });
 
         try {
-          const { data } = await api.post(
-            "/auth/login",
-            {
-              email,
-              password,
-            }
-          );
+          const { data } = await api.post("/auth/login", {
+            email,
+            password,
+          });
 
-          const {
-            user,
-            accessToken,
-          } = data.data;
+          const response = data?.data || {};
 
+          const user = response?.user || null;
+          const accessToken =
+            response?.accessToken || null;
+
+          if (!accessToken) {
+            throw new Error(
+              "Login succeeded but no access token was returned."
+            );
+          }
+
+          // Store token for Axios interceptor
           localStorage.setItem(
             "accessToken",
             accessToken
@@ -56,7 +61,8 @@ const useAuthStore = create(
           return user;
         } catch (err) {
           const message =
-            err.response?.data?.message ||
+            err?.response?.data?.message ||
+            err?.message ||
             "Login failed";
 
           set({
@@ -92,7 +98,8 @@ const useAuthStore = create(
           return data;
         } catch (err) {
           const message =
-            err.response?.data?.message ||
+            err?.response?.data?.message ||
+            err?.message ||
             "Registration failed";
 
           set({
@@ -108,24 +115,20 @@ const useAuthStore = create(
       // VERIFY EMAIL
       // ============================================================
 
-      verifyEmail: async (
-        email,
-        token
-      ) => {
+      verifyEmail: async (email, token) => {
         set({
           isLoading: true,
           error: null,
         });
 
         try {
-          const { data } =
-            await api.post(
-              "/auth/verify-email",
-              {
-                email,
-                token,
-              }
-            );
+          const { data } = await api.post(
+            "/auth/verify-email",
+            {
+              email,
+              token,
+            }
+          );
 
           set({
             isLoading: false,
@@ -135,7 +138,8 @@ const useAuthStore = create(
           return data;
         } catch (err) {
           const message =
-            err.response?.data?.message ||
+            err?.response?.data?.message ||
+            err?.message ||
             "Email verification failed";
 
           set({
@@ -151,22 +155,19 @@ const useAuthStore = create(
       // RESEND EMAIL VERIFICATION
       // ============================================================
 
-      resendVerification: async (
-        email
-      ) => {
+      resendVerification: async (email) => {
         set({
           isLoading: true,
           error: null,
         });
 
         try {
-          const { data } =
-            await api.post(
-              "/auth/resend-verification",
-              {
-                email,
-              }
-            );
+          const { data } = await api.post(
+            "/auth/resend-verification",
+            {
+              email,
+            }
+          );
 
           set({
             isLoading: false,
@@ -176,7 +177,8 @@ const useAuthStore = create(
           return data;
         } catch (err) {
           const message =
-            err.response?.data?.message ||
+            err?.response?.data?.message ||
+            err?.message ||
             "Unable to resend verification code";
 
           set({
@@ -202,14 +204,13 @@ const useAuthStore = create(
         });
 
         try {
-          const { data } =
-            await api.post(
-              "/auth/registration-phone",
-              {
-                registrationToken,
-                phone,
-              }
-            );
+          const { data } = await api.post(
+            "/auth/registration-phone",
+            {
+              registrationToken,
+              phone,
+            }
+          );
 
           set({
             isLoading: false,
@@ -219,7 +220,8 @@ const useAuthStore = create(
           return data;
         } catch (err) {
           const message =
-            err.response?.data?.message ||
+            err?.response?.data?.message ||
+            err?.message ||
             "Unable to save phone number";
 
           set({
@@ -235,22 +237,19 @@ const useAuthStore = create(
       // SEND PHONE OTP
       // ============================================================
 
-      sendPhoneOTP: async (
-        registrationToken
-      ) => {
+      sendPhoneOTP: async (registrationToken) => {
         set({
           isLoading: true,
           error: null,
         });
 
         try {
-          const { data } =
-            await api.post(
-              "/auth/send-phone-otp",
-              {
-                registrationToken,
-              }
-            );
+          const { data } = await api.post(
+            "/auth/send-phone-otp",
+            {
+              registrationToken,
+            }
+          );
 
           set({
             isLoading: false,
@@ -260,7 +259,8 @@ const useAuthStore = create(
           return data;
         } catch (err) {
           const message =
-            err.response?.data?.message ||
+            err?.response?.data?.message ||
+            err?.message ||
             "Unable to send phone verification code";
 
           set({
@@ -287,15 +287,53 @@ const useAuthStore = create(
         });
 
         try {
-          const { data } =
-            await api.post(
-              "/auth/verify-phone",
-              {
-                registrationToken,
-                otpId,
-                code,
-              }
+          const { data } = await api.post(
+            "/auth/verify-phone",
+            {
+              registrationToken,
+              otpId,
+              code,
+            }
+          );
+
+          /*
+           * Expected backend response after successful
+           * phone verification:
+           *
+           * {
+           *   success: true,
+           *   data: {
+           *     user,
+           *     accessToken
+           *   }
+           * }
+           */
+
+          const response = data?.data || {};
+
+          const user = response?.user || null;
+          const accessToken =
+            response?.accessToken || null;
+
+          // If phone verification completes the
+          // registration and backend returns a token,
+          // authenticate the user immediately.
+          if (accessToken) {
+            localStorage.setItem(
+              "accessToken",
+              accessToken
             );
+
+            set({
+              user,
+              token: accessToken,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+            });
+
+            return data;
+          }
 
           set({
             isLoading: false,
@@ -305,7 +343,8 @@ const useAuthStore = create(
           return data;
         } catch (err) {
           const message =
-            err.response?.data?.message ||
+            err?.response?.data?.message ||
+            err?.message ||
             "Phone verification failed";
 
           set({
@@ -318,44 +357,162 @@ const useAuthStore = create(
       },
 
       // ============================================================
-      // GOOGLE LOGIN
+      // GOOGLE LOGIN / REGISTRATION
       // ============================================================
       //
-      // Google authentication is handled by Passport.
+      // This uses:
       //
-      // We DO NOT send a Google credential through Axios.
+      // @react-oauth/google
+      //
+      // GoogleLogin returns a credential.
+      //
+      // We send that credential to our backend.
+      //
+      // Backend:
+      //
+      // POST /auth/google
+      //
+      // The backend verifies the Google credential using
+      // GOOGLE_CLIENT_ID.
       //
       // ============================================================
 
-      googleLogin: () => {
-        const API_BASE_URL =
-          import.meta.env.VITE_API_URL ||
-          "https://devad-academy-backend.onrender.com/api";
+      googleLogin: async (credential) => {
+        if (!credential) {
+          const error = new Error(
+            "Google credential is missing."
+          );
 
-        window.location.href =
-          `${API_BASE_URL}/auth/google`;
-      },
+          set({
+            isLoading: false,
+            error: error.message,
+          });
 
-      // ============================================================
-      // SET GOOGLE AUTH
-      // ============================================================
-
-      setGoogleAuth: (
-        accessToken,
-        user = null
-      ) => {
-        localStorage.setItem(
-          "accessToken",
-          accessToken
-        );
+          throw error;
+        }
 
         set({
-          user,
-          token: accessToken,
-          isAuthenticated: true,
-          isLoading: false,
+          isLoading: true,
           error: null,
         });
+
+        try {
+          const { data } = await api.post(
+            "/auth/google",
+            {
+              credential,
+            }
+          );
+
+          /*
+           * The backend can return either:
+           *
+           * A) Registration needs phone verification
+           *
+           * {
+           *   success: true,
+           *   data: {
+           *     requiresPhone: true,
+           *     registrationToken: "...",
+           *     user: {...}
+           *   }
+           * }
+           *
+           * OR
+           *
+           * B) User is completely authenticated
+           *
+           * {
+           *   success: true,
+           *   data: {
+           *     user: {...},
+           *     accessToken: "..."
+           *   }
+           * }
+           */
+
+          const response = data?.data || {};
+
+          const accessToken =
+            response?.accessToken || null;
+
+          const user =
+            response?.user || null;
+
+          const registrationToken =
+            response?.registrationToken ||
+            null;
+
+          const requiresPhone =
+            response?.requiresPhone === true ||
+            Boolean(registrationToken);
+
+          // --------------------------------------------------------
+          // CASE 1:
+          // Google authentication requires phone verification.
+          // --------------------------------------------------------
+
+          if (requiresPhone) {
+            set({
+              isLoading: false,
+              error: null,
+            });
+
+            return {
+              ...data,
+              requiresPhone: true,
+              registrationToken,
+              user,
+            };
+          }
+
+          // --------------------------------------------------------
+          // CASE 2:
+          // Backend fully authenticated the user.
+          // --------------------------------------------------------
+
+          if (accessToken) {
+            localStorage.setItem(
+              "accessToken",
+              accessToken
+            );
+
+            set({
+              user,
+              token: accessToken,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+            });
+
+            return {
+              ...data,
+              requiresPhone: false,
+              user,
+              accessToken,
+            };
+          }
+
+          // --------------------------------------------------------
+          // Unexpected response
+          // --------------------------------------------------------
+
+          throw new Error(
+            "Google authentication succeeded but the server returned an invalid response."
+          );
+        } catch (err) {
+          const message =
+            err?.response?.data?.message ||
+            err?.message ||
+            "Google authentication failed";
+
+          set({
+            isLoading: false,
+            error: message,
+          });
+
+          throw err;
+        }
       },
 
       // ============================================================
@@ -364,11 +521,10 @@ const useAuthStore = create(
 
       logout: async () => {
         try {
-          await api.post(
-            "/auth/logout"
-          );
+          await api.post("/auth/logout");
         } catch {
-          // Continue with local logout.
+          // Even if server logout fails,
+          // clear the local authentication state.
         }
 
         localStorage.removeItem(
@@ -383,8 +539,7 @@ const useAuthStore = create(
           error: null,
         });
 
-        window.location.href =
-          "/login";
+        window.location.href = "/login";
       },
 
       // ============================================================
@@ -393,13 +548,20 @@ const useAuthStore = create(
 
       getMe: async () => {
         try {
-          const { data } =
-            await api.get(
-              "/auth/me"
-            );
+          const { data } = await api.get(
+            "/auth/me"
+          );
 
           const user =
-            data.data;
+            data?.data?.user ||
+            data?.data ||
+            null;
+
+          if (!user) {
+            throw new Error(
+              "No user data returned."
+            );
+          }
 
           set({
             user,
@@ -411,8 +573,13 @@ const useAuthStore = create(
         } catch (err) {
           set({
             user: null,
+            token: null,
             isAuthenticated: false,
           });
+
+          localStorage.removeItem(
+            "accessToken"
+          );
 
           throw err;
         }
