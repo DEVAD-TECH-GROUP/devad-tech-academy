@@ -209,7 +209,7 @@ app.get("/api/health", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/authgoogle", googleAuthRoutes);
-app.use("/api/auth", passwordRoutes);
+app.use("/api/authpassword", passwordRoutes);
 
 // ── Public routes ─────────────────────────────────────────
 
