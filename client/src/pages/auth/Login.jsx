@@ -44,6 +44,7 @@ const logError = (label, error = null) => {
 
 /*
  * IMPORTANT:
+ *
  * Never log:
  * - passwords
  * - OTP codes
@@ -484,23 +485,32 @@ export default function LoginPage() {
     const email =
       location.state?.email;
 
-    if (registered) {
-      toast.success(
-        "Registration completed successfully. Please log in."
-      );
-
-      if (email) {
-        setForm((previous) => ({
-          ...previous,
-          email,
-        }));
-      }
-
-      navigate(location.pathname, {
-        replace: true,
-        state: {},
-      });
+    if (!registered) {
+      return;
     }
+
+    logInfo(
+      "Registration completed. Preparing login page.",
+      {
+        email: email || null,
+      }
+    );
+
+    toast.success(
+      "Registration completed successfully. Please log in."
+    );
+
+    if (email) {
+      setForm((previous) => ({
+        ...previous,
+        email,
+      }));
+    }
+
+    navigate(location.pathname, {
+      replace: true,
+      state: {},
+    });
   }, [location, navigate]);
 
   /* ==========================================================
@@ -573,6 +583,10 @@ export default function LoginPage() {
       "Redirecting authenticated user.",
       {
         role,
+        userId:
+          user?._id ||
+          user?.id ||
+          null,
       }
     );
 
@@ -625,10 +639,6 @@ export default function LoginPage() {
       return false;
     }
 
-    /*
-     * Correct email regex.
-     */
-
     if (
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
         email
@@ -653,16 +663,41 @@ export default function LoginPage() {
   };
 
   /* ==========================================================
-     EXTRACT PHONE VERIFICATION RESPONSE
+     EXTRACT AUTH RESPONSE
      ========================================================== */
 
-  const getPhoneVerificationData = (
+  /*
+   * Backend login response:
+   *
+   * {
+   *   success: true,
+   *   message: "Phone verification required.",
+   *   data: {
+   *     requiresPhone: true,
+   *     registrationToken: "...",
+   *     user: {...}
+   *   }
+   * }
+   *
+   * Normal login:
+   *
+   * {
+   *   success: true,
+   *   data: {
+   *     accessToken: "...",
+   *     user: {...}
+   *   }
+   * }
+   */
+
+  const getAuthResponseData = (
     response
   ) => {
+    const outer =
+      response || {};
+
     const data =
-      response?.data ||
-      response ||
-      {};
+      outer?.data || {};
 
     const nestedData =
       data?.data || {};
@@ -670,23 +705,32 @@ export default function LoginPage() {
     const user =
       data?.user ||
       nestedData?.user ||
+      outer?.user ||
+      null;
+
+    const accessToken =
+      data?.accessToken ||
+      nestedData?.accessToken ||
+      outer?.accessToken ||
       null;
 
     const registrationToken =
       data?.registrationToken ||
       nestedData?.registrationToken ||
+      outer?.registrationToken ||
       "";
 
     const requiresPhone =
       data?.requiresPhone === true ||
       nestedData?.requiresPhone === true ||
-      Boolean(registrationToken) ||
+      outer?.requiresPhone === true ||
       user?.isPhoneVerified === false;
 
     return {
-      requiresPhone,
-      registrationToken,
       user,
+      accessToken,
+      registrationToken,
+      requiresPhone,
     };
   };
 
@@ -705,7 +749,7 @@ export default function LoginPage() {
       );
 
       toast.error(
-        "Phone verification is required, but your verification session could not be created. Please try again."
+        "Phone verification is required, but your verification session could not be created. Please try logging in again."
       );
 
       return false;
@@ -736,18 +780,13 @@ export default function LoginPage() {
     /*
      * IMPORTANT:
      *
-     * We do NOT send the user to:
+     * This is NOT a new registration.
      *
-     * /register
+     * Register.jsx receives:
      *
-     * as a fresh registration.
+     * resumePhoneVerification: true
      *
-     * We explicitly tell Register.jsx:
-     *
-     * resumePhoneVerification = true
-     *
-     * Register.jsx will then open directly
-     * at STEP 3.
+     * and opens directly at STEP 3.
      */
 
     navigate(
@@ -806,15 +845,21 @@ export default function LoginPage() {
         );
 
         /*
-         * login() must return either:
+         * authStore.login() must return:
          *
-         * 1. normal login response
+         * NORMAL:
+         * {
+         *   requiresPhone: false,
+         *   user,
+         *   accessToken
+         * }
          *
-         * OR
-         *
-         * 2. phone verification response
-         *
-         * without throwing for case #2.
+         * PHONE REQUIRED:
+         * {
+         *   requiresPhone: true,
+         *   registrationToken,
+         *   user
+         * }
          */
 
         const response =
@@ -824,21 +869,48 @@ export default function LoginPage() {
               form.password,
           });
 
-        logInfo(
-          "Login response received."
-        );
-
-        /* ======================================================
-           CHECK PHONE VERIFICATION
-           ====================================================== */
-
-        const phoneData =
-          getPhoneVerificationData(
+        const authData =
+          getAuthResponseData(
             response
           );
 
+        logInfo(
+          "Login response received.",
+          {
+            success:
+              response?.success ??
+              null,
+
+            requiresPhone:
+              authData.requiresPhone,
+
+            hasAccessToken:
+              Boolean(
+                authData.accessToken
+              ),
+
+            hasRegistrationToken:
+              Boolean(
+                authData.registrationToken
+              ),
+
+            email:
+              authData.user?.email ||
+              email,
+
+            phoneVerified:
+              authData.user
+                ?.isPhoneVerified ??
+              null,
+          }
+        );
+
+        /* ======================================================
+           PHONE VERIFICATION REQUIRED
+           ====================================================== */
+
         if (
-          phoneData.requiresPhone
+          authData.requiresPhone
         ) {
           logInfo(
             "Email authentication succeeded but phone verification is required."
@@ -847,8 +919,8 @@ export default function LoginPage() {
           /*
            * DO NOT:
            *
-           * - redirect to dashboard
-           * - show normal welcome message
+           * - send to dashboard
+           * - set normal authenticated state
            * - restart registration
            *
            * Instead:
@@ -857,39 +929,80 @@ export default function LoginPage() {
            * → STEP 3
            */
 
-          continueToPhoneVerification({
-            registrationToken:
-              phoneData.registrationToken,
+          const redirected =
+            continueToPhoneVerification({
+              registrationToken:
+                authData.registrationToken,
 
-            user:
-              phoneData.user,
+              user:
+                authData.user,
 
-            email,
-          });
+              email,
+            });
+
+          if (!redirected) {
+            logWarn(
+              "Could not continue to phone verification."
+            );
+          }
 
           return;
         }
 
         /* ======================================================
-           NORMAL SUCCESS
+           NORMAL LOGIN SUCCESS
            ====================================================== */
 
         const currentState =
           useAuthStore.getState();
 
         const user =
+          authData.user ||
           currentState.user ||
-          phoneData.user ||
-          response;
+          null;
 
         if (!user) {
           logWarn(
-            "Login succeeded but no authenticated user was found in the store."
+            "Login succeeded but no authenticated user was found."
           );
 
           throw new Error(
             "Login succeeded, but your account information could not be loaded."
           );
+        }
+
+        /*
+         * Extra safety:
+         *
+         * Never allow dashboard access from
+         * this page if phone verification is
+         * somehow still false.
+         */
+
+        if (
+          user.isPhoneVerified === false
+        ) {
+          logWarn(
+            "User returned from login without phone verification. Redirecting to phone verification."
+          );
+
+          const redirected =
+            continueToPhoneVerification({
+              registrationToken:
+                authData.registrationToken,
+
+              user,
+
+              email,
+            });
+
+          if (!redirected) {
+            toast.error(
+              "Phone verification is required before you can access your dashboard."
+            );
+          }
+
+          return;
         }
 
         toast.success(
@@ -903,34 +1016,22 @@ export default function LoginPage() {
           sanitizeError(error)
         );
 
-        /*
-         * ------------------------------------------------------
-         * CHECK ERROR RESPONSE
-         * ------------------------------------------------------
-         *
-         * Some backends may return:
-         *
-         * 401 / 403
-         *
-         * with:
-         *
-         * requiresPhone: true
-         * registrationToken: "..."
-         *
-         * We handle that here too.
-         */
+        /* ======================================================
+           HANDLE PHONE VERIFICATION ERROR RESPONSE
+           ====================================================== */
 
         const errorData =
-          error?.response?.data;
+          error?.response?.data ||
+          null;
 
-        const phoneData =
-          getPhoneVerificationData(
+        const errorAuthData =
+          getAuthResponseData(
             errorData
           );
 
         if (
-          phoneData.requiresPhone &&
-          phoneData.registrationToken
+          errorAuthData.requiresPhone &&
+          errorAuthData.registrationToken
         ) {
           logInfo(
             "Phone verification required from login error response."
@@ -943,10 +1044,10 @@ export default function LoginPage() {
 
           continueToPhoneVerification({
             registrationToken:
-              phoneData.registrationToken,
+              errorAuthData.registrationToken,
 
             user:
-              phoneData.user,
+              errorAuthData.user,
 
             email,
           });
@@ -954,8 +1055,39 @@ export default function LoginPage() {
           return;
         }
 
+        /* ======================================================
+           EMAIL VERIFICATION REQUIRED
+           ====================================================== */
+
+        const verificationRequired =
+          errorData
+            ?.data
+            ?.verificationRequired ||
+          errorData
+            ?.verificationRequired;
+
+        if (
+          verificationRequired ===
+          "email"
+        ) {
+          logInfo(
+            "Login blocked because email verification is required."
+          );
+
+          toast.error(
+            errorData?.message ||
+              "Please verify your email address before logging in."
+          );
+
+          return;
+        }
+
+        /* ======================================================
+           NORMAL ERROR
+           ====================================================== */
+
         const message =
-          error?.response?.data?.message ||
+          errorData?.message ||
           error?.message ||
           "Login failed. Please check your credentials and try again.";
 
@@ -990,7 +1122,7 @@ export default function LoginPage() {
         setGoogleLoading(true);
 
         /*
-         * Never log the Google credential.
+         * NEVER log the Google credential.
          */
 
         logInfo(
@@ -1002,37 +1134,73 @@ export default function LoginPage() {
             credential
           );
 
-        logInfo(
-          "Google authentication response received."
-        );
-
-        const phoneData =
-          getPhoneVerificationData(
+        const authData =
+          getAuthResponseData(
             response
           );
+
+        logInfo(
+          "Google authentication response received.",
+          {
+            success:
+              response?.success ??
+              null,
+
+            requiresPhone:
+              authData.requiresPhone,
+
+            hasAccessToken:
+              Boolean(
+                authData.accessToken
+              ),
+
+            hasRegistrationToken:
+              Boolean(
+                authData.registrationToken
+              ),
+
+            email:
+              authData.user
+                ?.email ||
+              null,
+
+            phoneVerified:
+              authData.user
+                ?.isPhoneVerified ??
+              null,
+          }
+        );
 
         /* ======================================================
            GOOGLE ACCOUNT REQUIRES PHONE
            ====================================================== */
 
         if (
-          phoneData.requiresPhone
+          authData.requiresPhone
         ) {
           logInfo(
             "Google authentication succeeded but phone verification is required."
           );
 
-          continueToPhoneVerification({
-            registrationToken:
-              phoneData.registrationToken,
+          const redirected =
+            continueToPhoneVerification({
+              registrationToken:
+                authData.registrationToken,
 
-            user:
-              phoneData.user,
+              user:
+                authData.user,
 
-            email:
-              phoneData.user?.email ||
-              "",
-          });
+              email:
+                authData.user
+                  ?.email ||
+                "",
+            });
+
+          if (!redirected) {
+            logWarn(
+              "Google phone verification redirect could not be completed."
+            );
+          }
 
           return;
         }
@@ -1045,13 +1213,49 @@ export default function LoginPage() {
           useAuthStore.getState();
 
         const user =
+          authData.user ||
           currentState.user ||
-          phoneData.user;
+          null;
 
         if (!user) {
           throw new Error(
             "Google login succeeded, but your account information could not be loaded."
           );
+        }
+
+        /*
+         * Extra safety:
+         *
+         * A Google account with an unverified
+         * phone must never enter the dashboard.
+         */
+
+        if (
+          user.isPhoneVerified === false
+        ) {
+          logWarn(
+            "Google account has not verified its phone."
+          );
+
+          const redirected =
+            continueToPhoneVerification({
+              registrationToken:
+                authData.registrationToken,
+
+              user,
+
+              email:
+                user?.email ||
+                "",
+            });
+
+          if (!redirected) {
+            toast.error(
+              "Phone verification is required before you can access your dashboard."
+            );
+          }
+
+          return;
         }
 
         toast.success(
@@ -1065,22 +1269,22 @@ export default function LoginPage() {
           sanitizeError(error)
         );
 
-        /*
-         * Also check error response for
-         * phone verification requirement.
-         */
+        /* ======================================================
+           GOOGLE ERROR RESPONSE
+           ====================================================== */
 
         const errorData =
-          error?.response?.data;
+          error?.response?.data ||
+          null;
 
-        const phoneData =
-          getPhoneVerificationData(
+        const errorAuthData =
+          getAuthResponseData(
             errorData
           );
 
         if (
-          phoneData.requiresPhone &&
-          phoneData.registrationToken
+          errorAuthData.requiresPhone &&
+          errorAuthData.registrationToken
         ) {
           logInfo(
             "Phone verification required from Google authentication error response."
@@ -1088,13 +1292,14 @@ export default function LoginPage() {
 
           continueToPhoneVerification({
             registrationToken:
-              phoneData.registrationToken,
+              errorAuthData.registrationToken,
 
             user:
-              phoneData.user,
+              errorAuthData.user,
 
             email:
-              phoneData.user?.email ||
+              errorAuthData.user
+                ?.email ||
               "",
           });
 
@@ -1102,7 +1307,7 @@ export default function LoginPage() {
         }
 
         toast.error(
-          error?.response?.data?.message ||
+          errorData?.message ||
             error?.message ||
             "Google sign-in failed. Please try again."
         );
@@ -1294,35 +1499,6 @@ export default function LoginPage() {
             className="text-center mb-7"
             style={fadeIn(0.25)}
           >
-            <div className="flex justify-center mb-4">
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center"
-                style={{
-                  background:
-                    "linear-gradient(135deg, rgba(0,102,255,0.25), rgba(0,200,255,0.12))",
-
-                  border:
-                    "1px solid rgba(0,180,255,0.3)",
-
-                  boxShadow:
-                    "0 0 25px rgba(0,150,255,0.18)",
-                }}
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="#38bdf8"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"
-                  />
-                </svg>
-              </div>
-            </div>
 
             <p
               className="text-[10px] tracking-[0.25em] uppercase mb-2"

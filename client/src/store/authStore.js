@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 
 import api from "../api/Api";
 
-const useAuthStore = create(
+export const useAuthStore = create(
   persist(
     (set) => ({
       // ============================================================
@@ -157,35 +157,6 @@ const useAuthStore = create(
       // ============================================================
       // LOGIN
       // ============================================================
-      //
-      // Normal:
-      //
-      // login({
-      //   email,
-      //   password
-      // })
-      //
-      // If the account exists but phone is not verified:
-      //
-      // The backend may return:
-      //
-      // {
-      //   success: true,
-      //   data: {
-      //     requiresPhone: true,
-      //     registrationToken: "...",
-      //     user: {...}
-      //   }
-      // }
-      //
-      // In that situation we DO NOT authenticate the user yet.
-      // Login.jsx will redirect to:
-      //
-      // /register
-      //
-      // and open the phone-verification side.
-      //
-      // ============================================================
 
       login: async ({
         email,
@@ -197,10 +168,6 @@ const useAuthStore = create(
         });
 
         try {
-          // --------------------------------------------------------
-          // NORMALIZE INPUT
-          // --------------------------------------------------------
-
           const normalizedEmail =
             typeof email === "string"
               ? email.trim().toLowerCase()
@@ -210,10 +177,6 @@ const useAuthStore = create(
             typeof password === "string"
               ? password
               : "";
-
-          // --------------------------------------------------------
-          // FRONTEND VALIDATION
-          // --------------------------------------------------------
 
           if (!normalizedEmail) {
             throw new Error(
@@ -227,12 +190,6 @@ const useAuthStore = create(
             );
           }
 
-          // --------------------------------------------------------
-          // DEBUG LOG
-          //
-          // NEVER LOG THE PASSWORD.
-          // --------------------------------------------------------
-
           console.log(
             "[DEVAD LOGIN] Sending login request:",
             {
@@ -241,10 +198,6 @@ const useAuthStore = create(
                 Boolean(normalizedPassword),
             }
           );
-
-          // --------------------------------------------------------
-          // LOGIN REQUEST
-          // --------------------------------------------------------
 
           const { data } =
             await api.post(
@@ -256,37 +209,32 @@ const useAuthStore = create(
               }
             );
 
-          // --------------------------------------------------------
-          // DEBUG RESPONSE
-          // --------------------------------------------------------
-
           console.log(
             "[DEVAD LOGIN] Login response received:",
             {
               success: data?.success,
               hasData:
                 Boolean(data?.data),
+
               hasAccessToken:
                 Boolean(
                   data?.data?.accessToken ||
-                    data?.accessToken
+                  data?.accessToken
                 ),
+
               requiresPhone:
                 data?.data
                   ?.requiresPhone === true ||
                 data?.requiresPhone === true,
+
               hasRegistrationToken:
                 Boolean(
                   data?.data
                     ?.registrationToken ||
-                    data?.registrationToken
+                  data?.registrationToken
                 ),
             }
           );
-
-          // --------------------------------------------------------
-          // EXTRACT RESPONSE
-          // --------------------------------------------------------
 
           const response =
             data?.data || {};
@@ -306,23 +254,13 @@ const useAuthStore = create(
             data?.registrationToken ||
             null;
 
-          // --------------------------------------------------------
-          // CHECK IF PHONE VERIFICATION IS REQUIRED
-          // --------------------------------------------------------
-          //
-          // This MUST happen BEFORE checking accessToken.
-          //
-          // A phone-unverified login may intentionally have
-          // NO accessToken because the user has not completed
-          // the required verification.
-          //
-          // --------------------------------------------------------
-
           const requiresPhone =
-            response?.requiresPhone === true ||
-            data?.requiresPhone === true ||
-            Boolean(registrationToken) ||
-            user?.isPhoneVerified === false;
+            response?.requiresPhone ===
+              true ||
+            data?.requiresPhone ===
+              true ||
+            user?.isPhoneVerified ===
+              false;
 
           // --------------------------------------------------------
           // PHONE VERIFICATION REQUIRED
@@ -330,32 +268,23 @@ const useAuthStore = create(
 
           if (requiresPhone) {
             console.log(
-              "[DEVAD LOGIN] Phone verification required before dashboard access:",
+              "[DEVAD LOGIN] Phone verification required:",
               {
                 userId:
                   user?._id ||
                   user?.id ||
                   null,
+
                 email:
                   user?.email ||
                   normalizedEmail,
+
                 hasRegistrationToken:
                   Boolean(
                     registrationToken
                   ),
               }
             );
-
-            // IMPORTANT:
-            //
-            // Do NOT:
-            // - save an access token
-            // - set isAuthenticated=true
-            // - redirect to dashboard
-            //
-            // Login.jsx will use this response to send the
-            // user to /register → phone verification.
-            //
 
             set({
               isLoading: false,
@@ -374,7 +303,7 @@ const useAuthStore = create(
           }
 
           // --------------------------------------------------------
-          // NORMAL LOGIN MUST HAVE ACCESS TOKEN
+          // NORMAL LOGIN
           // --------------------------------------------------------
 
           if (!accessToken) {
@@ -383,18 +312,10 @@ const useAuthStore = create(
             );
           }
 
-          // --------------------------------------------------------
-          // SAVE ACCESS TOKEN
-          // --------------------------------------------------------
-
           localStorage.setItem(
             "accessToken",
             accessToken
           );
-
-          // --------------------------------------------------------
-          // UPDATE AUTH STATE
-          // --------------------------------------------------------
 
           set({
             user,
@@ -405,69 +326,36 @@ const useAuthStore = create(
             error: null,
           });
 
-          // --------------------------------------------------------
-          // SUCCESS LOG
-          //
-          // Never log token or password.
-          // --------------------------------------------------------
-
-          console.log(
-            "[DEVAD LOGIN] Login successful:",
-            {
-              userId:
-                user?._id ||
-                user?.id ||
-                null,
-              email:
-                user?.email ||
-                normalizedEmail,
-              role:
-                user?.role ||
-                null,
-            }
-          );
-
-          // --------------------------------------------------------
-          // RETURN NORMAL LOGIN RESPONSE
-          // --------------------------------------------------------
-
           return {
             ...data,
 
             requiresPhone: false,
+
+            registrationToken: null,
 
             user,
 
             accessToken,
           };
         } catch (err) {
-          // --------------------------------------------------------
-          // ERROR MESSAGE
-          // --------------------------------------------------------
-
           const message =
             err?.response?.data?.message ||
             err?.message ||
             "Login failed.";
 
-          // --------------------------------------------------------
-          // DEBUG ERROR
-          //
-          // Never log password or token.
-          // --------------------------------------------------------
-
           console.error(
             "[DEVAD LOGIN] Login failed:",
             {
-              message:
-                err?.message,
+              message: err?.message,
+
               status:
                 err?.response?.status,
+
               responseMessage:
-                err?.response?.data
-                  ?.message,
-              code:
-                err?.code,
+                err?.response?.data?.message,
+
+              responseData:
+                err?.response?.data,
             }
           );
 
@@ -596,6 +484,159 @@ const useAuthStore = create(
             err?.response?.data?.message ||
             err?.message ||
             "Unable to resend verification code.";
+
+          set({
+            isLoading: false,
+            error: message,
+          });
+
+          throw err;
+        }
+      },
+
+      // ============================================================
+      // FORGOT PASSWORD
+      // ============================================================
+
+      forgotPassword: async (
+        email
+      ) => {
+        set({
+          isLoading: true,
+          error: null,
+        });
+
+        try {
+          const normalizedEmail =
+            typeof email === "string"
+              ? email.trim().toLowerCase()
+              : "";
+
+          if (!normalizedEmail) {
+            throw new Error(
+              "Email is required."
+            );
+          }
+
+          console.log(
+            "[DEVAD PASSWORD] Requesting password reset:",
+            {
+              email: normalizedEmail,
+            }
+          );
+
+          const { data } =
+            await api.post(
+              "/auth/forgot-password",
+              {
+                email:
+                  normalizedEmail,
+              }
+            );
+
+          set({
+            isLoading: false,
+            error: null,
+          });
+
+          console.log(
+            "[DEVAD PASSWORD] Password reset request completed."
+          );
+
+          return data;
+        } catch (err) {
+          const message =
+            err?.response?.data?.message ||
+            err?.message ||
+            "Unable to send password reset email.";
+
+          console.error(
+            "[DEVAD PASSWORD] Forgot password failed:",
+            {
+              message: err?.message,
+              status:
+                err?.response?.status,
+              responseMessage:
+                err?.response?.data
+                  ?.message,
+            }
+          );
+
+          set({
+            isLoading: false,
+            error: message,
+          });
+
+          throw err;
+        }
+      },
+
+      // ============================================================
+      // RESET PASSWORD
+      // ============================================================
+
+      resetPassword: async (
+        token,
+        password
+      ) => {
+        set({
+          isLoading: true,
+          error: null,
+        });
+
+        try {
+          if (!token) {
+            throw new Error(
+              "Password reset token is missing."
+            );
+          }
+
+          if (!password) {
+            throw new Error(
+              "New password is required."
+            );
+          }
+
+          console.log(
+            "[DEVAD PASSWORD] Submitting password reset."
+          );
+
+          const { data } =
+            await api.post(
+              "/auth/reset-password",
+              {
+                token,
+                password,
+              }
+            );
+
+          set({
+            isLoading: false,
+            error: null,
+          });
+
+          console.log(
+            "[DEVAD PASSWORD] Password reset completed successfully."
+          );
+
+          return data;
+        } catch (err) {
+          const message =
+            err?.response?.data?.message ||
+            err?.message ||
+            "Unable to reset password.";
+
+          console.error(
+            "[DEVAD PASSWORD] Reset password failed:",
+            {
+              message: err?.message,
+              status:
+                err?.response?.status,
+              responseMessage:
+                err?.response?.data
+                  ?.message,
+            }
+          );
 
           set({
             isLoading: false,
@@ -812,10 +853,6 @@ const useAuthStore = create(
       googleLogin: async (
         credential
       ) => {
-        // ----------------------------------------------------------
-        // VALIDATE CREDENTIAL
-        // ----------------------------------------------------------
-
         if (!credential) {
           const error =
             new Error(
@@ -836,10 +873,6 @@ const useAuthStore = create(
         });
 
         try {
-          // --------------------------------------------------------
-          // GOOGLE AUTH REQUEST
-          // --------------------------------------------------------
-
           console.log(
             "[DEVAD GOOGLE] Sending Google authentication request."
           );
@@ -851,10 +884,6 @@ const useAuthStore = create(
                 credential,
               }
             );
-
-          // --------------------------------------------------------
-          // EXTRACT RESPONSE
-          // --------------------------------------------------------
 
           const response =
             data?.data || {};
@@ -969,10 +998,6 @@ const useAuthStore = create(
             };
           }
 
-          // --------------------------------------------------------
-          // INVALID GOOGLE RESPONSE
-          // --------------------------------------------------------
-
           throw new Error(
             "Google authentication succeeded but the server returned an invalid response."
           );
@@ -1019,17 +1044,9 @@ const useAuthStore = create(
           // Local logout must still happen
         }
 
-        // ----------------------------------------------------------
-        // REMOVE ACCESS TOKEN
-        // ----------------------------------------------------------
-
         localStorage.removeItem(
           "accessToken"
         );
-
-        // ----------------------------------------------------------
-        // CLEAR AUTH STATE
-        // ----------------------------------------------------------
 
         set({
           user: null,
@@ -1039,10 +1056,6 @@ const useAuthStore = create(
           authInitialized: true,
           error: null,
         });
-
-        // ----------------------------------------------------------
-        // REDIRECT TO LOGIN
-        // ----------------------------------------------------------
 
         window.location.href =
           "/login";
@@ -1065,10 +1078,6 @@ const useAuthStore = create(
             data?.data ||
             null;
 
-          // --------------------------------------------------------
-          // VALIDATE USER
-          // --------------------------------------------------------
-
           if (
             !user ||
             (!user._id &&
@@ -1079,18 +1088,10 @@ const useAuthStore = create(
             );
           }
 
-          // --------------------------------------------------------
-          // GET CURRENT TOKEN
-          // --------------------------------------------------------
-
           const token =
             localStorage.getItem(
               "accessToken"
             );
-
-          // --------------------------------------------------------
-          // UPDATE STATE
-          // --------------------------------------------------------
 
           set({
             user,
@@ -1102,10 +1103,6 @@ const useAuthStore = create(
 
           return user;
         } catch (err) {
-          // --------------------------------------------------------
-          // INVALID SESSION
-          // --------------------------------------------------------
-
           localStorage.removeItem(
             "accessToken"
           );
@@ -1162,5 +1159,14 @@ const useAuthStore = create(
     }
   )
 );
+
+// Named export + default export.
+// This supports BOTH:
+//
+// import { useAuthStore } from "../../store/authStore";
+//
+// and:
+//
+// import useAuthStore from "../../store/authStore";
 
 export default useAuthStore;
