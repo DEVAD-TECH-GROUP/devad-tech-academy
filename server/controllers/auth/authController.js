@@ -495,9 +495,17 @@ export const register = asyncHandler(async (req, res) => {
  * @desc    Login user
  * @access  Public
  */
+/* ============================================================
+   LOGIN
+   ============================================================ */
+
+/**
+ * @route   POST /api/auth/login
+ * @desc    Login user
+ * @access  Public
+ */
 export const login = asyncHandler(async (req, res) => {
-  const { error, value } =
-    loginValidator(req.body);
+  const { error, value } = loginValidator(req.body);
 
   if (error) {
     return sendResponse(
@@ -508,28 +516,22 @@ export const login = asyncHandler(async (req, res) => {
     );
   }
 
-
   const {
     email,
     password,
   } = value;
 
-
-  const normalizedEmail =
-    String(email)
-      .trim()
-      .toLowerCase();
-
+  const normalizedEmail = String(email)
+    .trim()
+    .toLowerCase();
 
   /* ----------------------------------------------------------
      Find user
      ---------------------------------------------------------- */
 
-  const user =
-    await User.findOne({
-      email: normalizedEmail,
-    }).select("+password");
-
+  const user = await User.findOne({
+    email: normalizedEmail,
+  }).select("+password");
 
   if (!user) {
     return sendResponse(
@@ -538,7 +540,6 @@ export const login = asyncHandler(async (req, res) => {
       "Invalid email or password"
     );
   }
-
 
   /* ----------------------------------------------------------
      Account status
@@ -552,7 +553,6 @@ export const login = asyncHandler(async (req, res) => {
     );
   }
 
-
   if (user.status === "inactive") {
     return sendResponse(
       res,
@@ -561,15 +561,13 @@ export const login = asyncHandler(async (req, res) => {
     );
   }
 
-
   /* ----------------------------------------------------------
      Password
      ---------------------------------------------------------- */
 
-  const passwordMatch =
-    await user.comparePassword(
-      password
-    );
+  const passwordMatch = await user.comparePassword(
+    password
+  );
 
   if (!passwordMatch) {
     return sendResponse(
@@ -579,83 +577,130 @@ export const login = asyncHandler(async (req, res) => {
     );
   }
 
-
   /* ----------------------------------------------------------
      Email verification
      ---------------------------------------------------------- */
 
-  if (!user.isPhoneVerified) {
-  const phoneVerificationToken = jwt.sign(
-    {
-      id: user._id.toString(),
-      purpose: "phone_verification",
-    },
-    env.JWT_SECRET,
-    {
-      expiresIn: "15m",
-    }
-  );
-
-  return res.status(200).json({
-    success: true,
-    message: "Phone verification required.",
-    data: {
-      requiresPhone: true,
-      registrationToken: phoneVerificationToken,
-      user: {
-        _id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        role: user.role,
-        avatar: user.avatar,
-        isEmailVerified: user.isEmailVerified,
-        isPhoneVerified: user.isPhoneVerified,
-      },
-    },
-  });
-}
-  /* ----------------------------------------------------------
-     Phone verification
-     ---------------------------------------------------------- */
-
-  if (!user.isPhoneVerified) {
+  if (!user.isEmailVerified) {
     return sendResponse(
       res,
       403,
-      "Please verify your phone number before logging in.",
+      "Please verify your email address before logging in.",
       {
-        verificationRequired:
-          "phone",
-
+        verificationRequired: "email",
         email: user.email,
-
-        phone: user.phone,
       }
     );
   }
 
+  /* ----------------------------------------------------------
+     Phone verification
+     
+     User has:
+     - correct email
+     - correct password
+     - verified email
+     - but unverified phone
+     
+     Do NOT log them into the dashboard yet.
+     
+     Instead, create/reuse a registration verification
+     session so the existing registration phone flow
+     can continue.
+     ---------------------------------------------------------- */
+
+  if (!user.isPhoneVerified) {
+    let registrationVerificationToken =
+      user.registrationVerificationToken;
+
+    let registrationVerificationExpire =
+      user.registrationVerificationExpire;
+
+    /*
+     * If there is no valid existing registration session,
+     * create a new one.
+     */
+    if (
+      !registrationVerificationToken ||
+      !registrationVerificationExpire ||
+      registrationVerificationExpire <= new Date()
+    ) {
+      registrationVerificationToken =
+        generateRegistrationVerificationToken();
+
+      registrationVerificationExpire =
+        getExpirationDate(
+          REGISTRATION_SESSION_MINUTES
+        );
+
+      user.registrationVerificationToken =
+        registrationVerificationToken;
+
+      user.registrationVerificationExpire =
+        registrationVerificationExpire;
+
+      await user.save({
+        validateBeforeSave: false,
+      });
+    }
+
+    console.log(
+      "[DEVAD LOGIN] Phone verification required:",
+      {
+        userId: user._id,
+        email: user.email,
+        hasRegistrationToken:
+          Boolean(
+            registrationVerificationToken
+          ),
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Phone verification required.",
+      data: {
+        requiresPhone: true,
+
+        registrationToken:
+          registrationVerificationToken,
+
+        user: {
+          _id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+          isEmailVerified:
+            user.isEmailVerified,
+          isPhoneVerified:
+            user.isPhoneVerified,
+        },
+      },
+    });
+  }
 
   /* ----------------------------------------------------------
-     Update login
+     Update last login
      ---------------------------------------------------------- */
 
   await user.updateLastLogin();
 
+  /* ----------------------------------------------------------
+     Audit
+     ---------------------------------------------------------- */
 
   await createAuditLog({
     actor: user._id,
-
     actorRole: user.role,
-
     action: `User logged in: ${user.email}`,
-
     req,
   });
 
-
   /* ----------------------------------------------------------
-     Send tokens
+     Send normal authentication tokens
      ---------------------------------------------------------- */
 
   return sendTokenResponse(
