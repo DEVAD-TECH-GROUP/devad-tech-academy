@@ -585,11 +585,23 @@ export const login = asyncHandler(async (req, res) => {
      ---------------------------------------------------------- */
 
   if (!user.isPhoneVerified) {
+  const phoneVerificationToken = jwt.sign(
+    {
+      id: user._id.toString(),
+      purpose: "phone_verification",
+    },
+    env.JWT_SECRET,
+    {
+      expiresIn: "15m",
+    }
+  );
+
   return res.status(200).json({
     success: true,
     message: "Phone verification required.",
     data: {
       requiresPhone: true,
+      registrationToken: phoneVerificationToken,
       user: {
         _id: user._id,
         firstName: user.firstName,
@@ -598,13 +610,11 @@ export const login = asyncHandler(async (req, res) => {
         role: user.role,
         avatar: user.avatar,
         isEmailVerified: user.isEmailVerified,
-        isPhoneVerified: false,
+        isPhoneVerified: user.isPhoneVerified,
       },
     },
   });
 }
-
-
   /* ----------------------------------------------------------
      Phone verification
      ---------------------------------------------------------- */
