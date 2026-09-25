@@ -527,7 +527,7 @@ export const useAuthStore = create(
 
           const { data } =
             await api.post(
-              "/auth/forgot-password",
+              "/authpassword/forgot-password",
               {
                 email:
                   normalizedEmail,
@@ -603,7 +603,7 @@ export const useAuthStore = create(
 
           const { data } =
             await api.post(
-              "/auth/reset-password",
+              "/authpassword/reset-password",
               {
                 token,
                 password,
