@@ -12,31 +12,370 @@ const useAuthStore = create(
 
       user: null,
       token: null,
+
       isAuthenticated: false,
+
+      // True while an API authentication request is running
       isLoading: false,
+
+      // True after the stored session has been checked
+      authInitialized: false,
+
       error: null,
+
+      // ============================================================
+      // INITIALIZE AUTHENTICATION
+      // ============================================================
+
+      initializeAuth: async () => {
+        const currentState = useAuthStore.getState();
+
+        // Prevent duplicate initialization requests
+        if (
+          currentState.authInitialized ||
+          currentState.isLoading
+        ) {
+          return;
+        }
+
+        set({
+          isLoading: true,
+          error: null,
+          authInitialized: false,
+        });
+
+        try {
+          // --------------------------------------------------------
+          // GET STORED ACCESS TOKEN
+          // --------------------------------------------------------
+
+          const token =
+            localStorage.getItem("accessToken");
+
+          // --------------------------------------------------------
+          // NO TOKEN
+          // --------------------------------------------------------
+
+          if (!token) {
+            set({
+              user: null,
+              token: null,
+              isAuthenticated: false,
+              isLoading: false,
+              authInitialized: true,
+              error: null,
+            });
+
+            return null;
+          }
+
+          // --------------------------------------------------------
+          // VALIDATE TOKEN WITH BACKEND
+          // --------------------------------------------------------
+
+          const { data } =
+            await api.get("/auth/me");
+
+          const response =
+            data?.data || {};
+
+          const user =
+            response?.user ||
+            data?.user ||
+            response ||
+            null;
+
+          // --------------------------------------------------------
+          // INVALID USER RESPONSE
+          // --------------------------------------------------------
+
+          if (
+            !user ||
+            (!user._id && !user.id)
+          ) {
+            throw new Error(
+              "Authentication session is invalid."
+            );
+          }
+
+          // --------------------------------------------------------
+          // SESSION IS VALID
+          // --------------------------------------------------------
+
+          set({
+            user,
+            token,
+            isAuthenticated: true,
+            isLoading: false,
+            authInitialized: true,
+            error: null,
+          });
+
+          console.log(
+            "[DEVAD AUTH] Authentication session restored:",
+            {
+              userId:
+                user?._id ||
+                user?.id ||
+                null,
+              email:
+                user?.email ||
+                null,
+              role:
+                user?.role ||
+                null,
+            }
+          );
+
+          return user;
+        } catch (err) {
+          // --------------------------------------------------------
+          // SESSION IS INVALID
+          // --------------------------------------------------------
+
+          console.warn(
+            "[DEVAD AUTH] Stored authentication session is invalid. Clearing session."
+          );
+
+          localStorage.removeItem(
+            "accessToken"
+          );
+
+          set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+            isLoading: false,
+            authInitialized: true,
+            error: null,
+          });
+
+          return null;
+        }
+      },
 
       // ============================================================
       // LOGIN
       // ============================================================
+      //
+      // Normal:
+      //
+      // login({
+      //   email,
+      //   password
+      // })
+      //
+      // If the account exists but phone is not verified:
+      //
+      // The backend may return:
+      //
+      // {
+      //   success: true,
+      //   data: {
+      //     requiresPhone: true,
+      //     registrationToken: "...",
+      //     user: {...}
+      //   }
+      // }
+      //
+      // In that situation we DO NOT authenticate the user yet.
+      // Login.jsx will redirect to:
+      //
+      // /register
+      //
+      // and open the phone-verification side.
+      //
+      // ============================================================
 
-      login: async (email, password) => {
+      login: async ({
+        email,
+        password,
+      }) => {
         set({
           isLoading: true,
           error: null,
         });
 
         try {
-          const { data } = await api.post("/auth/login", {
-            email,
-            password,
-          });
+          // --------------------------------------------------------
+          // NORMALIZE INPUT
+          // --------------------------------------------------------
 
-          const response = data?.data || {};
+          const normalizedEmail =
+            typeof email === "string"
+              ? email.trim().toLowerCase()
+              : "";
 
-          const user = response?.user || null;
+          const normalizedPassword =
+            typeof password === "string"
+              ? password
+              : "";
+
+          // --------------------------------------------------------
+          // FRONTEND VALIDATION
+          // --------------------------------------------------------
+
+          if (!normalizedEmail) {
+            throw new Error(
+              "Email is required."
+            );
+          }
+
+          if (!normalizedPassword) {
+            throw new Error(
+              "Password is required."
+            );
+          }
+
+          // --------------------------------------------------------
+          // DEBUG LOG
+          //
+          // NEVER LOG THE PASSWORD.
+          // --------------------------------------------------------
+
+          console.log(
+            "[DEVAD LOGIN] Sending login request:",
+            {
+              email: normalizedEmail,
+              hasPassword:
+                Boolean(normalizedPassword),
+            }
+          );
+
+          // --------------------------------------------------------
+          // LOGIN REQUEST
+          // --------------------------------------------------------
+
+          const { data } =
+            await api.post(
+              "/auth/login",
+              {
+                email: normalizedEmail,
+                password:
+                  normalizedPassword,
+              }
+            );
+
+          // --------------------------------------------------------
+          // DEBUG RESPONSE
+          // --------------------------------------------------------
+
+          console.log(
+            "[DEVAD LOGIN] Login response received:",
+            {
+              success: data?.success,
+              hasData:
+                Boolean(data?.data),
+              hasAccessToken:
+                Boolean(
+                  data?.data?.accessToken ||
+                    data?.accessToken
+                ),
+              requiresPhone:
+                data?.data
+                  ?.requiresPhone === true ||
+                data?.requiresPhone === true,
+              hasRegistrationToken:
+                Boolean(
+                  data?.data
+                    ?.registrationToken ||
+                    data?.registrationToken
+                ),
+            }
+          );
+
+          // --------------------------------------------------------
+          // EXTRACT RESPONSE
+          // --------------------------------------------------------
+
+          const response =
+            data?.data || {};
+
+          const user =
+            response?.user ||
+            data?.user ||
+            null;
+
           const accessToken =
-            response?.accessToken || null;
+            response?.accessToken ||
+            data?.accessToken ||
+            null;
+
+          const registrationToken =
+            response?.registrationToken ||
+            data?.registrationToken ||
+            null;
+
+          // --------------------------------------------------------
+          // CHECK IF PHONE VERIFICATION IS REQUIRED
+          // --------------------------------------------------------
+          //
+          // This MUST happen BEFORE checking accessToken.
+          //
+          // A phone-unverified login may intentionally have
+          // NO accessToken because the user has not completed
+          // the required verification.
+          //
+          // --------------------------------------------------------
+
+          const requiresPhone =
+            response?.requiresPhone === true ||
+            data?.requiresPhone === true ||
+            Boolean(registrationToken) ||
+            user?.isPhoneVerified === false;
+
+          // --------------------------------------------------------
+          // PHONE VERIFICATION REQUIRED
+          // --------------------------------------------------------
+
+          if (requiresPhone) {
+            console.log(
+              "[DEVAD LOGIN] Phone verification required before dashboard access:",
+              {
+                userId:
+                  user?._id ||
+                  user?.id ||
+                  null,
+                email:
+                  user?.email ||
+                  normalizedEmail,
+                hasRegistrationToken:
+                  Boolean(
+                    registrationToken
+                  ),
+              }
+            );
+
+            // IMPORTANT:
+            //
+            // Do NOT:
+            // - save an access token
+            // - set isAuthenticated=true
+            // - redirect to dashboard
+            //
+            // Login.jsx will use this response to send the
+            // user to /register → phone verification.
+            //
+
+            set({
+              isLoading: false,
+              error: null,
+            });
+
+            return {
+              ...data,
+
+              requiresPhone: true,
+
+              registrationToken,
+
+              user,
+            };
+          }
+
+          // --------------------------------------------------------
+          // NORMAL LOGIN MUST HAVE ACCESS TOKEN
+          // --------------------------------------------------------
 
           if (!accessToken) {
             throw new Error(
@@ -44,26 +383,93 @@ const useAuthStore = create(
             );
           }
 
-          // Store token for Axios interceptor
+          // --------------------------------------------------------
+          // SAVE ACCESS TOKEN
+          // --------------------------------------------------------
+
           localStorage.setItem(
             "accessToken",
             accessToken
           );
+
+          // --------------------------------------------------------
+          // UPDATE AUTH STATE
+          // --------------------------------------------------------
 
           set({
             user,
             token: accessToken,
             isAuthenticated: true,
             isLoading: false,
+            authInitialized: true,
             error: null,
           });
 
-          return user;
+          // --------------------------------------------------------
+          // SUCCESS LOG
+          //
+          // Never log token or password.
+          // --------------------------------------------------------
+
+          console.log(
+            "[DEVAD LOGIN] Login successful:",
+            {
+              userId:
+                user?._id ||
+                user?.id ||
+                null,
+              email:
+                user?.email ||
+                normalizedEmail,
+              role:
+                user?.role ||
+                null,
+            }
+          );
+
+          // --------------------------------------------------------
+          // RETURN NORMAL LOGIN RESPONSE
+          // --------------------------------------------------------
+
+          return {
+            ...data,
+
+            requiresPhone: false,
+
+            user,
+
+            accessToken,
+          };
         } catch (err) {
+          // --------------------------------------------------------
+          // ERROR MESSAGE
+          // --------------------------------------------------------
+
           const message =
             err?.response?.data?.message ||
             err?.message ||
-            "Login failed";
+            "Login failed.";
+
+          // --------------------------------------------------------
+          // DEBUG ERROR
+          //
+          // Never log password or token.
+          // --------------------------------------------------------
+
+          console.error(
+            "[DEVAD LOGIN] Login failed:",
+            {
+              message:
+                err?.message,
+              status:
+                err?.response?.status,
+              responseMessage:
+                err?.response?.data
+                  ?.message,
+              code:
+                err?.code,
+            }
+          );
 
           set({
             isLoading: false,
@@ -78,17 +484,20 @@ const useAuthStore = create(
       // REGISTER
       // ============================================================
 
-      register: async (payload) => {
+      register: async (
+        payload
+      ) => {
         set({
           isLoading: true,
           error: null,
         });
 
         try {
-          const { data } = await api.post(
-            "/auth/register",
-            payload
-          );
+          const { data } =
+            await api.post(
+              "/auth/register",
+              payload
+            );
 
           set({
             isLoading: false,
@@ -100,7 +509,7 @@ const useAuthStore = create(
           const message =
             err?.response?.data?.message ||
             err?.message ||
-            "Registration failed";
+            "Registration failed.";
 
           set({
             isLoading: false,
@@ -115,20 +524,24 @@ const useAuthStore = create(
       // VERIFY EMAIL
       // ============================================================
 
-      verifyEmail: async (email, token) => {
+      verifyEmail: async (
+        email,
+        token
+      ) => {
         set({
           isLoading: true,
           error: null,
         });
 
         try {
-          const { data } = await api.post(
-            "/auth/verify-email",
-            {
-              email,
-              token,
-            }
-          );
+          const { data } =
+            await api.post(
+              "/auth/verify-email",
+              {
+                email,
+                token,
+              }
+            );
 
           set({
             isLoading: false,
@@ -140,7 +553,7 @@ const useAuthStore = create(
           const message =
             err?.response?.data?.message ||
             err?.message ||
-            "Email verification failed";
+            "Email verification failed.";
 
           set({
             isLoading: false,
@@ -155,19 +568,22 @@ const useAuthStore = create(
       // RESEND EMAIL VERIFICATION
       // ============================================================
 
-      resendVerification: async (email) => {
+      resendVerification: async (
+        email
+      ) => {
         set({
           isLoading: true,
           error: null,
         });
 
         try {
-          const { data } = await api.post(
-            "/auth/resend-verification",
-            {
-              email,
-            }
-          );
+          const { data } =
+            await api.post(
+              "/auth/resend-verification",
+              {
+                email,
+              }
+            );
 
           set({
             isLoading: false,
@@ -179,7 +595,7 @@ const useAuthStore = create(
           const message =
             err?.response?.data?.message ||
             err?.message ||
-            "Unable to resend verification code";
+            "Unable to resend verification code.";
 
           set({
             isLoading: false,
@@ -204,13 +620,14 @@ const useAuthStore = create(
         });
 
         try {
-          const { data } = await api.post(
-            "/auth/registration-phone",
-            {
-              registrationToken,
-              phone,
-            }
-          );
+          const { data } =
+            await api.post(
+              "/auth/registration-phone",
+              {
+                registrationToken,
+                phone,
+              }
+            );
 
           set({
             isLoading: false,
@@ -222,7 +639,7 @@ const useAuthStore = create(
           const message =
             err?.response?.data?.message ||
             err?.message ||
-            "Unable to save phone number";
+            "Unable to save phone number.";
 
           set({
             isLoading: false,
@@ -237,19 +654,22 @@ const useAuthStore = create(
       // SEND PHONE OTP
       // ============================================================
 
-      sendPhoneOTP: async (registrationToken) => {
+      sendPhoneOTP: async (
+        registrationToken
+      ) => {
         set({
           isLoading: true,
           error: null,
         });
 
         try {
-          const { data } = await api.post(
-            "/auth/send-phone-otp",
-            {
-              registrationToken,
-            }
-          );
+          const { data } =
+            await api.post(
+              "/auth/send-phone-otp",
+              {
+                registrationToken,
+              }
+            );
 
           set({
             isLoading: false,
@@ -261,7 +681,7 @@ const useAuthStore = create(
           const message =
             err?.response?.data?.message ||
             err?.message ||
-            "Unable to send phone verification code";
+            "Unable to send phone verification code.";
 
           set({
             isLoading: false,
@@ -287,37 +707,34 @@ const useAuthStore = create(
         });
 
         try {
-          const { data } = await api.post(
-            "/auth/verify-phone",
-            {
-              registrationToken,
-              otpId,
-              code,
-            }
-          );
+          const { data } =
+            await api.post(
+              "/auth/verify-phone",
+              {
+                registrationToken,
+                otpId,
+                code,
+              }
+            );
 
-          /*
-           * Expected backend response after successful
-           * phone verification:
-           *
-           * {
-           *   success: true,
-           *   data: {
-           *     user,
-           *     accessToken
-           *   }
-           * }
-           */
+          const response =
+            data?.data || {};
 
-          const response = data?.data || {};
+          const user =
+            response?.user ||
+            data?.user ||
+            null;
 
-          const user = response?.user || null;
           const accessToken =
-            response?.accessToken || null;
+            response?.accessToken ||
+            data?.accessToken ||
+            null;
 
-          // If phone verification completes the
-          // registration and backend returns a token,
-          // authenticate the user immediately.
+          // --------------------------------------------------------
+          // PHONE VERIFICATION COMPLETED
+          // AND SERVER RETURNED LOGIN TOKEN
+          // --------------------------------------------------------
+
           if (accessToken) {
             localStorage.setItem(
               "accessToken",
@@ -329,23 +746,55 @@ const useAuthStore = create(
               token: accessToken,
               isAuthenticated: true,
               isLoading: false,
+              authInitialized: true,
               error: null,
             });
 
-            return data;
+            console.log(
+              "[DEVAD AUTH] Phone verification completed successfully:",
+              {
+                userId:
+                  user?._id ||
+                  user?.id ||
+                  null,
+                email:
+                  user?.email ||
+                  null,
+              }
+            );
+
+            return {
+              ...data,
+
+              user,
+
+              accessToken,
+
+              phoneVerified: true,
+            };
           }
+
+          // --------------------------------------------------------
+          // PHONE VERIFIED BUT NO LOGIN TOKEN
+          // --------------------------------------------------------
 
           set({
             isLoading: false,
             error: null,
           });
 
-          return data;
+          return {
+            ...data,
+
+            user,
+
+            phoneVerified: true,
+          };
         } catch (err) {
           const message =
             err?.response?.data?.message ||
             err?.message ||
-            "Phone verification failed";
+            "Phone verification failed.";
 
           set({
             isLoading: false,
@@ -359,29 +808,19 @@ const useAuthStore = create(
       // ============================================================
       // GOOGLE LOGIN / REGISTRATION
       // ============================================================
-      //
-      // This uses:
-      //
-      // @react-oauth/google
-      //
-      // GoogleLogin returns a credential.
-      //
-      // We send that credential to our backend.
-      //
-      // Backend:
-      //
-      // POST /auth/google
-      //
-      // The backend verifies the Google credential using
-      // GOOGLE_CLIENT_ID.
-      //
-      // ============================================================
 
-      googleLogin: async (credential) => {
+      googleLogin: async (
+        credential
+      ) => {
+        // ----------------------------------------------------------
+        // VALIDATE CREDENTIAL
+        // ----------------------------------------------------------
+
         if (!credential) {
-          const error = new Error(
-            "Google credential is missing."
-          );
+          const error =
+            new Error(
+              "Google credential is missing."
+            );
 
           set({
             isLoading: false,
@@ -397,62 +836,77 @@ const useAuthStore = create(
         });
 
         try {
-          const { data } = await api.post(
-            "/authgoogle/google",
-            {
-              credential,
-            }
+          // --------------------------------------------------------
+          // GOOGLE AUTH REQUEST
+          // --------------------------------------------------------
+
+          console.log(
+            "[DEVAD GOOGLE] Sending Google authentication request."
           );
 
-          /*
-           * The backend can return either:
-           *
-           * A) Registration needs phone verification
-           *
-           * {
-           *   success: true,
-           *   data: {
-           *     requiresPhone: true,
-           *     registrationToken: "...",
-           *     user: {...}
-           *   }
-           * }
-           *
-           * OR
-           *
-           * B) User is completely authenticated
-           *
-           * {
-           *   success: true,
-           *   data: {
-           *     user: {...},
-           *     accessToken: "..."
-           *   }
-           * }
-           */
+          const { data } =
+            await api.post(
+              "/authgoogle/google",
+              {
+                credential,
+              }
+            );
 
-          const response = data?.data || {};
+          // --------------------------------------------------------
+          // EXTRACT RESPONSE
+          // --------------------------------------------------------
+
+          const response =
+            data?.data || {};
 
           const accessToken =
-            response?.accessToken || null;
+            response?.accessToken ||
+            data?.accessToken ||
+            null;
 
           const user =
-            response?.user || null;
+            response?.user ||
+            data?.user ||
+            null;
 
           const registrationToken =
             response?.registrationToken ||
+            data?.registrationToken ||
             null;
 
           const requiresPhone =
-            response?.requiresPhone === true ||
-            Boolean(registrationToken);
+            response?.requiresPhone ===
+              true ||
+            data?.requiresPhone ===
+              true ||
+            Boolean(
+              registrationToken
+            ) ||
+            user?.isPhoneVerified ===
+              false;
 
           // --------------------------------------------------------
-          // CASE 1:
-          // Google authentication requires phone verification.
+          // GOOGLE ACCOUNT REQUIRES PHONE
           // --------------------------------------------------------
 
           if (requiresPhone) {
+            console.log(
+              "[DEVAD GOOGLE] Google authentication successful. Phone verification required:",
+              {
+                userId:
+                  user?._id ||
+                  user?.id ||
+                  null,
+                email:
+                  user?.email ||
+                  null,
+                hasRegistrationToken:
+                  Boolean(
+                    registrationToken
+                  ),
+              }
+            );
+
             set({
               isLoading: false,
               error: null,
@@ -460,15 +914,17 @@ const useAuthStore = create(
 
             return {
               ...data,
+
               requiresPhone: true,
+
               registrationToken,
+
               user,
             };
           }
 
           // --------------------------------------------------------
-          // CASE 2:
-          // Backend fully authenticated the user.
+          // FULL GOOGLE LOGIN
           // --------------------------------------------------------
 
           if (accessToken) {
@@ -482,19 +938,39 @@ const useAuthStore = create(
               token: accessToken,
               isAuthenticated: true,
               isLoading: false,
+              authInitialized: true,
               error: null,
             });
 
+            console.log(
+              "[DEVAD GOOGLE] Google login successful:",
+              {
+                userId:
+                  user?._id ||
+                  user?.id ||
+                  null,
+                email:
+                  user?.email ||
+                  null,
+                role:
+                  user?.role ||
+                  null,
+              }
+            );
+
             return {
               ...data,
+
               requiresPhone: false,
+
               user,
+
               accessToken,
             };
           }
 
           // --------------------------------------------------------
-          // Unexpected response
+          // INVALID GOOGLE RESPONSE
           // --------------------------------------------------------
 
           throw new Error(
@@ -504,7 +980,22 @@ const useAuthStore = create(
           const message =
             err?.response?.data?.message ||
             err?.message ||
-            "Google authentication failed";
+            "Google authentication failed.";
+
+          console.error(
+            "[DEVAD GOOGLE] Authentication failed:",
+            {
+              message:
+                err?.message,
+              status:
+                err?.response?.status,
+              responseMessage:
+                err?.response?.data
+                  ?.message,
+              code:
+                err?.code,
+            }
+          );
 
           set({
             isLoading: false,
@@ -521,25 +1012,40 @@ const useAuthStore = create(
 
       logout: async () => {
         try {
-          await api.post("/auth/logout");
+          await api.post(
+            "/auth/logout"
+          );
         } catch {
-          // Even if server logout fails,
-          // clear the local authentication state.
+          // Local logout must still happen
         }
+
+        // ----------------------------------------------------------
+        // REMOVE ACCESS TOKEN
+        // ----------------------------------------------------------
 
         localStorage.removeItem(
           "accessToken"
         );
+
+        // ----------------------------------------------------------
+        // CLEAR AUTH STATE
+        // ----------------------------------------------------------
 
         set({
           user: null,
           token: null,
           isAuthenticated: false,
           isLoading: false,
+          authInitialized: true,
           error: null,
         });
 
-        window.location.href = "/login";
+        // ----------------------------------------------------------
+        // REDIRECT TO LOGIN
+        // ----------------------------------------------------------
+
+        window.location.href =
+          "/login";
       },
 
       // ============================================================
@@ -548,38 +1054,69 @@ const useAuthStore = create(
 
       getMe: async () => {
         try {
-          const { data } = await api.get(
-            "/auth/me"
-          );
+          const { data } =
+            await api.get(
+              "/auth/me"
+            );
 
           const user =
             data?.data?.user ||
+            data?.user ||
             data?.data ||
             null;
 
-          if (!user) {
+          // --------------------------------------------------------
+          // VALIDATE USER
+          // --------------------------------------------------------
+
+          if (
+            !user ||
+            (!user._id &&
+              !user.id)
+          ) {
             throw new Error(
-              "No user data returned."
+              "No valid user data returned."
             );
           }
 
+          // --------------------------------------------------------
+          // GET CURRENT TOKEN
+          // --------------------------------------------------------
+
+          const token =
+            localStorage.getItem(
+              "accessToken"
+            );
+
+          // --------------------------------------------------------
+          // UPDATE STATE
+          // --------------------------------------------------------
+
           set({
             user,
+            token,
             isAuthenticated: true,
+            authInitialized: true,
             error: null,
           });
 
           return user;
         } catch (err) {
-          set({
-            user: null,
-            token: null,
-            isAuthenticated: false,
-          });
+          // --------------------------------------------------------
+          // INVALID SESSION
+          // --------------------------------------------------------
 
           localStorage.removeItem(
             "accessToken"
           );
+
+          set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+            authInitialized: true,
+            error: null,
+          });
 
           throw err;
         }
@@ -608,6 +1145,10 @@ const useAuthStore = create(
           error: null,
         }),
     }),
+
+    // ==============================================================
+    // ZUSTAND PERSIST CONFIGURATION
+    // ==============================================================
 
     {
       name: "devad-auth",
