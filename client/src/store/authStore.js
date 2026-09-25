@@ -398,7 +398,7 @@ const useAuthStore = create(
 
         try {
           const { data } = await api.post(
-            "/auth/google",
+            "/authgoogle/google",
             {
               credential,
             }
