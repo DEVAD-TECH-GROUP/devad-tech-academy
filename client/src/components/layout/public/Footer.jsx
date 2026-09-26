@@ -142,8 +142,8 @@ export default function Footer() {
               />
 
               <div>
-                <h3 className="text-2xl font-bold text-white">
-                  Devad Tech Academy
+                <h3 className="text-lg font-bold text-white">
+                  DEVAD TECH ACADEMY
                 </h3>
 
                 <p className="text-sm text-cyan-400">
@@ -342,8 +342,8 @@ export default function Footer() {
 
         <div className="mt-16 border-t border-slate-800 pt-8">
           <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
-            <p className="text-center text-sm text-slate-500 md:text-left">
-              © {new Date().getFullYear()} Devad Tech Academy. All
+            <p className="text-center text-xs text-slate-500 md:text-left">
+              © {new Date().getFullYear()} DEVAD TECH ACADEMY. All
               rights reserved.
             </p>
 

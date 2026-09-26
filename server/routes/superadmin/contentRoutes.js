@@ -11,10 +11,10 @@ import isSuperAdmin from "../../middlewares/auth/isSuperAdmin.js";
 const router = express.Router();
 router.use(authenticate, isSuperAdmin);
 
-router.get("/blog", getBlogPosts);
-router.post("/blog", createBlogPost);
-router.put("/blog/:id", updateBlogPost);
-router.delete("/blog/:id", deleteBlogPost);
+router.get("/blog-posts", getBlogPosts);
+router.post("/blog-post", createBlogPost);
+router.put("/blog-post/:id", updateBlogPost);
+router.delete("/blog-post/:id", deleteBlogPost);
 
 router.get("/banners", getBanners);
 router.post("/banners", createBanner);
