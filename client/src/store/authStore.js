@@ -575,78 +575,71 @@ export const useAuthStore = create(
       // RESET PASSWORD
       // ============================================================
 
-      resetPassword: async (
+      resetPassword: async (token, password, confirmPassword) => {
+  set({ isLoading: true, error: null });
+
+  try {
+    if (!token) {
+      throw new Error("Password reset code is missing.");
+    }
+
+    if (!password) {
+      throw new Error("New password is required.");
+    }
+
+    if (!confirmPassword) {
+      throw new Error("Confirm password is required.");
+    }
+
+    console.log("[DEVAD PASSWORD] Submitting password reset:", {
+      hasToken: Boolean(token),
+      hasPassword: Boolean(password),
+      hasConfirmPassword: Boolean(confirmPassword),
+    });
+
+    const { data } = await api.post(
+      "/authpassword/reset-password",
+      {
         token,
-        password
-      ) => {
-        set({
-          isLoading: true,
-          error: null,
-        });
+        password,
+        confirmPassword,
+      }
+    );
 
-        try {
-          if (!token) {
-            throw new Error(
-              "Password reset token is missing."
-            );
-          }
+    set({
+      isLoading: false,
+      error: null,
+    });
 
-          if (!password) {
-            throw new Error(
-              "New password is required."
-            );
-          }
+    console.log(
+      "[DEVAD PASSWORD] Password reset completed successfully."
+    );
 
-          console.log(
-            "[DEVAD PASSWORD] Submitting password reset."
-          );
+    return data;
+  } catch (err) {
+    const message =
+      err?.response?.data?.message ||
+      err?.message ||
+      "Unable to reset password.";
 
-          const { data } =
-            await api.post(
-              "/authpassword/reset-password",
-              {
-                token,
-                password,
-              }
-            );
+    console.error(
+      "[DEVAD PASSWORD] Reset password failed:",
+      {
+        message: err?.message,
+        status: err?.response?.status,
+        responseMessage:
+          err?.response?.data?.message,
+      }
+    );
 
-          set({
-            isLoading: false,
-            error: null,
-          });
+    set({
+      isLoading: false,
+      error: message,
+    });
 
-          console.log(
-            "[DEVAD PASSWORD] Password reset completed successfully."
-          );
-
-          return data;
-        } catch (err) {
-          const message =
-            err?.response?.data?.message ||
-            err?.message ||
-            "Unable to reset password.";
-
-          console.error(
-            "[DEVAD PASSWORD] Reset password failed:",
-            {
-              message: err?.message,
-              status:
-                err?.response?.status,
-              responseMessage:
-                err?.response?.data
-                  ?.message,
-            }
-          );
-
-          set({
-            isLoading: false,
-            error: message,
-          });
-
-          throw err;
-        }
-      },
-
+    throw err;
+  }
+},
       // ============================================================
       // UPDATE REGISTRATION PHONE
       // ============================================================

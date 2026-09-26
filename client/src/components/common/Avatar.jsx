@@ -9,6 +9,8 @@ export default function Avatar({ user, size = "md", className = "" }) {
     xl:  "w-20 h-20 text-xl",
   };
 
+  console.log("profile", user.avatar)
+
   return (
     <div
       className={`${sizes[size]} rounded-full flex items-center justify-center text-white font-bold shrink-0 overflow-hidden ${className}`}

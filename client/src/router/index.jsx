@@ -30,7 +30,8 @@ import CoursesPage from "../pages/shared/courses/Courses";
 import CourseDetailPage from "../pages/shared/courses/CourseDetail";
 import CareerPathsPage from "../pages/shared/careerPath/CareerPath";
 import Contact from "../pages/shared/contact/Contact";
-
+import PrivacyPolicy from "../pages/shared/termsAndPolicy/Policy";
+import TermsOfService from "../pages/shared/termsAndPolicy/Terms"
 
 // ─────────────────────────────────────────────────────────────
 // Auth Pages
@@ -196,6 +197,16 @@ const router = createBrowserRouter([
       {
         path: "contact",
         element: <Contact />,
+      },
+
+       {
+        path: "privacy",
+        element: <PrivacyPolicy />,
+      },
+
+       {
+        path: "terms",
+        element: <TermsOfService />,
       },
     ],
   },
