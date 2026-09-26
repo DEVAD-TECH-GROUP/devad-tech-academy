@@ -1,16 +1,16 @@
 import api from "../../api/Api";
 
 export const getBlogPosts = (params) =>
-  api.get("/superadmin/content/blog", { params });
+  api.get("/superadmin/content/blog-posts", { params });
 
 export const createBlogPost = (payload) =>
-  api.post("/superadmin/content/blog", payload);
+  api.post("/superadmin/content/blog-post", payload);
 
 export const updateBlogPost = (id, payload) =>
-  api.put(`/superadmin/content/blog/${id}`, payload);
+  api.put(`/superadmin/content/blog-post/${id}`, payload);
 
 export const deleteBlogPost = (id) =>
-  api.delete(`/superadmin/content/blog/${id}`);
+  api.delete(`/superadmin/content/blog-post/${id}`);
 
 export const getBanners = () =>
   api.get("/superadmin/content/banners");
