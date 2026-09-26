@@ -106,6 +106,7 @@ import InstructorCalendar from "../pages/instructor/Calendar";
 // ─────────────────────────────────────────────────────────────
 
 import AdminDashboard from "../pages/superadmin/Dashboard";
+import AdminProfile from "../pages/superadmin/Profile"
 
 import AdminUsers from "../pages/superadmin/users/Users";
 import AdminUserDetail from "../pages/superadmin/users/UserDetail";
@@ -550,6 +551,11 @@ const router = createBrowserRouter([
         element: <Navigate to="dashboard" replace />,
       },
 
+      {
+        path: "profile",
+        element: <AdminProfile />,
+      },
+      
       {
         path: "dashboard",
         element: <AdminDashboard />,
