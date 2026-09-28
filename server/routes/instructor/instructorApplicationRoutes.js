@@ -31,7 +31,6 @@ POST /api/instructor/applications
 */
 router.post(
   "/applications",
-  authenticate,
   documentUpload.single("cv"),
   submitInstructorApplication
 );
