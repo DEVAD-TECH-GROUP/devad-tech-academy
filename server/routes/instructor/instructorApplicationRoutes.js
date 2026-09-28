@@ -8,7 +8,7 @@ import {
   withdrawInstructorApplication,
 } from "../../controllers/instructor/instructorApplicationController.js";
 
-import protect from "../../middlewares/auth/protect.js";
+import authenticate from "../../middlewares/auth/authenticate.js";
 import documentUpload from "../../middlewares/upload/documentUpload.js";
 
 const router = express.Router();
@@ -31,7 +31,7 @@ POST /api/instructor/applications
 */
 router.post(
   "/applications",
-  protect,
+  authenticate,
   documentUpload.single("cv"),
   submitInstructorApplication
 );
@@ -51,7 +51,7 @@ This must appear BEFORE /applications/:id
 */
 router.get(
   "/applications/me",
-  protect,
+  authenticate,
   getMyInstructorApplication
 );
 
@@ -66,7 +66,7 @@ GET /api/instructor/applications/:id
 */
 router.get(
   "/applications/:id",
-  protect,
+  authenticate,
   getInstructorApplication
 );
 
@@ -81,7 +81,7 @@ PUT /api/instructor/applications/:id
 */
 router.put(
   "/applications/:id",
-  protect,
+  authenticate,
   documentUpload.single("cv"),
   updateInstructorApplication
 );
@@ -97,7 +97,7 @@ DELETE /api/instructor/applications/:id
 */
 router.delete(
   "/applications/:id",
-  protect,
+  authenticate,
   withdrawInstructorApplication
 );
 
