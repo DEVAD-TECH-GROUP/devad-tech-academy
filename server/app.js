@@ -379,7 +379,7 @@ app.use(
 // ============================================================
 
 app.use(
-  "/api/instructor/applications",
+  "/api/instructor",
   instructorApplicationRoutes
 );
 
