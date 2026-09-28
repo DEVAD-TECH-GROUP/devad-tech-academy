@@ -45,6 +45,7 @@ export const createCategory = asyncHandler(async (req, res) => {
 });
 
 
+
 export const updateCategory = asyncHandler(async (req, res) => {
   const category = await Category.findByIdAndUpdate(
     req.params.id,
