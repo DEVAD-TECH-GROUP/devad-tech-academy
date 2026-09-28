@@ -7,7 +7,6 @@ import Project from "../../models/course/Project.js";
 import FAQ from "../../models/course/FAQ.js";
 import Resource from "../../models/course/Resource.js";
 import Enrollment from "../../models/learning/Enrollment.js";
-
 import paginate from "../../utils/pagination.js";
 import sendResponse from "../../utils/sendResponse.js";
 import asyncHandler from "../../middlewares/error/asyncHandler.js";
