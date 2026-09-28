@@ -49,7 +49,9 @@ import settingRoutes from "./routes/superadmin/settingRoutes.js";
 import aiRoutes from "./routes/superadmin/aiRoutes.js";
 import notificationRoutes from "./routes/superadmin/notificationRoutes.js";
 
+
 // Instructor routes
+import instructorApplicationRoutes from "./routes/instructor/instructorApplicationRoutes.js";
 import instructorDashboardRoutes from "./routes/instructor/dashboardRoutes.js";
 import instructorCourseRoutes from "./routes/instructor/courseRoutes.js";
 import instructorModuleRoutes from "./routes/instructor/moduleRoutes.js";
@@ -375,6 +377,11 @@ app.use(
 // ============================================================
 // INSTRUCTOR ROUTES
 // ============================================================
+
+app.use(
+  "/api/instructor/applications",
+  instructorApplicationRoutes
+);
 
 app.use(
   "/api/instructor/dashboard",
