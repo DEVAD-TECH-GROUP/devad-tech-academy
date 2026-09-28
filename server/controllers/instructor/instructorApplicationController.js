@@ -4,7 +4,7 @@ import User from "../../models/user/User.js";
 import Instructor from "../../models/user/Instructor.js";
 
 import asyncHandler from "../../middlewares/error/asyncHandler.js";
-import { sendResponse } from "../../utils/sendResponse.js";
+import sendResponse from "../../utils/sendResponse.js";
 
 
 /*
