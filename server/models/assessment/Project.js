@@ -110,6 +110,6 @@ projectSchema.index({ course: 1 });
 projectSchema.index({ instructor: 1 });
 projectSchema.index({ isCapstone: 1 });
 
-const Project = mongoose.model("Project", projectSchema);
+const Project = mongoose.model("AssessmentProject", projectSchema);
 
 export default Project;

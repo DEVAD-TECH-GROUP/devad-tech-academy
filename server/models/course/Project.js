@@ -105,6 +105,6 @@ const projectSchema = new mongoose.Schema(
 
 projectSchema.index({ course: 1, order: 1 });
 
-const Project = mongoose.model("Project", projectSchema);
+const Project = mongoose.model("CourseProject", projectSchema);
 
 export default Project;
