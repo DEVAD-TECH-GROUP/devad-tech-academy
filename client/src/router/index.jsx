@@ -111,6 +111,7 @@ import AdminProfile from "../pages/superadmin/Profile"
 import AdminUsers from "../pages/superadmin/users/Users";
 import AdminUserDetail from "../pages/superadmin/users/UserDetail";
 
+import Categories from "../pages/superadmin/Categories";
 import AdminInstructors from "../pages/superadmin/instructors/Instructors";
 import AdminInstructorDetail from "../pages/superadmin/instructors/InstructorDetail";
 
@@ -560,6 +561,12 @@ const router = createBrowserRouter([
         path: "dashboard",
         element: <AdminDashboard />,
       },
+
+      {
+        path: "categories",
+        element: <Categories />,
+      },
+
 
       {
         path: "users",
