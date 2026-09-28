@@ -6,21 +6,20 @@ import Instructor from "../../models/user/Instructor.js";
 import asyncHandler from "../../middlewares/error/asyncHandler.js";
 import sendResponse from "../../utils/sendResponse.js";
 
-
 /*
 ============================================================
 HELPERS
 ============================================================
 */
 
-
 /**
  * Get authenticated user's ID.
+ *
+ * authenticate.js attaches the full User document to req.user.
  */
 const getUserId = (req) => {
-  return req.user?._id || req.user?.id;
+  return req.user?._id || req.user?.id || null;
 };
-
 
 /**
  * Convert expertise input into an array.
@@ -50,7 +49,6 @@ const normalizeExpertise = (value) => {
   return [];
 };
 
-
 /**
  * Convert experience input into a number.
  *
@@ -62,16 +60,17 @@ const normalizeExpertise = (value) => {
  * "5 years of experience"
  */
 const normalizeExperience = (value) => {
-  if (value === undefined || value === null) {
+  if (value === undefined || value === null || value === "") {
     return null;
   }
 
-  const number =
-    typeof value === "number"
-      ? value
-      : Number.parseFloat(
-          String(value).match(/\d+(\.\d+)?/)?.[0]
-        );
+  const matched = String(value).match(/\d+(\.\d+)?/);
+
+  if (!matched) {
+    return null;
+  }
+
+  const number = Number.parseFloat(matched[0]);
 
   if (Number.isNaN(number)) {
     return null;
@@ -79,7 +78,6 @@ const normalizeExperience = (value) => {
 
   return number;
 };
-
 
 /**
  * Build CV object from multer-storage-cloudinary.
@@ -96,7 +94,6 @@ const buildCVData = (file) => {
   };
 };
 
-
 /**
  * Populate application consistently.
  */
@@ -107,6 +104,12 @@ const populateApplication = (query) => {
   );
 };
 
+/**
+ * Validate a MongoDB ObjectId.
+ */
+const isValidObjectId = (id) => {
+  return mongoose.Types.ObjectId.isValid(id);
+};
 
 /*
 ============================================================
@@ -121,11 +124,16 @@ export const submitInstructorApplication = asyncHandler(
   async (req, res) => {
     const userId = getUserId(req);
 
+    /*
+    --------------------------------------------------------
+    AUTHENTICATION
+    --------------------------------------------------------
+    */
+
     if (!userId) {
       return sendResponse(
         res,
         401,
-        false,
         "Authentication required"
       );
     }
@@ -142,7 +150,6 @@ export const submitInstructorApplication = asyncHandler(
       return sendResponse(
         res,
         404,
-        false,
         "User account not found"
       );
     }
@@ -176,7 +183,6 @@ export const submitInstructorApplication = asyncHandler(
       return sendResponse(
         res,
         400,
-        false,
         "Full name is required"
       );
     }
@@ -185,7 +191,6 @@ export const submitInstructorApplication = asyncHandler(
       return sendResponse(
         res,
         400,
-        false,
         "Email is required"
       );
     }
@@ -194,10 +199,15 @@ export const submitInstructorApplication = asyncHandler(
       return sendResponse(
         res,
         400,
-        false,
         "Phone number is required"
       );
     }
+
+    /*
+    --------------------------------------------------------
+    EXPERTISE
+    --------------------------------------------------------
+    */
 
     const normalizedExpertise =
       normalizeExpertise(expertise);
@@ -206,10 +216,15 @@ export const submitInstructorApplication = asyncHandler(
       return sendResponse(
         res,
         400,
-        false,
         "At least one area of expertise is required"
       );
     }
+
+    /*
+    --------------------------------------------------------
+    EXPERIENCE
+    --------------------------------------------------------
+    */
 
     const normalizedExperience =
       normalizeExperience(experience);
@@ -221,43 +236,62 @@ export const submitInstructorApplication = asyncHandler(
       return sendResponse(
         res,
         400,
-        false,
         "Valid years of experience are required"
       );
     }
+
+    /*
+    --------------------------------------------------------
+    TEACHING EXPERIENCE
+    --------------------------------------------------------
+    */
 
     if (!teachingExperience?.trim()) {
       return sendResponse(
         res,
         400,
-        false,
         "Teaching experience is required"
       );
     }
+
+    /*
+    --------------------------------------------------------
+    COURSE
+    --------------------------------------------------------
+    */
 
     if (!course?.trim()) {
       return sendResponse(
         res,
         400,
-        false,
         "Course selection is required"
       );
     }
+
+    /*
+    --------------------------------------------------------
+    AVAILABILITY
+    --------------------------------------------------------
+    */
 
     if (!availability?.trim()) {
       return sendResponse(
         res,
         400,
-        false,
         "Availability is required"
       );
     }
+
+    /*
+    --------------------------------------------------------
+    COVER LETTER
+    --------------------------------------------------------
+    */
 
     if (!coverLetter?.trim()) {
       return sendResponse(
         res,
         400,
-        false,
         "Cover letter is required"
       );
     }
@@ -275,7 +309,7 @@ export const submitInstructorApplication = asyncHandler(
 
     /*
     --------------------------------------------------------
-    PENDING
+    PENDING APPLICATION
     --------------------------------------------------------
     */
 
@@ -286,14 +320,13 @@ export const submitInstructorApplication = asyncHandler(
       return sendResponse(
         res,
         409,
-        false,
         "You already have a pending instructor application"
       );
     }
 
     /*
     --------------------------------------------------------
-    APPROVED
+    APPROVED APPLICATION
     --------------------------------------------------------
     */
 
@@ -304,7 +337,6 @@ export const submitInstructorApplication = asyncHandler(
       return sendResponse(
         res,
         409,
-        false,
         "Your instructor application has already been approved"
       );
     }
@@ -319,11 +351,8 @@ export const submitInstructorApplication = asyncHandler(
       .trim()
       .split(/\s+/);
 
-    const firstName =
-      nameParts.shift();
-
-    const lastName =
-      nameParts.join(" ");
+    const firstName = nameParts.shift();
+    const lastName = nameParts.join(" ");
 
     user.firstName = firstName;
 
@@ -405,7 +434,9 @@ export const submitInstructorApplication = asyncHandler(
 
     if (existingApplication) {
       /*
-      Rejected application is being resubmitted.
+      ------------------------------------------------------
+      REJECTED APPLICATION RESUBMISSION
+      ------------------------------------------------------
       */
 
       Object.assign(
@@ -416,6 +447,12 @@ export const submitInstructorApplication = asyncHandler(
       application =
         await existingApplication.save();
     } else {
+      /*
+      ------------------------------------------------------
+      NEW APPLICATION
+      ------------------------------------------------------
+      */
+
       application =
         await Instructor.create(
           applicationData
@@ -424,7 +461,7 @@ export const submitInstructorApplication = asyncHandler(
 
     /*
     --------------------------------------------------------
-    GET POPULATED APPLICATION
+    POPULATE APPLICATION
     --------------------------------------------------------
     */
 
@@ -435,16 +472,20 @@ export const submitInstructorApplication = asyncHandler(
         )
       );
 
+    /*
+    --------------------------------------------------------
+    RESPONSE
+    --------------------------------------------------------
+    */
+
     return sendResponse(
       res,
       201,
-      true,
       "Instructor application submitted successfully",
       application
     );
   }
 );
-
 
 /*
 ============================================================
@@ -459,14 +500,25 @@ export const getMyInstructorApplication =
   asyncHandler(async (req, res) => {
     const userId = getUserId(req);
 
+    /*
+    --------------------------------------------------------
+    AUTHENTICATION
+    --------------------------------------------------------
+    */
+
     if (!userId) {
       return sendResponse(
         res,
         401,
-        false,
         "Authentication required"
       );
     }
+
+    /*
+    --------------------------------------------------------
+    FIND APPLICATION
+    --------------------------------------------------------
+    */
 
     const application =
       await populateApplication(
@@ -475,24 +527,33 @@ export const getMyInstructorApplication =
         })
       );
 
+    /*
+    --------------------------------------------------------
+    NOT FOUND
+    --------------------------------------------------------
+    */
+
     if (!application) {
       return sendResponse(
         res,
         404,
-        false,
         "No instructor application found"
       );
     }
 
+    /*
+    --------------------------------------------------------
+    RESPONSE
+    --------------------------------------------------------
+    */
+
     return sendResponse(
       res,
       200,
-      true,
       "Instructor application retrieved successfully",
       application
     );
   });
-
 
 /*
 ============================================================
@@ -501,7 +562,6 @@ export const getMyInstructorApplication =
 
 GET /api/instructor/applications/:id
 
-IMPORTANT:
 Applicant can only access their own application.
 ============================================================
 */
@@ -511,25 +571,39 @@ export const getInstructorApplication =
     const userId = getUserId(req);
     const { id } = req.params;
 
+    /*
+    --------------------------------------------------------
+    AUTHENTICATION
+    --------------------------------------------------------
+    */
+
     if (!userId) {
       return sendResponse(
         res,
         401,
-        false,
         "Authentication required"
       );
     }
 
-    if (
-      !mongoose.Types.ObjectId.isValid(id)
-    ) {
+    /*
+    --------------------------------------------------------
+    VALIDATE ID
+    --------------------------------------------------------
+    */
+
+    if (!isValidObjectId(id)) {
       return sendResponse(
         res,
         400,
-        false,
         "Invalid application ID"
       );
     }
+
+    /*
+    --------------------------------------------------------
+    FIND OWN APPLICATION
+    --------------------------------------------------------
+    */
 
     const application =
       await populateApplication(
@@ -539,24 +613,33 @@ export const getInstructorApplication =
         })
       );
 
+    /*
+    --------------------------------------------------------
+    NOT FOUND
+    --------------------------------------------------------
+    */
+
     if (!application) {
       return sendResponse(
         res,
         404,
-        false,
         "Instructor application not found"
       );
     }
 
+    /*
+    --------------------------------------------------------
+    RESPONSE
+    --------------------------------------------------------
+    */
+
     return sendResponse(
       res,
       200,
-      true,
       "Instructor application retrieved successfully",
       application
     );
   });
-
 
 /*
 ============================================================
@@ -572,22 +655,30 @@ export const updateInstructorApplication =
     const userId = getUserId(req);
     const { id } = req.params;
 
+    /*
+    --------------------------------------------------------
+    AUTHENTICATION
+    --------------------------------------------------------
+    */
+
     if (!userId) {
       return sendResponse(
         res,
         401,
-        false,
         "Authentication required"
       );
     }
 
-    if (
-      !mongoose.Types.ObjectId.isValid(id)
-    ) {
+    /*
+    --------------------------------------------------------
+    VALIDATE ID
+    --------------------------------------------------------
+    */
+
+    if (!isValidObjectId(id)) {
       return sendResponse(
         res,
         400,
-        false,
         "Invalid application ID"
       );
     }
@@ -608,7 +699,6 @@ export const updateInstructorApplication =
       return sendResponse(
         res,
         404,
-        false,
         "Instructor application not found"
       );
     }
@@ -626,7 +716,6 @@ export const updateInstructorApplication =
       return sendResponse(
         res,
         409,
-        false,
         "An approved instructor application cannot be edited"
       );
     }
@@ -652,23 +741,18 @@ export const updateInstructorApplication =
 
     /*
     --------------------------------------------------------
-    VALIDATE PROVIDED EXPERTISE
+    EXPERTISE
     --------------------------------------------------------
     */
 
     if (expertise !== undefined) {
       const normalizedExpertise =
-        normalizeExpertise(
-          expertise
-        );
+        normalizeExpertise(expertise);
 
-      if (
-        normalizedExpertise.length === 0
-      ) {
+      if (normalizedExpertise.length === 0) {
         return sendResponse(
           res,
           400,
-          false,
           "At least one area of expertise is required"
         );
       }
@@ -685,9 +769,7 @@ export const updateInstructorApplication =
 
     if (experience !== undefined) {
       const normalizedExperience =
-        normalizeExperience(
-          experience
-        );
+        normalizeExperience(experience);
 
       if (
         normalizedExperience === null ||
@@ -696,7 +778,6 @@ export const updateInstructorApplication =
         return sendResponse(
           res,
           400,
-          false,
           "Valid years of experience are required"
         );
       }
@@ -712,19 +793,19 @@ export const updateInstructorApplication =
     */
 
     if (email !== undefined) {
-      if (!email.trim()) {
+      const normalizedEmail =
+        String(email).trim().toLowerCase();
+
+      if (!normalizedEmail) {
         return sendResponse(
           res,
           400,
-          false,
           "Email cannot be empty"
         );
       }
 
       application.applicationEmail =
-        email
-          .trim()
-          .toLowerCase();
+        normalizedEmail;
     }
 
     /*
@@ -734,17 +815,19 @@ export const updateInstructorApplication =
     */
 
     if (phone !== undefined) {
-      if (!phone.trim()) {
+      const normalizedPhone =
+        String(phone).trim();
+
+      if (!normalizedPhone) {
         return sendResponse(
           res,
           400,
-          false,
           "Phone number cannot be empty"
         );
       }
 
       application.applicationPhone =
-        phone.trim();
+        normalizedPhone;
     }
 
     /*
@@ -755,7 +838,7 @@ export const updateInstructorApplication =
 
     if (portfolio !== undefined) {
       application.portfolio =
-        portfolio.trim() || null;
+        String(portfolio).trim() || null;
     }
 
     /*
@@ -765,22 +848,21 @@ export const updateInstructorApplication =
     */
 
     if (
-      teachingExperience !==
-      undefined
+      teachingExperience !== undefined
     ) {
-      if (
-        !teachingExperience.trim()
-      ) {
+      const normalizedTeachingExperience =
+        String(teachingExperience).trim();
+
+      if (!normalizedTeachingExperience) {
         return sendResponse(
           res,
           400,
-          false,
           "Teaching experience cannot be empty"
         );
       }
 
       application.teachingExperience =
-        teachingExperience.trim();
+        normalizedTeachingExperience;
     }
 
     /*
@@ -790,17 +872,19 @@ export const updateInstructorApplication =
     */
 
     if (course !== undefined) {
-      if (!course.trim()) {
+      const normalizedCourse =
+        String(course).trim();
+
+      if (!normalizedCourse) {
         return sendResponse(
           res,
           400,
-          false,
           "Course cannot be empty"
         );
       }
 
       application.course =
-        course.trim();
+        normalizedCourse;
     }
 
     /*
@@ -810,17 +894,19 @@ export const updateInstructorApplication =
     */
 
     if (availability !== undefined) {
-      if (!availability.trim()) {
+      const normalizedAvailability =
+        String(availability).trim();
+
+      if (!normalizedAvailability) {
         return sendResponse(
           res,
           400,
-          false,
           "Availability cannot be empty"
         );
       }
 
       application.availability =
-        availability.trim();
+        normalizedAvailability;
     }
 
     /*
@@ -830,17 +916,19 @@ export const updateInstructorApplication =
     */
 
     if (coverLetter !== undefined) {
-      if (!coverLetter.trim()) {
+      const normalizedCoverLetter =
+        String(coverLetter).trim();
+
+      if (!normalizedCoverLetter) {
         return sendResponse(
           res,
           400,
-          false,
           "Cover letter cannot be empty"
         );
       }
 
       application.coverLetter =
-        coverLetter.trim();
+        normalizedCoverLetter;
     }
 
     /*
@@ -849,9 +937,20 @@ export const updateInstructorApplication =
     --------------------------------------------------------
     */
 
-    if (name?.trim()) {
+    if (name !== undefined) {
+      const normalizedName =
+        String(name).trim();
+
+      if (!normalizedName) {
+        return sendResponse(
+          res,
+          400,
+          "Name cannot be empty"
+        );
+      }
+
       const nameParts =
-        name.trim().split(/\s+/);
+        normalizedName.split(/\s+/);
 
       const firstName =
         nameParts.shift();
@@ -879,15 +978,40 @@ export const updateInstructorApplication =
     --------------------------------------------------------
     */
 
-    if (phone?.trim()) {
+    if (phone !== undefined) {
+      const normalizedPhone =
+        String(phone).trim();
+
       const user =
         await User.findById(userId);
 
       if (user) {
         user.phone =
-          phone.trim();
+          normalizedPhone;
 
         await user.save();
+      }
+    }
+
+    /*
+    --------------------------------------------------------
+    UPDATE USER EMAIL
+    --------------------------------------------------------
+    */
+
+    if (email !== undefined) {
+      const normalizedEmail =
+        String(email).trim().toLowerCase();
+
+      const user =
+        await User.findById(userId);
+
+      if (user) {
+        /*
+        Only update User.email if your application
+        allows users to change their email here.
+        Otherwise applicationEmail remains separate.
+        */
       }
     }
 
@@ -938,7 +1062,7 @@ export const updateInstructorApplication =
 
     /*
     --------------------------------------------------------
-    RETURN UPDATED APPLICATION
+    GET UPDATED APPLICATION
     --------------------------------------------------------
     */
 
@@ -949,15 +1073,19 @@ export const updateInstructorApplication =
         )
       );
 
+    /*
+    --------------------------------------------------------
+    RESPONSE
+    --------------------------------------------------------
+    */
+
     return sendResponse(
       res,
       200,
-      true,
       "Instructor application updated successfully",
       updatedApplication
     );
   });
-
 
 /*
 ============================================================
@@ -973,22 +1101,30 @@ export const withdrawInstructorApplication =
     const userId = getUserId(req);
     const { id } = req.params;
 
+    /*
+    --------------------------------------------------------
+    AUTHENTICATION
+    --------------------------------------------------------
+    */
+
     if (!userId) {
       return sendResponse(
         res,
         401,
-        false,
         "Authentication required"
       );
     }
 
-    if (
-      !mongoose.Types.ObjectId.isValid(id)
-    ) {
+    /*
+    --------------------------------------------------------
+    VALIDATE ID
+    --------------------------------------------------------
+    */
+
+    if (!isValidObjectId(id)) {
       return sendResponse(
         res,
         400,
-        false,
         "Invalid application ID"
       );
     }
@@ -1009,7 +1145,6 @@ export const withdrawInstructorApplication =
       return sendResponse(
         res,
         404,
-        false,
         "Instructor application not found"
       );
     }
@@ -1027,7 +1162,6 @@ export const withdrawInstructorApplication =
       return sendResponse(
         res,
         409,
-        false,
         "An approved instructor application cannot be withdrawn"
       );
     }
@@ -1043,10 +1177,16 @@ export const withdrawInstructorApplication =
       user: userId,
     });
 
+    /*
+    --------------------------------------------------------
+    RESPONSE
+    --------------------------------------------------------
+    */
+
     return sendResponse(
       res,
       200,
-      true,
       "Instructor application withdrawn successfully"
     );
   });
+  
