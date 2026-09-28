@@ -26,7 +26,7 @@ import {
 
 import toast from "react-hot-toast";
 
-import { submitInstructorApplication } from "../services/instructor/instructorApplicationService";
+import { submitInstructorApplication } from "../../../services/instructor/instructorApplicationService";
 
 
 const ACCENT = "#38BDF8";
