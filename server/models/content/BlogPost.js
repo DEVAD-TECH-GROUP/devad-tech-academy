@@ -17,15 +17,18 @@ const blogPostSchema = new mongoose.Schema(
       trim: true,
       maxlength: [200, "Title cannot exceed 200 characters"],
     },
+
     slug: {
       type: String,
       unique: true,
     },
+
     excerpt: {
       type: String,
       maxlength: [300, "Excerpt cannot exceed 300 characters"],
       default: null,
     },
+
     content: {
       type: String,
       required: [true, "Blog post content is required"],
@@ -50,6 +53,7 @@ const blogPostSchema = new mongoose.Schema(
       ],
       default: "tutorial",
     },
+
     tags: [
       {
         type: String,
@@ -63,6 +67,7 @@ const blogPostSchema = new mongoose.Schema(
       maxlength: [60, "Meta title cannot exceed 60 characters"],
       default: null,
     },
+
     metaDescription: {
       type: String,
       maxlength: [160, "Meta description cannot exceed 160 characters"],
@@ -74,17 +79,20 @@ const blogPostSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+
     totalLikes: {
       type: Number,
       default: 0,
     },
+
     totalComments: {
       type: Number,
       default: 0,
     },
+
     readTime: {
       type: Number,
-      default: 0, // in minutes
+      default: 0,
     },
 
     // ── Status ────────────────────────────────────────
@@ -93,6 +101,7 @@ const blogPostSchema = new mongoose.Schema(
       enum: ["draft", "published", "archived"],
       default: "draft",
     },
+
     publishedAt: {
       type: Date,
       default: null,
@@ -110,21 +119,20 @@ const blogPostSchema = new mongoose.Schema(
 );
 
 // ── Auto generate slug ────────────────────────────────────
-blogPostSchema.pre("save", function (next) {
+blogPostSchema.pre("save", function () {
   if (this.isModified("title")) {
     this.slug = createSlug(this.title);
   }
-  next();
 });
 
 // ── Auto calculate read time ──────────────────────────────
-blogPostSchema.pre("save", function (next) {
+blogPostSchema.pre("save", function () {
   if (this.isModified("content")) {
     const wordsPerMinute = 200;
     const wordCount = this.content.split(/\s+/).length;
+
     this.readTime = Math.ceil(wordCount / wordsPerMinute);
   }
-  next();
 });
 
 // ── Index ─────────────────────────────────────────────────
