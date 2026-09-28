@@ -10,7 +10,6 @@ const documentStorage = new CloudinaryStorage({
   cloudinary,
 
   params: async (req, file) => {
-    // Authentication must run before this upload middleware
     const userId = req.user?._id || req.user?.id;
 
     if (!userId) {
@@ -46,11 +45,9 @@ const documentFilter = (req, file, cb) => {
 
 const documentUpload = multer({
   storage: documentStorage,
-
   limits: {
     fileSize: UPLOAD_LIMITS.DOCUMENT_SIZE,
   },
-
   fileFilter: documentFilter,
 });
 
