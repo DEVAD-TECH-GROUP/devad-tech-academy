@@ -41,6 +41,6 @@ const faqSchema = new mongoose.Schema(
 
 faqSchema.index({ course: 1, order: 1 });
 
-const FAQ = mongoose.model("FAQ", faqSchema);
+const FAQ = mongoose.models.FAQ || mongoose.model("FAQ", faqSchema);
 
 export default FAQ;
