@@ -52,6 +52,7 @@ import notificationRoutes from "./routes/superadmin/notificationRoutes.js";
 
 // Instructor routes
 import instructorApplicationRoutes from "./routes/instructor/instructorApplicationRoutes.js";
+import instructorCategories from "./routes/instructor/categoryRoutes.js"
 import instructorDashboardRoutes from "./routes/instructor/dashboardRoutes.js";
 import instructorCourseRoutes from "./routes/instructor/courseRoutes.js";
 import instructorModuleRoutes from "./routes/instructor/moduleRoutes.js";
@@ -381,6 +382,11 @@ app.use(
 app.use(
   "/api/instructor",
   instructorApplicationRoutes
+);
+
+app.use(
+  "/api/instructor/categories",
+  instructorCategories
 );
 
 app.use(
