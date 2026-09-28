@@ -1639,42 +1639,87 @@ export default function RegisterPage() {
      VALIDATE PHONE
      ========================================================== */
 
-  const validatePhone =
-    () => {
-      const cleanPhone =
-        phone.trim();
+  /* ==========================================================
+     VALIDATE / NORMALIZE NIGERIAN PHONE
+     ========================================================== */
 
-      if (!cleanPhone) {
-        toast.error(
-          "Please enter your phone number."
-        );
+  const normalizeNigerianPhone = (phoneNumber) => {
+    const normalized = String(phoneNumber || "")
+      .trim()
+      .replace(/[\s()-]/g, "");
 
-        return false;
-      }
+    /*
+     * Nigerian local format
+     *
+     * Examples:
+     * 07012345678
+     * 07112345678
+     * 08012345678
+     * 08112345678
+     * 09012345678
+     * 09112345678
+     *
+     * General Nigerian mobile format:
+     * 0 + 7/8/9 + 9 digits
+     */
+    if (/^0[7-9]\d{9}$/.test(normalized)) {
+      return `+234${normalized.slice(1)}`;
+    }
 
-      const normalized =
-        cleanPhone.replace(
-          /[\s()-]/g,
-          ""
-        );
+    /*
+     * Nigerian international format without +
+     *
+     * Examples:
+     * 2347012345678
+     * 2348012345678
+     * 2349012345678
+     */
+    if (/^234[7-9]\d{9}$/.test(normalized)) {
+      return `+${normalized}`;
+    }
 
-      const nigeriaPhonePattern =
-        /^(?:\+234|234|0)8\d{9}$/;
+    /*
+     * Nigerian international format with +
+     *
+     * Examples:
+     * +2347012345678
+     * +2348012345678
+     * +2349012345678
+     */
+    if (/^\+234[7-9]\d{9}$/.test(normalized)) {
+      return normalized;
+    }
 
-      if (
-        !nigeriaPhonePattern.test(
-          normalized
-        )
-      ) {
-        toast.error(
-          "Please enter a valid Nigerian phone number."
-        );
+    return null;
+  };
 
-        return false;
-      }
+  const validatePhone = () => {
+    const cleanPhone =
+      String(phone || "").trim();
 
-      return true;
-    };
+    if (!cleanPhone) {
+      toast.error(
+        "Please enter your phone number."
+      );
+
+      return false;
+    }
+
+    const normalizedPhone =
+      normalizeNigerianPhone(
+        cleanPhone
+      );
+
+    if (!normalizedPhone) {
+      toast.error(
+        "Please enter a valid Nigerian phone number."
+      );
+
+      return false;
+    }
+
+    return true;
+  };
 
   /* ==========================================================
      SEND PHONE OTP
@@ -1682,10 +1727,18 @@ export default function RegisterPage() {
 
   const handleSendPhoneOTP =
     async () => {
+      /*
+       * Validate phone number first.
+       */
       if (!validatePhone()) {
         return;
       }
 
+      /*
+       * Registration token is required because
+       * this phone belongs to the registration
+       * verification session.
+       */
       if (!registrationToken) {
         toast.error(
           "Your verification session has expired. Please restart the verification process."
@@ -1707,12 +1760,30 @@ export default function RegisterPage() {
       }
 
       try {
-        setPhoneSendLoading(
-          true
-        );
+        setPhoneSendLoading(true);
 
+        /*
+         * Always normalize the number before
+         * sending it to the backend.
+         *
+         * Example:
+         *
+         * 07078827029
+         *        ↓
+         * +2347078827029
+         */
         const cleanPhone =
-          phone.trim();
+          normalizeNigerianPhone(
+            phone
+          );
+
+        if (!cleanPhone) {
+          toast.error(
+            "Please enter a valid Nigerian phone number."
+          );
+
+          return;
+        }
 
         logInfo(
           "Saving registration phone number.",
@@ -1724,14 +1795,23 @@ export default function RegisterPage() {
               isResumingPhoneVerification,
 
             isGoogleRegistration,
+
+            phone:
+              cleanPhone,
           }
         );
 
+        /*
+         * Save normalized phone number.
+         */
         await updateRegistrationPhone(
           registrationToken,
           cleanPhone
         );
 
+        /*
+         * Send OTP.
+         */
         const response =
           await sendPhoneOTP(
             registrationToken
@@ -1742,6 +1822,10 @@ export default function RegisterPage() {
           response ||
           {};
 
+        /*
+         * Support all currently expected
+         * backend response structures.
+         */
         const returnedOtpId =
           data?.phoneVerification
             ?.otpId ||
@@ -1759,16 +1843,32 @@ export default function RegisterPage() {
           );
         }
 
+        /*
+         * Save OTP session ID.
+         */
         setPhoneOtpId(
           returnedOtpId
         );
 
+        /*
+         * Clear any previous OTP.
+         */
         setPhoneOtp("");
+
+        /*
+         * Store normalized phone in state
+         * so the verification screen displays
+         * the same number that was actually sent.
+         */
+        setPhone(cleanPhone);
 
         toast.success(
           "Verification code sent to your phone."
         );
 
+        /*
+         * Move to phone OTP step.
+         */
         setStep(4);
 
         window.scrollTo({
@@ -1781,6 +1881,9 @@ export default function RegisterPage() {
           {
             isResumeFlow:
               isResumingPhoneVerification,
+
+            phone:
+              cleanPhone,
           }
         );
       } catch (error) {
