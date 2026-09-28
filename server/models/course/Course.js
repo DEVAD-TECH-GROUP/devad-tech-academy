@@ -413,12 +413,10 @@ const courseSchema = new mongoose.Schema(
 // AUTO SLUG
 // ============================================================
 
-courseSchema.pre("save", function (next) {
+courseSchema.pre("save", function () {
   if (this.isModified("title")) {
     this.slug = createSlug(this.title);
   }
-
-  next();
 });
 
 // ============================================================

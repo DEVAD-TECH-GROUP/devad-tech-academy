@@ -13,7 +13,6 @@ import {
   GraduationCap,
   Layers3,
   Lightbulb,
-  ListChecks,
   Loader2,
   Plus,
   Settings2,
@@ -23,8 +22,13 @@ import {
   X,
 } from "lucide-react";
 
-import api from "../../../api/Api";
-import { createCourse } from "../../../services/instructor/courseService";
+import {
+  createCourse,
+} from "../../../services/instructor/courseService";
+
+import {
+  getInstructorCategories,
+} from "../../../services/instructor/categoryService";
 
 import Input from "../../../components/common/Input";
 import Textarea from "../../../components/common/Textarea";
@@ -39,35 +43,40 @@ const STEPS = [
     number: 1,
     title: "Basic Information",
     shortTitle: "Basics",
-    description: "Tell students what your course is about.",
+    description:
+      "Tell students what your course is about.",
     icon: FileText,
   },
   {
     number: 2,
     title: "Classification",
     shortTitle: "Classification",
-    description: "Organize your course and define its technologies.",
+    description:
+      "Organize your course and define its technologies.",
     icon: Tags,
   },
   {
     number: 3,
     title: "Learning",
     shortTitle: "Learning",
-    description: "Define prerequisites and learning outcomes.",
+    description:
+      "Define prerequisites and learning outcomes.",
     icon: Lightbulb,
   },
   {
     number: 4,
     title: "Pricing",
     shortTitle: "Pricing",
-    description: "Configure your course pricing and installments.",
+    description:
+      "Configure your course pricing and installments.",
     icon: CircleDollarSign,
   },
   {
     number: 5,
     title: "Settings & Live Classes",
     shortTitle: "Settings",
-    description: "Configure enrollment, certificates and live classes.",
+    description:
+      "Configure enrollment, certificates and live classes.",
     icon: Settings2,
   },
 ];
@@ -125,6 +134,10 @@ const INITIAL_FORM = {
   },
 };
 
+// ============================================================
+// COMPONENT
+// ============================================================
+
 export default function CreateCourse() {
   const navigate = useNavigate();
 
@@ -138,15 +151,18 @@ export default function CreateCourse() {
   // ==========================================================
 
   const [categories, setCategories] = useState([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] =
+    useState(true);
 
   // ==========================================================
   // ARRAY INPUTS
   // ==========================================================
 
   const [tagInput, setTagInput] = useState("");
-  const [technologyInput, setTechnologyInput] = useState("");
-  const [prerequisiteInput, setPrerequisiteInput] = useState("");
+  const [technologyInput, setTechnologyInput] =
+    useState("");
+  const [prerequisiteInput, setPrerequisiteInput] =
+    useState("");
   const [outcomeInput, setOutcomeInput] = useState("");
 
   // ==========================================================
@@ -160,11 +176,14 @@ export default function CreateCourse() {
       setCategoriesLoading(true);
 
       try {
-        const response = await api.get("/instructor/categories");
+        const response =
+          await getInstructorCategories();
 
         if (!mounted) return;
 
-        setCategories(response.data?.data || []);
+        setCategories(
+          response.data?.data || []
+        );
       } catch (error) {
         if (!mounted) return;
 
@@ -199,7 +218,11 @@ export default function CreateCourse() {
     }));
   };
 
-  const setNested = (parent, key, value) => {
+  const setNested = (
+    parent,
+    key,
+    value
+  ) => {
     setForm((prev) => ({
       ...prev,
       [parent]: {
@@ -213,7 +236,11 @@ export default function CreateCourse() {
   // ARRAY HELPERS
   // ==========================================================
 
-  const addItem = (key, value, setter) => {
+  const addItem = (
+    key,
+    value,
+    setter
+  ) => {
     const trimmed = value.trim();
 
     if (!trimmed) {
@@ -221,22 +248,35 @@ export default function CreateCourse() {
     }
 
     const exists = form[key].some(
-      (item) => item.toLowerCase() === trimmed.toLowerCase()
+      (item) =>
+        item.toLowerCase() ===
+        trimmed.toLowerCase()
     );
 
     if (exists) {
-      toast.error("This item has already been added");
+      toast.error(
+        "This item has already been added"
+      );
       return;
     }
 
-    set(key, [...form[key], trimmed]);
+    set(key, [
+      ...form[key],
+      trimmed,
+    ]);
+
     setter("");
   };
 
-  const removeItem = (key, index) => {
+  const removeItem = (
+    key,
+    index
+  ) => {
     setForm((prev) => ({
       ...prev,
-      [key]: prev[key].filter((_, i) => i !== index),
+      [key]: prev[key].filter(
+        (_, i) => i !== index
+      ),
     }));
   };
 
@@ -244,24 +284,37 @@ export default function CreateCourse() {
   // STEP VALIDATION
   // ==========================================================
 
-  const validateStep = (currentStep) => {
+  const validateStep = (
+    currentStep
+  ) => {
     if (currentStep === 1) {
       if (!form.title.trim()) {
-        toast.error("Course title is required");
+        toast.error(
+          "Course title is required"
+        );
         return false;
       }
 
-      if (form.title.trim().length < 5) {
-        toast.error("Course title must be at least 5 characters");
+      if (
+        form.title.trim().length < 5
+      ) {
+        toast.error(
+          "Course title must be at least 5 characters"
+        );
         return false;
       }
 
       if (!form.description.trim()) {
-        toast.error("Course description is required");
+        toast.error(
+          "Course description is required"
+        );
         return false;
       }
 
-      if (form.description.trim().length < 20) {
+      if (
+        form.description.trim().length <
+        20
+      ) {
         toast.error(
           "Course description must be at least 20 characters"
         );
@@ -273,7 +326,9 @@ export default function CreateCourse() {
 
     if (currentStep === 2) {
       if (!form.category) {
-        toast.error("Course category is required");
+        toast.error(
+          "Course category is required"
+        );
         return false;
       }
 
@@ -281,8 +336,13 @@ export default function CreateCourse() {
     }
 
     if (currentStep === 3) {
-      if (form.learningOutcomes.length === 0) {
-        toast.error("Add at least one learning outcome");
+      if (
+        form.learningOutcomes.length ===
+        0
+      ) {
+        toast.error(
+          "Add at least one learning outcome"
+        );
         return false;
       }
 
@@ -291,17 +351,25 @@ export default function CreateCourse() {
 
     if (currentStep === 4) {
       if (!form.isFree) {
-        const price = Number(form.price);
+        const price = Number(
+          form.price
+        );
 
-        if (!Number.isFinite(price) || price <= 0) {
-          toast.error("Enter a valid course price");
+        if (
+          !Number.isFinite(price) ||
+          price <= 0
+        ) {
+          toast.error(
+            "Enter a valid course price"
+          );
           return false;
         }
 
         if (
           form.discountPrice !== null &&
           form.discountPrice !== "" &&
-          Number(form.discountPrice) >= price
+          Number(form.discountPrice) >=
+            price
         ) {
           toast.error(
             "Discount price must be lower than the original price"
@@ -311,17 +379,25 @@ export default function CreateCourse() {
 
         if (
           form.installments.enabled &&
-          Number(form.installments.amount) <= 0
+          Number(
+            form.installments.amount
+          ) <= 0
         ) {
-          toast.error("Enter a valid installment amount");
+          toast.error(
+            "Enter a valid installment amount"
+          );
           return false;
         }
 
         if (
           form.installments.enabled &&
-          Number(form.installments.count) <= 0
+          Number(
+            form.installments.count
+          ) <= 0
         ) {
-          toast.error("Enter a valid installment count");
+          toast.error(
+            "Enter a valid installment count"
+          );
           return false;
         }
       }
@@ -330,8 +406,14 @@ export default function CreateCourse() {
     }
 
     if (currentStep === 5) {
-      if (form.liveClasses.enabled) {
-        if (Number(form.liveClasses.duration) < 15) {
+      if (
+        form.liveClasses.enabled
+      ) {
+        if (
+          Number(
+            form.liveClasses.duration
+          ) < 15
+        ) {
           toast.error(
             "Live class duration must be at least 15 minutes"
           );
@@ -354,7 +436,12 @@ export default function CreateCourse() {
       return;
     }
 
-    setStep((prev) => Math.min(prev + 1, STEPS.length));
+    setStep((prev) =>
+      Math.min(
+        prev + 1,
+        STEPS.length
+      )
+    );
   };
 
   // ==========================================================
@@ -362,25 +449,22 @@ export default function CreateCourse() {
   // ==========================================================
 
   const handleBack = () => {
-    setStep((prev) => Math.max(prev - 1, 1));
+    setStep((prev) =>
+      Math.max(prev - 1, 1)
+    );
   };
 
   // ==========================================================
-  // CLICK PREVIOUS STEP
+  // STEP CLICK
   // ==========================================================
 
-  const handleStepClick = (targetStep) => {
+  const handleStepClick = (
+    targetStep
+  ) => {
     if (creating) return;
 
-    // Allow going backward without validation.
     if (targetStep < step) {
       setStep(targetStep);
-      return;
-    }
-
-    // Don't jump over unfinished steps.
-    if (targetStep > step) {
-      return;
     }
   };
 
@@ -397,12 +481,16 @@ export default function CreateCourse() {
       // BASIC INFORMATION
       title: form.title.trim(),
 
-      subtitle: form.subtitle.trim() || null,
+      subtitle:
+        form.subtitle.trim() ||
+        null,
 
       shortDescription:
-        form.shortDescription.trim() || null,
+        form.shortDescription.trim() ||
+        null,
 
-      description: form.description.trim(),
+      description:
+        form.description.trim(),
 
       // CLASSIFICATION
       category: form.category,
@@ -413,12 +501,15 @@ export default function CreateCourse() {
 
       tags: form.tags,
 
-      technologies: form.technologies,
+      technologies:
+        form.technologies,
 
       // LEARNING
-      prerequisites: form.prerequisites,
+      prerequisites:
+        form.prerequisites,
 
-      learningOutcomes: form.learningOutcomes,
+      learningOutcomes:
+        form.learningOutcomes,
 
       // PRICING
       isFree: form.isFree,
@@ -432,72 +523,99 @@ export default function CreateCourse() {
         form.discountPrice === "" ||
         form.discountPrice === null
           ? null
-          : Number(form.discountPrice),
+          : Number(
+              form.discountPrice
+            ),
 
       discountExpiry:
-        form.isFree || !form.discountExpiry
+        form.isFree ||
+        !form.discountExpiry
           ? null
           : form.discountExpiry,
 
       installments: {
         enabled: form.isFree
           ? false
-          : form.installments.enabled,
+          : form.installments
+              .enabled,
 
         amount: form.isFree
           ? 0
-          : Number(form.installments.amount || 0),
+          : Number(
+              form.installments
+                .amount || 0
+            ),
 
         count: form.isFree
           ? 0
-          : Number(form.installments.count || 0),
+          : Number(
+              form.installments
+                .count || 0
+            ),
 
-        interval: form.installments.interval,
+        interval:
+          form.installments.interval,
       },
 
       // SETTINGS
       settings: {
         enrollmentType:
-          form.settings.enrollmentType,
+          form.settings
+            .enrollmentType,
 
         hasCertificate:
-          form.settings.hasCertificate,
+          form.settings
+            .hasCertificate,
 
         hasDiscussion:
-          form.settings.hasDiscussion,
+          form.settings
+            .hasDiscussion,
 
         dripContent:
-          form.settings.dripContent,
+          form.settings
+            .dripContent,
 
         allowDownloads:
-          form.settings.allowDownloads,
+          form.settings
+            .allowDownloads,
       },
 
       // LIVE CLASSES
       liveClasses: {
         enabled:
-          form.liveClasses.enabled,
+          form.liveClasses
+            .enabled,
 
         frequency:
-          form.liveClasses.frequency,
+          form.liveClasses
+            .frequency,
 
-        duration:
-          Number(form.liveClasses.duration),
+        duration: Number(
+          form.liveClasses
+            .duration
+        ),
 
         platform:
-          form.liveClasses.platform,
+          form.liveClasses
+            .platform,
 
         description:
-          form.liveClasses.description.trim() || null,
+          form.liveClasses
+            .description.trim() ||
+          null,
       },
     };
 
     setCreating(true);
 
     try {
-      const response = await createCourse(payload);
+      const response =
+        await createCourse(
+          payload
+        );
 
-      const course = response.data?.data;
+      const course =
+        response.data?.data;
 
       if (!course?._id) {
         throw new Error(
@@ -514,7 +632,8 @@ export default function CreateCourse() {
       );
     } catch (error) {
       toast.error(
-        error.response?.data?.message ||
+        error.response?.data
+          ?.message ||
           error.message ||
           "Failed to create course"
       );
@@ -532,112 +651,150 @@ export default function CreateCourse() {
       <div className="bg-surface border border-border rounded-2xl p-4 md:p-5">
         {/* DESKTOP */}
         <div className="hidden md:flex items-start">
-          {STEPS.map((item, index) => {
-            const Icon = item.icon;
-            const active = step === item.number;
-            const completed = step > item.number;
-            const accessible = item.number <= step;
+          {STEPS.map(
+            (item, index) => {
+              const Icon = item.icon;
 
-            return (
-              <div
-                key={item.number}
-                className="flex items-start flex-1 last:flex-none"
-              >
-                <div className="flex flex-col items-center min-w-[100px]">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleStepClick(item.number)
-                    }
-                    disabled={!accessible || creating}
-                    className={`group flex flex-col items-center ${
-                      accessible
-                        ? "cursor-pointer"
-                        : "cursor-default"
-                    }`}
-                  >
-                    <div className="relative flex items-center justify-center">
-                      <div
-                        className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${
-                          active
-                            ? "bg-orange border-orange text-white shadow-lg shadow-orange/20"
-                            : completed
-                            ? "bg-orange/10 border-orange/40 text-orange"
-                            : "bg-surfaceHigh border-border text-muted"
-                        }`}
-                      >
-                        {completed ? (
-                          <Check size={17} strokeWidth={2.5} />
-                        ) : (
-                          <Icon size={17} />
-                        )}
-                      </div>
-                    </div>
+              const active =
+                step === item.number;
 
-                    <span
-                      className={`mt-2 text-xs font-semibold text-center transition ${
-                        active
-                          ? "text-text"
-                          : completed
-                          ? "text-orange"
-                          : "text-muted"
+              const completed =
+                step > item.number;
+
+              const accessible =
+                item.number <= step;
+
+              return (
+                <div
+                  key={item.number}
+                  className="flex items-start flex-1 last:flex-none"
+                >
+                  <div className="flex flex-col items-center min-w-[100px]">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleStepClick(
+                          item.number
+                        )
+                      }
+                      disabled={
+                        !accessible ||
+                        creating
+                      }
+                      className={`group flex flex-col items-center ${
+                        accessible
+                          ? "cursor-pointer"
+                          : "cursor-default"
                       }`}
                     >
-                      {item.shortTitle}
-                    </span>
+                      <div className="relative flex items-center justify-center">
+                        <div
+                          className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${
+                            active
+                              ? "bg-orange border-orange text-white shadow-lg shadow-orange/20"
+                              : completed
+                              ? "bg-orange/10 border-orange/40 text-orange"
+                              : "bg-surfaceHigh border-border text-muted"
+                          }`}
+                        >
+                          {completed ? (
+                            <Check
+                              size={17}
+                              strokeWidth={
+                                2.5
+                              }
+                            />
+                          ) : (
+                            <Icon size={17} />
+                          )}
+                        </div>
+                      </div>
 
-                    <span className="text-[10px] text-muted mt-0.5">
-                      Step {item.number}
-                    </span>
-                  </button>
-                </div>
+                      <span
+                        className={`mt-2 text-xs font-semibold text-center transition ${
+                          active
+                            ? "text-text"
+                            : completed
+                            ? "text-orange"
+                            : "text-muted"
+                        }`}
+                      >
+                        {
+                          item.shortTitle
+                        }
+                      </span>
 
-                {index < STEPS.length - 1 && (
-                  <div className="flex-1 px-2 pt-5">
-                    <div
-                      className={`h-0.5 rounded-full transition ${
-                        step > item.number
-                          ? "bg-orange/50"
-                          : "bg-border"
-                      }`}
-                    />
+                      <span className="text-[10px] text-muted mt-0.5">
+                        Step{" "}
+                        {
+                          item.number
+                        }
+                      </span>
+                    </button>
                   </div>
-                )}
-              </div>
-            );
-          })}
+
+                  {index <
+                    STEPS.length -
+                      1 && (
+                    <div className="flex-1 px-2 pt-5">
+                      <div
+                        className={`h-0.5 rounded-full transition ${
+                          step >
+                          item.number
+                            ? "bg-orange/50"
+                            : "bg-border"
+                        }`}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            }
+          )}
         </div>
 
         {/* MOBILE */}
         <div className="md:hidden">
           <div className="flex items-center gap-3">
-            {STEPS.map((item) => {
-              const completed = step > item.number;
-              const active = step === item.number;
+            {STEPS.map(
+              (item) => {
+                const completed =
+                  step >
+                  item.number;
 
-              return (
-                <div
-                  key={item.number}
-                  className="flex-1"
-                >
+                const active =
+                  step ===
+                  item.number;
+
+                return (
                   <div
-                    className={`h-1 rounded-full transition ${
-                      active
-                        ? "bg-orange"
-                        : completed
-                        ? "bg-orange/50"
-                        : "bg-border"
-                    }`}
-                  />
-                </div>
-              );
-            })}
+                    key={
+                      item.number
+                    }
+                    className="flex-1"
+                  >
+                    <div
+                      className={`h-1 rounded-full transition ${
+                        active
+                          ? "bg-orange"
+                          : completed
+                          ? "bg-orange/50"
+                          : "bg-border"
+                      }`}
+                    />
+                  </div>
+                );
+              }
+            )}
           </div>
 
           <div className="flex items-center justify-between mt-4">
             <div className="flex items-center gap-3">
               {(() => {
-                const Icon = STEPS[step - 1].icon;
+                const Icon =
+                  STEPS[
+                    step - 1
+                  ].icon;
 
                 return (
                   <div className="w-9 h-9 rounded-xl bg-orange/10 border border-orange/20 text-orange flex items-center justify-center">
@@ -648,18 +805,27 @@ export default function CreateCourse() {
 
               <div>
                 <p className="text-sm font-semibold text-text">
-                  {STEPS[step - 1].title}
+                  {
+                    STEPS[
+                      step - 1
+                    ].title
+                  }
                 </p>
 
                 <p className="text-[11px] text-muted mt-0.5">
-                  Step {step} of {STEPS.length}
+                  Step {step} of{" "}
+                  {
+                    STEPS.length
+                  }
                 </p>
               </div>
             </div>
 
             <div className="text-xs font-medium text-muted">
               {Math.round(
-                (step / STEPS.length) * 100
+                (step /
+                  STEPS.length) *
+                  100
               )}
               %
             </div>
@@ -673,7 +839,11 @@ export default function CreateCourse() {
   // STEP HEADER
   // ==========================================================
 
-  const renderStepHeader = (title, description, Icon) => {
+  const renderStepHeader = (
+    title,
+    description,
+    Icon
+  ) => {
     return (
       <div className="flex items-start gap-3 pb-5 border-b border-border">
         <div className="w-10 h-10 shrink-0 rounded-xl bg-orange/10 border border-orange/20 text-orange flex items-center justify-center">
@@ -697,758 +867,904 @@ export default function CreateCourse() {
   // STEP 1
   // ==========================================================
 
-  const renderBasicInformation = () => {
-    return (
-      <div className="space-y-5">
-        {renderStepHeader(
-          "Basic Information",
-          "Information students will see when they discover your course.",
-          FileText
-        )}
+  const renderBasicInformation =
+    () => {
+      return (
+        <div className="space-y-5">
+          {renderStepHeader(
+            "Basic Information",
+            "Information students will see when they discover your course.",
+            FileText
+          )}
 
-        <Input
-          label="Course Title *"
-          value={form.title}
-          onChange={(e) =>
-            set("title", e.target.value)
-          }
-          placeholder="e.g. Complete React Development Course"
-          required
-        />
+          <Input
+            label="Course Title *"
+            value={form.title}
+            onChange={(e) =>
+              set(
+                "title",
+                e.target.value
+              )
+            }
+            placeholder="e.g. Complete React Development Course"
+            required
+          />
 
-        <Input
-          label="Subtitle"
-          value={form.subtitle}
-          onChange={(e) =>
-            set("subtitle", e.target.value)
-          }
-          placeholder="A short supporting statement for your course"
-        />
+          <Input
+            label="Subtitle"
+            value={form.subtitle}
+            onChange={(e) =>
+              set(
+                "subtitle",
+                e.target.value
+              )
+            }
+            placeholder="A short supporting statement for your course"
+          />
 
-        <Input
-          label="Short Description"
-          value={form.shortDescription}
-          onChange={(e) =>
-            set(
-              "shortDescription",
-              e.target.value
-            )
-          }
-          placeholder="Briefly describe what this course is about"
-        />
+          <Input
+            label="Short Description"
+            value={
+              form.shortDescription
+            }
+            onChange={(e) =>
+              set(
+                "shortDescription",
+                e.target.value
+              )
+            }
+            placeholder="Briefly describe what this course is about"
+          />
 
-        <Textarea
-          label="Course Description *"
-          value={form.description}
-          onChange={(e) =>
-            set(
-              "description",
-              e.target.value
-            )
-          }
-          placeholder="Detailed description of what students will learn..."
-          rows={9}
-          required
-        />
-      </div>
-    );
-  };
+          <Textarea
+            label="Course Description *"
+            value={
+              form.description
+            }
+            onChange={(e) =>
+              set(
+                "description",
+                e.target.value
+              )
+            }
+            placeholder="Detailed description of what students will learn..."
+            rows={9}
+            required
+          />
+        </div>
+      );
+    };
 
   // ==========================================================
   // STEP 2
   // ==========================================================
 
-  const renderClassification = () => {
-    const categoryOptions = categories.map(
-      (category) => ({
-        value: category._id,
-        label: category.name,
-      })
-    );
+  const renderClassification =
+    () => {
+      const categoryOptions =
+        categories.map(
+          (category) => ({
+            value: category._id,
+            label: category.name,
+          })
+        );
 
-    return (
-      <div className="space-y-6">
-        {renderStepHeader(
-          "Classification",
-          "Help students understand the level, category and technologies covered by this course.",
-          Tags
-        )}
+      return (
+        <div className="space-y-6">
+          {renderStepHeader(
+            "Classification",
+            "Help students understand the level, category and technologies covered by this course.",
+            Tags
+          )}
 
-        <div className="space-y-2">
-          <Select
-            label="Course Category *"
-            value={form.category}
-            onChange={(e) =>
-              set("category", e.target.value)
+          <div className="space-y-2">
+            <Select
+              label="Course Category *"
+              value={
+                form.category
+              }
+              onChange={(e) =>
+                set(
+                  "category",
+                  e.target.value
+                )
+              }
+              options={[
+                {
+                  value: "",
+                  label:
+                    categoriesLoading
+                      ? "Loading categories..."
+                      : categories.length ===
+                        0
+                      ? "No categories available"
+                      : "Select a category",
+                },
+                ...categoryOptions,
+              ]}
+              disabled={
+                categoriesLoading ||
+                categories.length ===
+                  0
+              }
+            />
+
+            {categories.length ===
+              0 &&
+              !categoriesLoading && (
+                <p className="text-xs text-red-400">
+                  No active categories
+                  are available.
+                  Contact the Super
+                  Admin to create a
+                  category.
+                </p>
+              )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Select
+              label="Level"
+              value={form.level}
+              onChange={(e) =>
+                set(
+                  "level",
+                  e.target.value
+                )
+              }
+              options={[
+                {
+                  value: "beginner",
+                  label: "Beginner",
+                },
+                {
+                  value:
+                    "intermediate",
+                  label:
+                    "Intermediate",
+                },
+                {
+                  value: "advanced",
+                  label: "Advanced",
+                },
+              ]}
+            />
+
+            <Select
+              label="Language"
+              value={
+                form.language
+              }
+              onChange={(e) =>
+                set(
+                  "language",
+                  e.target.value
+                )
+              }
+              options={[
+                {
+                  value: "English",
+                  label: "English",
+                },
+                {
+                  value: "Pidgin",
+                  label:
+                    "Pidgin English",
+                },
+                {
+                  value: "Yoruba",
+                  label: "Yoruba",
+                },
+                {
+                  value: "Igbo",
+                  label: "Igbo",
+                },
+                {
+                  value: "Hausa",
+                  label: "Hausa",
+                },
+              ]}
+            />
+          </div>
+
+          <ArrayField
+            title="Technologies"
+            description="Add technologies and tools students will use."
+            value={
+              technologyInput
             }
-            options={[
-              {
-                value: "",
-                label: categoriesLoading
-                  ? "Loading categories..."
-                  : categories.length === 0
-                  ? "No categories available"
-                  : "Select a category",
-              },
-              ...categoryOptions,
-            ]}
-            disabled={
-              categoriesLoading ||
-              categories.length === 0
-            }
-          />
-
-          {categories.length === 0 &&
-            !categoriesLoading && (
-              <p className="text-xs text-red-400">
-                No active categories are available.
-                Contact the Super Admin to create a
-                category.
-              </p>
-            )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Select
-            label="Level"
-            value={form.level}
-            onChange={(e) =>
-              set("level", e.target.value)
-            }
-            options={[
-              {
-                value: "beginner",
-                label: "Beginner",
-              },
-              {
-                value: "intermediate",
-                label: "Intermediate",
-              },
-              {
-                value: "advanced",
-                label: "Advanced",
-              },
-            ]}
-          />
-
-          <Select
-            label="Language"
-            value={form.language}
-            onChange={(e) =>
-              set("language", e.target.value)
-            }
-            options={[
-              {
-                value: "English",
-                label: "English",
-              },
-              {
-                value: "Pidgin",
-                label: "Pidgin English",
-              },
-              {
-                value: "Yoruba",
-                label: "Yoruba",
-              },
-              {
-                value: "Igbo",
-                label: "Igbo",
-              },
-              {
-                value: "Hausa",
-                label: "Hausa",
-              },
-            ]}
-          />
-        </div>
-
-        {/* TECHNOLOGIES */}
-
-        <ArrayField
-          title="Technologies"
-          description="Add technologies and tools students will use."
-          value={technologyInput}
-          setValue={setTechnologyInput}
-          placeholder="e.g. React"
-          items={form.technologies}
-          onAdd={() =>
-            addItem(
-              "technologies",
-              technologyInput,
+            setValue={
               setTechnologyInput
-            )
-          }
-          onRemove={(index) =>
-            removeItem("technologies", index)
-          }
-          accent="default"
-        />
+            }
+            placeholder="e.g. React"
+            items={
+              form.technologies
+            }
+            onAdd={() =>
+              addItem(
+                "technologies",
+                technologyInput,
+                setTechnologyInput
+              )
+            }
+            onRemove={(index) =>
+              removeItem(
+                "technologies",
+                index
+              )
+            }
+          />
 
-        {/* TAGS */}
-
-        <ArrayField
-          title="Course Tags"
-          description="Add keywords that help identify your course."
-          value={tagInput}
-          setValue={setTagInput}
-          placeholder="e.g. javascript"
-          items={form.tags}
-          onAdd={() =>
-            addItem(
-              "tags",
-              tagInput,
+          <ArrayField
+            title="Course Tags"
+            description="Add keywords that help identify your course."
+            value={tagInput}
+            setValue={
               setTagInput
-            )
-          }
-          onRemove={(index) =>
-            removeItem("tags", index)
-          }
-          accent="orange"
-          prefix="#"
-        />
-      </div>
-    );
-  };
+            }
+            placeholder="e.g. javascript"
+            items={form.tags}
+            onAdd={() =>
+              addItem(
+                "tags",
+                tagInput,
+                setTagInput
+              )
+            }
+            onRemove={(index) =>
+              removeItem(
+                "tags",
+                index
+              )
+            }
+            accent="orange"
+            prefix="#"
+          />
+        </div>
+      );
+    };
 
   // ==========================================================
   // STEP 3
   // ==========================================================
 
-  const renderLearning = () => {
-    return (
-      <div className="space-y-6">
-        {renderStepHeader(
-          "Learning",
-          "Define what students should know before starting and what they should be able to accomplish after completing the course.",
-          Lightbulb
-        )}
+  const renderLearning =
+    () => {
+      return (
+        <div className="space-y-6">
+          {renderStepHeader(
+            "Learning",
+            "Define what students should know before starting and what they should be able to accomplish after completing the course.",
+            Lightbulb
+          )}
 
-        <ArrayField
-          title="Prerequisites"
-          description="What should students know or have before starting?"
-          value={prerequisiteInput}
-          setValue={setPrerequisiteInput}
-          placeholder="e.g. Basic JavaScript knowledge"
-          items={form.prerequisites}
-          onAdd={() =>
-            addItem(
-              "prerequisites",
-              prerequisiteInput,
+          <ArrayField
+            title="Prerequisites"
+            description="What should students know or have before starting?"
+            value={
+              prerequisiteInput
+            }
+            setValue={
               setPrerequisiteInput
-            )
-          }
-          onRemove={(index) =>
-            removeItem("prerequisites", index)
-          }
-          listStyle="card"
-        />
+            }
+            placeholder="e.g. Basic JavaScript knowledge"
+            items={
+              form.prerequisites
+            }
+            onAdd={() =>
+              addItem(
+                "prerequisites",
+                prerequisiteInput,
+                setPrerequisiteInput
+              )
+            }
+            onRemove={(index) =>
+              removeItem(
+                "prerequisites",
+                index
+              )
+            }
+            listStyle="card"
+          />
 
-        <ArrayField
-          title="Learning Outcomes *"
-          description="What should students be able to do after completing this course?"
-          value={outcomeInput}
-          setValue={setOutcomeInput}
-          placeholder="e.g. Build production-ready React applications"
-          items={form.learningOutcomes}
-          onAdd={() =>
-            addItem(
-              "learningOutcomes",
-              outcomeInput,
+          <ArrayField
+            title="Learning Outcomes *"
+            description="What should students be able to do after completing this course?"
+            value={outcomeInput}
+            setValue={
               setOutcomeInput
-            )
-          }
-          onRemove={(index) =>
-            removeItem(
-              "learningOutcomes",
-              index
-            )
-          }
-          listStyle="card"
-          accent="orange"
-        />
-      </div>
-    );
-  };
+            }
+            placeholder="e.g. Build production-ready React applications"
+            items={
+              form.learningOutcomes
+            }
+            onAdd={() =>
+              addItem(
+                "learningOutcomes",
+                outcomeInput,
+                setOutcomeInput
+              )
+            }
+            onRemove={(index) =>
+              removeItem(
+                "learningOutcomes",
+                index
+              )
+            }
+            listStyle="card"
+            accent="orange"
+          />
+        </div>
+      );
+    };
 
   // ==========================================================
   // STEP 4
   // ==========================================================
 
-  const renderPricing = () => {
-    return (
-      <div className="space-y-6">
-        {renderStepHeader(
-          "Pricing",
-          "Configure how students will pay for this course.",
-          CircleDollarSign
-        )}
+  const renderPricing =
+    () => {
+      return (
+        <div className="space-y-6">
+          {renderStepHeader(
+            "Pricing",
+            "Configure how students will pay for this course.",
+            CircleDollarSign
+          )}
 
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-text">
-            Course Type
-          </label>
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-text">
+              Course Type
+            </label>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <CourseTypeCard
-              active={form.isFree}
-              title="Free Course"
-              description="Students can enroll without payment."
-              icon={BookOpen}
-              onClick={() => {
-                set("isFree", true);
-                set("price", 0);
-                set("discountPrice", null);
-                set("discountExpiry", "");
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <CourseTypeCard
+                active={form.isFree}
+                title="Free Course"
+                description="Students can enroll without payment."
+                icon={BookOpen}
+                onClick={() => {
+                  set(
+                    "isFree",
+                    true
+                  );
 
-                setNested(
-                  "installments",
-                  "enabled",
-                  false
-                );
-              }}
-            />
-
-            <CourseTypeCard
-              active={!form.isFree}
-              title="Paid Course"
-              description="Students must pay to enroll."
-              icon={CircleDollarSign}
-              onClick={() =>
-                set("isFree", false)
-              }
-            />
-          </div>
-        </div>
-
-        {!form.isFree && (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Course Price (₦) *"
-                type="number"
-                min="0"
-                value={form.price}
-                onChange={(e) =>
                   set(
                     "price",
-                    e.target.value
-                  )
-                }
-                placeholder="e.g. 150000"
-              />
+                    0
+                  );
 
-              <Input
-                label="Discount Price (₦)"
-                type="number"
-                min="0"
-                value={
-                  form.discountPrice ?? ""
-                }
-                onChange={(e) =>
                   set(
                     "discountPrice",
-                    e.target.value
+                    null
+                  );
+
+                  set(
+                    "discountExpiry",
+                    ""
+                  );
+
+                  setNested(
+                    "installments",
+                    "enabled",
+                    false
+                  );
+                }}
+              />
+
+              <CourseTypeCard
+                active={!form.isFree}
+                title="Paid Course"
+                description="Students must pay to enroll."
+                icon={
+                  CircleDollarSign
+                }
+                onClick={() =>
+                  set(
+                    "isFree",
+                    false
                   )
                 }
-                placeholder="e.g. 120000"
               />
             </div>
+          </div>
 
-            <Input
-              label="Discount Expiry"
-              type="date"
-              value={form.discountExpiry}
-              onChange={(e) =>
-                set(
-                  "discountExpiry",
-                  e.target.value
-                )
-              }
-            />
-
-            <div className="border border-border rounded-2xl p-4 md:p-5 space-y-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-orange/10 text-orange flex items-center justify-center">
-                    <Layers3 size={17} />
-                  </div>
-
-                  <div>
-                    <h3 className="text-sm font-semibold text-text">
-                      Installment Payments
-                    </h3>
-
-                    <p className="text-xs text-muted mt-1">
-                      Allow students to pay for the course
-                      in installments.
-                    </p>
-                  </div>
-                </div>
-
-                <Toggle
-                  checked={
-                    form.installments.enabled
+          {!form.isFree && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Course Price (₦) *"
+                  type="number"
+                  min="0"
+                  value={
+                    form.price
                   }
-                  onChange={(value) =>
-                    setNested(
-                      "installments",
-                      "enabled",
-                      value
+                  onChange={(e) =>
+                    set(
+                      "price",
+                      e.target.value
                     )
                   }
+                  placeholder="e.g. 150000"
+                />
+
+                <Input
+                  label="Discount Price (₦)"
+                  type="number"
+                  min="0"
+                  value={
+                    form.discountPrice ??
+                    ""
+                  }
+                  onChange={(e) =>
+                    set(
+                      "discountPrice",
+                      e.target.value
+                    )
+                  }
+                  placeholder="e.g. 120000"
                 />
               </div>
 
-              {form.installments.enabled && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Input
-                    label="Installment Amount (₦)"
-                    type="number"
-                    min="0"
-                    value={
-                      form.installments.amount
-                    }
-                    onChange={(e) =>
-                      setNested(
-                        "installments",
-                        "amount",
-                        e.target.value
-                      )
-                    }
-                    placeholder="e.g. 50000"
-                  />
+              <Input
+                label="Discount Expiry"
+                type="date"
+                value={
+                  form.discountExpiry
+                }
+                onChange={(e) =>
+                  set(
+                    "discountExpiry",
+                    e.target.value
+                  )
+                }
+              />
 
-                  <Input
-                    label="Number of Payments"
-                    type="number"
-                    min="1"
-                    value={
-                      form.installments.count
-                    }
-                    onChange={(e) =>
-                      setNested(
-                        "installments",
-                        "count",
-                        e.target.value
-                      )
-                    }
-                    placeholder="e.g. 3"
-                  />
+              <div className="border border-border rounded-2xl p-4 md:p-5 space-y-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-orange/10 text-orange flex items-center justify-center">
+                      <Layers3
+                        size={17}
+                      />
+                    </div>
 
-                  <Select
-                    label="Interval"
-                    value={
-                      form.installments.interval
+                    <div>
+                      <h3 className="text-sm font-semibold text-text">
+                        Installment
+                        Payments
+                      </h3>
+
+                      <p className="text-xs text-muted mt-1">
+                        Allow students
+                        to pay for the
+                        course in
+                        installments.
+                      </p>
+                    </div>
+                  </div>
+
+                  <Toggle
+                    checked={
+                      form
+                        .installments
+                        .enabled
                     }
-                    onChange={(e) =>
+                    onChange={(
+                      value
+                    ) =>
                       setNested(
                         "installments",
-                        "interval",
-                        e.target.value
+                        "enabled",
+                        value
                       )
                     }
-                    options={[
-                      {
-                        value: "weekly",
-                        label: "Weekly",
-                      },
-                      {
-                        value: "monthly",
-                        label: "Monthly",
-                      },
-                    ]}
                   />
                 </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
+
+                {form.installments
+                  .enabled && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Input
+                      label="Installment Amount (₦)"
+                      type="number"
+                      min="0"
+                      value={
+                        form
+                          .installments
+                          .amount
+                      }
+                      onChange={(e) =>
+                        setNested(
+                          "installments",
+                          "amount",
+                          e.target
+                            .value
+                        )
+                      }
+                      placeholder="e.g. 50000"
+                    />
+
+                    <Input
+                      label="Number of Payments"
+                      type="number"
+                      min="1"
+                      value={
+                        form
+                          .installments
+                          .count
+                      }
+                      onChange={(e) =>
+                        setNested(
+                          "installments",
+                          "count",
+                          e.target
+                            .value
+                        )
+                      }
+                      placeholder="e.g. 3"
+                    />
+
+                    <Select
+                      label="Interval"
+                      value={
+                        form
+                          .installments
+                          .interval
+                      }
+                      onChange={(e) =>
+                        setNested(
+                          "installments",
+                          "interval",
+                          e.target
+                            .value
+                        )
+                      }
+                      options={[
+                        {
+                          value:
+                            "weekly",
+                          label:
+                            "Weekly",
+                        },
+                        {
+                          value:
+                            "monthly",
+                          label:
+                            "Monthly",
+                        },
+                      ]}
+                    />
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      );
+    };
 
   // ==========================================================
   // STEP 5
   // ==========================================================
 
-  const renderSettings = () => {
-    return (
-      <div className="space-y-6">
-        {renderStepHeader(
-          "Settings & Live Classes",
-          "Configure enrollment, student features and live teaching.",
-          Settings2
-        )}
+  const renderSettings =
+    () => {
+      return (
+        <div className="space-y-6">
+          {renderStepHeader(
+            "Settings & Live Classes",
+            "Configure enrollment, student features and live teaching.",
+            Settings2
+          )}
 
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Settings2
-              size={16}
-              className="text-orange"
-            />
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Settings2
+                size={16}
+                className="text-orange"
+              />
 
-            <h3 className="text-sm font-semibold text-text">
-              Course Settings
-            </h3>
-          </div>
-
-          <Select
-            label="Enrollment Type"
-            value={
-              form.settings.enrollmentType
-            }
-            onChange={(e) =>
-              setNested(
-                "settings",
-                "enrollmentType",
-                e.target.value
-              )
-            }
-            options={[
-              {
-                value: "open",
-                label: "Open Enrollment",
-              },
-              {
-                value: "invite",
-                label: "Invite Only",
-              },
-            ]}
-          />
-
-          <div className="space-y-2">
-            <SettingToggle
-              label="Certificate"
-              description="Issue a certificate when students complete the course."
-              checked={
-                form.settings.hasCertificate
-              }
-              onChange={(value) =>
-                setNested(
-                  "settings",
-                  "hasCertificate",
-                  value
-                )
-              }
-            />
-
-            <SettingToggle
-              label="Discussion"
-              description="Allow students to participate in course discussions."
-              checked={
-                form.settings.hasDiscussion
-              }
-              onChange={(value) =>
-                setNested(
-                  "settings",
-                  "hasDiscussion",
-                  value
-                )
-              }
-            />
-
-            <SettingToggle
-              label="Drip Content"
-              description="Release course content gradually over time."
-              checked={
-                form.settings.dripContent
-              }
-              onChange={(value) =>
-                setNested(
-                  "settings",
-                  "dripContent",
-                  value
-                )
-              }
-            />
-
-            <SettingToggle
-              label="Allow Downloads"
-              description="Allow students to download permitted course resources."
-              checked={
-                form.settings.allowDownloads
-              }
-              onChange={(value) =>
-                setNested(
-                  "settings",
-                  "allowDownloads",
-                  value
-                )
-              }
-            />
-          </div>
-        </div>
-
-        {/* LIVE CLASSES */}
-
-        <div className="border border-border rounded-2xl p-4 md:p-5 space-y-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-orange/10 text-orange flex items-center justify-center">
-                <Video size={17} />
-              </div>
-
-              <div>
-                <h3 className="text-sm font-semibold text-text">
-                  Live Classes
-                </h3>
-
-                <p className="text-xs text-muted mt-1">
-                  Schedule live teaching sessions for students.
-                </p>
-              </div>
+              <h3 className="text-sm font-semibold text-text">
+                Course Settings
+              </h3>
             </div>
 
-            <Toggle
-              checked={
-                form.liveClasses.enabled
+            <Select
+              label="Enrollment Type"
+              value={
+                form.settings
+                  .enrollmentType
               }
-              onChange={(value) =>
+              onChange={(e) =>
                 setNested(
-                  "liveClasses",
-                  "enabled",
-                  value
+                  "settings",
+                  "enrollmentType",
+                  e.target.value
                 )
               }
+              options={[
+                {
+                  value: "open",
+                  label:
+                    "Open Enrollment",
+                },
+                {
+                  value: "invite",
+                  label:
+                    "Invite Only",
+                },
+              ]}
             />
+
+            <div className="space-y-2">
+              <SettingToggle
+                label="Certificate"
+                description="Issue a certificate when students complete the course."
+                checked={
+                  form.settings
+                    .hasCertificate
+                }
+                onChange={(value) =>
+                  setNested(
+                    "settings",
+                    "hasCertificate",
+                    value
+                  )
+                }
+              />
+
+              <SettingToggle
+                label="Discussion"
+                description="Allow students to participate in course discussions."
+                checked={
+                  form.settings
+                    .hasDiscussion
+                }
+                onChange={(value) =>
+                  setNested(
+                    "settings",
+                    "hasDiscussion",
+                    value
+                  )
+                }
+              />
+
+              <SettingToggle
+                label="Drip Content"
+                description="Release course content gradually over time."
+                checked={
+                  form.settings
+                    .dripContent
+                }
+                onChange={(value) =>
+                  setNested(
+                    "settings",
+                    "dripContent",
+                    value
+                  )
+                }
+              />
+
+              <SettingToggle
+                label="Allow Downloads"
+                description="Allow students to download permitted course resources."
+                checked={
+                  form.settings
+                    .allowDownloads
+                }
+                onChange={(value) =>
+                  setNested(
+                    "settings",
+                    "allowDownloads",
+                    value
+                  )
+                }
+              />
+            </div>
           </div>
 
-          {form.liveClasses.enabled && (
-            <div className="space-y-4 pt-1">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* LIVE CLASSES */}
+
+          <div className="border border-border rounded-2xl p-4 md:p-5 space-y-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-orange/10 text-orange flex items-center justify-center">
+                  <Video
+                    size={17}
+                  />
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-text">
+                    Live Classes
+                  </h3>
+
+                  <p className="text-xs text-muted mt-1">
+                    Schedule live teaching
+                    sessions for students.
+                  </p>
+                </div>
+              </div>
+
+              <Toggle
+                checked={
+                  form.liveClasses
+                    .enabled
+                }
+                onChange={(value) =>
+                  setNested(
+                    "liveClasses",
+                    "enabled",
+                    value
+                  )
+                }
+              />
+            </div>
+
+            {form.liveClasses
+              .enabled && (
+              <div className="space-y-4 pt-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Select
+                    label="Frequency"
+                    value={
+                      form
+                        .liveClasses
+                        .frequency
+                    }
+                    onChange={(e) =>
+                      setNested(
+                        "liveClasses",
+                        "frequency",
+                        e.target
+                          .value
+                      )
+                    }
+                    options={[
+                      {
+                        value:
+                          "once",
+                        label:
+                          "Once",
+                      },
+                      {
+                        value:
+                          "weekly",
+                        label:
+                          "Weekly",
+                      },
+                      {
+                        value:
+                          "twice-weekly",
+                        label:
+                          "Twice Weekly",
+                      },
+                      {
+                        value:
+                          "three-times-weekly",
+                        label:
+                          "Three Times Weekly",
+                      },
+                      {
+                        value:
+                          "custom",
+                        label:
+                          "Custom",
+                      },
+                    ]}
+                  />
+
+                  <Input
+                    label="Duration (minutes)"
+                    type="number"
+                    min="15"
+                    value={
+                      form
+                        .liveClasses
+                        .duration
+                    }
+                    onChange={(e) =>
+                      setNested(
+                        "liveClasses",
+                        "duration",
+                        e.target
+                          .value
+                      )
+                    }
+                    placeholder="60"
+                  />
+                </div>
+
                 <Select
-                  label="Frequency"
+                  label="Platform"
                   value={
-                    form.liveClasses.frequency
+                    form
+                      .liveClasses
+                      .platform
                   }
                   onChange={(e) =>
                     setNested(
                       "liveClasses",
-                      "frequency",
+                      "platform",
                       e.target.value
                     )
                   }
                   options={[
                     {
-                      value: "once",
-                      label: "Once",
+                      value:
+                        "google-meet",
+                      label:
+                        "Google Meet",
                     },
                     {
-                      value: "weekly",
-                      label: "Weekly",
+                      value: "zoom",
+                      label: "Zoom",
                     },
                     {
-                      value: "twice-weekly",
-                      label: "Twice Weekly",
+                      value:
+                        "microsoft-teams",
+                      label:
+                        "Microsoft Teams",
                     },
                     {
-                      value: "three-times-weekly",
-                      label: "Three Times Weekly",
-                    },
-                    {
-                      value: "custom",
-                      label: "Custom",
+                      value: "other",
+                      label: "Other",
                     },
                   ]}
                 />
 
-                <Input
-                  label="Duration (minutes)"
-                  type="number"
-                  min="15"
+                <Textarea
+                  label="Live Class Description"
                   value={
-                    form.liveClasses.duration
+                    form
+                      .liveClasses
+                      .description
                   }
                   onChange={(e) =>
                     setNested(
                       "liveClasses",
-                      "duration",
-                      e.target.value
+                      "description",
+                      e.target
+                        .value
                     )
                   }
-                  placeholder="60"
+                  placeholder="Describe how your live classes will work..."
+                  rows={4}
                 />
               </div>
-
-              <Select
-                label="Platform"
-                value={
-                  form.liveClasses.platform
-                }
-                onChange={(e) =>
-                  setNested(
-                    "liveClasses",
-                    "platform",
-                    e.target.value
-                  )
-                }
-                options={[
-                  {
-                    value: "google-meet",
-                    label: "Google Meet",
-                  },
-                  {
-                    value: "zoom",
-                    label: "Zoom",
-                  },
-                  {
-                    value: "microsoft-teams",
-                    label: "Microsoft Teams",
-                  },
-                  {
-                    value: "other",
-                    label: "Other",
-                  },
-                ]}
-              />
-
-              <Textarea
-                label="Live Class Description"
-                value={
-                  form.liveClasses.description
-                }
-                onChange={(e) =>
-                  setNested(
-                    "liveClasses",
-                    "description",
-                    e.target.value
-                  )
-                }
-                placeholder="Describe how your live classes will work..."
-                rows={4}
-              />
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
-    );
-  };
+      );
+    };
 
   // ==========================================================
   // CURRENT STEP
   // ==========================================================
 
-  const renderCurrentStep = () => {
-    switch (step) {
-      case 1:
-        return renderBasicInformation();
+  const renderCurrentStep =
+    () => {
+      switch (step) {
+        case 1:
+          return renderBasicInformation();
 
-      case 2:
-        return renderClassification();
+        case 2:
+          return renderClassification();
 
-      case 3:
-        return renderLearning();
+        case 3:
+          return renderLearning();
 
-      case 4:
-        return renderPricing();
+        case 4:
+          return renderPricing();
 
-      case 5:
-        return renderSettings();
+        case 5:
+          return renderSettings();
 
-      default:
-        return null;
-    }
-  };
+        default:
+          return null;
+      }
+    };
 
   // ==========================================================
   // MAIN UI
@@ -1463,13 +1779,17 @@ export default function CreateCourse() {
           <button
             type="button"
             onClick={() =>
-              navigate("/instructor/courses")
+              navigate(
+                "/instructor/courses"
+              )
             }
             disabled={creating}
             className="w-9 h-9 shrink-0 rounded-xl bg-surface border border-border text-muted hover:text-text hover:border-orange/40 transition flex items-center justify-center"
             title="Back to courses"
           >
-            <ArrowLeft size={17} />
+            <ArrowLeft
+              size={17}
+            />
           </button>
 
           <div>
@@ -1479,14 +1799,17 @@ export default function CreateCourse() {
               </h1>
 
               <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange/10 border border-orange/20 text-orange text-[10px] font-semibold">
-                <GraduationCap size={12} />
+                <GraduationCap
+                  size={12}
+                />
                 Instructor
               </span>
             </div>
 
             <p className="text-muted text-sm mt-1">
-              Set up your course before adding modules,
-              lessons and projects.
+              Set up your course before
+              adding modules, lessons and
+              projects.
             </p>
           </div>
         </div>
@@ -1508,7 +1831,9 @@ export default function CreateCourse() {
 
           <span className="text-xs font-medium text-text">
             {Math.round(
-              (step / STEPS.length) * 100
+              (step /
+                STEPS.length) *
+                100
             )}
             % complete
           </span>
@@ -1544,7 +1869,9 @@ export default function CreateCourse() {
             disabled={creating}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-surfaceHigh border border-border text-text font-semibold rounded-xl text-sm hover:border-orange/40 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft
+              size={16}
+            />
 
             {step === 1
               ? "Cancel"
@@ -1565,22 +1892,33 @@ export default function CreateCourse() {
             </span>
           </div>
 
-          {step < STEPS.length ? (
+          {step <
+          STEPS.length ? (
             <button
               type="button"
-              onClick={handleNext}
-              disabled={creating}
+              onClick={
+                handleNext
+              }
+              disabled={
+                creating
+              }
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange hover:bg-orange/90 text-white font-semibold rounded-xl text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Continue
 
-              <ArrowRight size={16} />
+              <ArrowRight
+                size={16}
+              />
             </button>
           ) : (
             <button
               type="button"
-              onClick={handleCreate}
-              disabled={creating}
+              onClick={
+                handleCreate
+              }
+              disabled={
+                creating
+              }
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange hover:bg-orange/90 text-white font-semibold rounded-xl text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {creating ? (
@@ -1596,7 +1934,9 @@ export default function CreateCourse() {
                 <>
                   Create Course
 
-                  <Check size={16} />
+                  <Check
+                    size={16}
+                  />
                 </>
               )}
             </button>
@@ -1642,9 +1982,13 @@ function ArrayField({
             label=""
             value={value}
             onChange={(e) =>
-              setValue(e.target.value)
+              setValue(
+                e.target.value
+              )
             }
-            placeholder={placeholder}
+            placeholder={
+              placeholder
+            }
           />
         </div>
 
@@ -1660,74 +2004,98 @@ function ArrayField({
 
       {items.length > 0 && (
         <>
-          {listStyle === "card" ? (
+          {listStyle ===
+          "card" ? (
             <div className="space-y-2">
-              {items.map((item, index) => (
-                <div
-                  key={`${item}-${index}`}
-                  className={`flex items-center justify-between gap-3 p-3 rounded-xl bg-surfaceHigh border ${
-                    accent === "orange"
-                      ? "border-orange/20"
-                      : "border-border"
-                  }`}
-                >
-                  <div className="flex items-start gap-2 min-w-0">
-                    <div
-                      className={`mt-0.5 w-5 h-5 shrink-0 rounded-full flex items-center justify-center ${
-                        accent === "orange"
-                          ? "bg-orange/10 text-orange"
-                          : "bg-surface text-muted"
-                      }`}
-                    >
-                      <Check size={12} />
+              {items.map(
+                (
+                  item,
+                  index
+                ) => (
+                  <div
+                    key={`${item}-${index}`}
+                    className={`flex items-center justify-between gap-3 p-3 rounded-xl bg-surfaceHigh border ${
+                      accent ===
+                      "orange"
+                        ? "border-orange/20"
+                        : "border-border"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2 min-w-0">
+                      <div
+                        className={`mt-0.5 w-5 h-5 shrink-0 rounded-full flex items-center justify-center ${
+                          accent ===
+                          "orange"
+                            ? "bg-orange/10 text-orange"
+                            : "bg-surface text-muted"
+                        }`}
+                      >
+                        <Check
+                          size={12}
+                        />
+                      </div>
+
+                      <span className="text-sm text-text leading-5">
+                        {item}
+                      </span>
                     </div>
 
-                    <span className="text-sm text-text leading-5">
-                      {item}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onRemove(
+                          index
+                        )
+                      }
+                      className="shrink-0 w-8 h-8 rounded-lg text-muted hover:text-red-400 hover:bg-red-400/10 transition flex items-center justify-center"
+                      title="Remove"
+                    >
+                      <Trash2
+                        size={14}
+                      />
+                    </button>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onRemove(index)
-                    }
-                    className="shrink-0 w-8 h-8 rounded-lg text-muted hover:text-red-400 hover:bg-red-400/10 transition flex items-center justify-center"
-                    title="Remove"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))}
+                )
+              )}
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {items.map((item, index) => (
-                <div
-                  key={`${item}-${index}`}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm ${
-                    accent === "orange"
-                      ? "bg-orange/10 border-orange/20 text-orange"
-                      : "bg-surfaceHigh border-border text-text"
-                  }`}
-                >
-                  <span>
-                    {prefix}
-                    {item}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onRemove(index)
-                    }
-                    className="w-5 h-5 rounded-md flex items-center justify-center opacity-70 hover:opacity-100 transition"
-                    title="Remove"
+              {items.map(
+                (
+                  item,
+                  index
+                ) => (
+                  <div
+                    key={`${item}-${index}`}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm ${
+                      accent ===
+                      "orange"
+                        ? "bg-orange/10 border-orange/20 text-orange"
+                        : "bg-surfaceHigh border-border text-text"
+                    }`}
                   >
-                    <X size={13} />
-                  </button>
-                </div>
-              ))}
+                    <span>
+                      {prefix}
+                      {item}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onRemove(
+                          index
+                        )
+                      }
+                      className="w-5 h-5 rounded-md flex items-center justify-center opacity-70 hover:opacity-100 transition"
+                      title="Remove"
+                    >
+                      <X
+                        size={13}
+                      />
+                    </button>
+                  </div>
+                )
+              )}
             </div>
           )}
         </>
@@ -1780,7 +2148,10 @@ function CourseTypeCard({
 
         {active && (
           <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-orange text-white flex items-center justify-center">
-            <Check size={12} strokeWidth={3} />
+            <Check
+              size={12}
+              strokeWidth={3}
+            />
           </div>
         )}
       </div>
@@ -1792,13 +2163,18 @@ function CourseTypeCard({
 // TOGGLE
 // ============================================================
 
-function Toggle({ checked, onChange }) {
+function Toggle({
+  checked,
+  onChange,
+}) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
-      onClick={() => onChange(!checked)}
+      onClick={() =>
+        onChange(!checked)
+      }
       className={`relative w-11 h-6 shrink-0 rounded-full transition ${
         checked
           ? "bg-orange"
@@ -1807,7 +2183,9 @@ function Toggle({ checked, onChange }) {
     >
       <span
         className={`absolute top-1 w-4 h-4 rounded-full bg-white transition ${
-          checked ? "left-6" : "left-1"
+          checked
+            ? "left-6"
+            : "left-1"
         }`}
       />
     </button>
@@ -1843,4 +2221,3 @@ function SettingToggle({
     </div>
   );
 }
-
