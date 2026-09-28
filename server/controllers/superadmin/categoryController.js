@@ -11,16 +11,39 @@ export const getCategories = asyncHandler(async (req, res) => {
 });
 
 export const createCategory = asyncHandler(async (req, res) => {
-  const { error } = createCategoryValidator(req.body);
-  if (error) return sendResponse(res, 400, error.details[0].message);
+  console.log("========== createCategory ==========");
+  console.log("BODY:", req.body);
+  console.log("USER:", req.user?._id);
+  console.log("====================================");
+
+  const { error, value } = createCategoryValidator(req.body);
+
+  if (error) {
+    console.log("VALIDATION ERROR:", error.details);
+    return sendResponse(
+      res,
+      400,
+      error.details[0].message
+    );
+  }
+
+  console.log("VALIDATION PASSED");
 
   const category = await Category.create({
-    ...req.body,
+    ...value,
     createdBy: req.user._id,
   });
 
-  sendResponse(res, 201, "Category created", category);
+  console.log("CATEGORY CREATED:", category._id);
+
+  return sendResponse(
+    res,
+    201,
+    "Category created",
+    category
+  );
 });
+
 
 export const updateCategory = asyncHandler(async (req, res) => {
   const category = await Category.findByIdAndUpdate(
