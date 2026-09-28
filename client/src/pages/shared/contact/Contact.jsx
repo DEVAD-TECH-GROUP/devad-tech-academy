@@ -19,10 +19,15 @@ import {
   GraduationCap,
   FileText,
   Link as LinkIcon,
-  Users,
   ChevronRight,
-  Sparkles,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
+
+import toast from "react-hot-toast";
+
+import { submitInstructorApplication } from "../services/instructor/instructorApplicationService";
+
 
 const ACCENT = "#38BDF8";
 const ACCENT_BLUE = "#2563EB";
@@ -32,7 +37,7 @@ const ACCENT_BORDER = "rgba(56,189,248,0.22)";
 const BG = "#050B14";
 const SURFACE = "#0A1220";
 const SURFACE2 = "#0D1728";
-const BORDER = "rgba(148,163,184,0.12)";
+const BORDER = "rgba(148,163,184,0.12";
 
 const TEXT_PRIMARY = "#F8FAFC";
 const TEXT_SECONDARY = "#94A3B8";
@@ -170,7 +175,10 @@ function ContactCard({ icon: Icon, label, lines }) {
             key={i}
             style={{
               fontSize: i === 0 ? 14 : 12,
-              color: i === 0 ? TEXT_PRIMARY : TEXT_SECONDARY,
+              color:
+                i === 0
+                  ? TEXT_PRIMARY
+                  : TEXT_SECONDARY,
               lineHeight: 1.6,
             }}
           >
@@ -218,37 +226,289 @@ export default function ContactUs() {
   });
 
   const [sent, setSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [focused, setFocused] = useState(null);
+  const [error, setError] = useState("");
 
   const handleChange = (e) => {
-    const { name, value, files } = e.target;
+    const {
+      name,
+      value,
+      files,
+    } = e.target;
 
     setForm((prev) => ({
       ...prev,
-      [name]: files ? files[0] : value,
+      [name]: files
+        ? files[0]
+        : value,
     }));
+
+    if (error) {
+      setError("");
+    }
   };
 
-  const handleSubmit = (e) => {
+  const resetForm = () => {
+    setForm({
+      name: "",
+      email: "",
+      phone: "",
+      expertise: "",
+      experience: "",
+      portfolio: "",
+      teachingExperience: "",
+      course: "",
+      availability: "",
+      coverLetter: "",
+      cv: null,
+    });
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (submitting) {
+      return;
+    }
+
+    setError("");
+
     /*
-      UI ONLY FOR NOW.
-
-      Later this will connect to something like:
-
-      POST /instructor-applications
-
-      and submit the application to the backend,
-      including CV upload and application status.
+    --------------------------------------------------------
+    CLIENT-SIDE VALIDATION
+    --------------------------------------------------------
     */
 
-    setSent(true);
+    if (!form.name.trim()) {
+      const message = "Please enter your full name.";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
+    if (!form.email.trim()) {
+      const message = "Please enter your email address.";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
+    if (!form.phone.trim()) {
+      const message = "Please enter your phone number.";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
+    if (!form.expertise) {
+      const message =
+        "Please select your area of expertise.";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
+    if (!form.experience) {
+      const message =
+        "Please select your years of experience.";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
+    if (!form.teachingExperience.trim()) {
+      const message =
+        "Please describe your teaching or mentoring experience.";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
+    if (!form.course.trim()) {
+      const message =
+        "Please specify the course you would like to teach.";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
+    if (!form.coverLetter.trim()) {
+      const message =
+        "Please provide your cover letter.";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
+    if (!form.availability.trim()) {
+      const message =
+        "Please provide your availability.";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
+    /*
+    --------------------------------------------------------
+    BUILD MULTIPART FORM DATA
+    --------------------------------------------------------
+    */
+
+    const formData = new FormData();
+
+    formData.append(
+      "name",
+      form.name.trim()
+    );
+
+    formData.append(
+      "email",
+      form.email.trim()
+    );
+
+    formData.append(
+      "phone",
+      form.phone.trim()
+    );
+
+    formData.append(
+      "expertise",
+      form.expertise
+    );
+
+    /*
+    The backend Instructor model expects experience
+    as a Number.
+
+    These UI values are:
+      0
+      1
+      3
+      6
+      10
+
+    */
+    let experienceValue = 0;
+
+    switch (form.experience) {
+      case "less-than-1":
+        experienceValue = 0;
+        break;
+
+      case "1-2":
+        experienceValue = 1;
+        break;
+
+      case "3-5":
+        experienceValue = 3;
+        break;
+
+      case "6-10":
+        experienceValue = 6;
+        break;
+
+      case "10+":
+        experienceValue = 10;
+        break;
+
+      default:
+        experienceValue = 0;
+    }
+
+    formData.append(
+      "experience",
+      String(experienceValue)
+    );
+
+    formData.append(
+      "portfolio",
+      form.portfolio.trim()
+    );
+
+    formData.append(
+      "teachingExperience",
+      form.teachingExperience.trim()
+    );
+
+    formData.append(
+      "course",
+      form.course.trim()
+    );
+
+    formData.append(
+      "availability",
+      form.availability.trim()
+    );
+
+    formData.append(
+      "coverLetter",
+      form.coverLetter.trim()
+    );
+
+    /*
+    --------------------------------------------------------
+    CV
+    --------------------------------------------------------
+    */
+
+    if (form.cv) {
+      formData.append(
+        "cv",
+        form.cv
+      );
+    }
+
+    /*
+    --------------------------------------------------------
+    SUBMIT
+    --------------------------------------------------------
+    */
+
+    try {
+      setSubmitting(true);
+
+      await submitInstructorApplication(
+        formData
+      );
+
+      /*
+      Backend accepted the application.
+      */
+
+      setSent(true);
+
+      toast.success(
+        "Instructor application submitted successfully!"
+      );
+
+      resetForm();
+
+    } catch (err) {
+      console.error(
+        "[DEVAD INSTRUCTOR APPLICATION]",
+        err
+      );
+
+      const message =
+        err?.response?.data?.message ||
+        "We could not submit your instructor application. Please try again.";
+
+      setError(message);
+
+      toast.error(message);
+
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const fieldStyle = (name) => ({
     ...inputStyle,
-    borderColor: focused === name ? ACCENT : BORDER,
+    borderColor:
+      focused === name
+        ? ACCENT
+        : BORDER,
     boxShadow:
       focused === name
         ? "0 0 0 3px rgba(56,189,248,0.08)"
@@ -259,7 +519,8 @@ export default function ContactUs() {
     <div
       style={{
         minHeight: "100vh",
-        fontFamily: "'Inter', system-ui, sans-serif",
+        fontFamily:
+          "'Inter', system-ui, sans-serif",
         background: BG,
         color: TEXT_PRIMARY,
         lineHeight: 1.7,
@@ -269,6 +530,7 @@ export default function ContactUs() {
       {/* ─────────────────────────────────────────────
           NAV
       ───────────────────────────────────────────── */}
+
       <header
         style={{
           height: 64,
@@ -276,7 +538,8 @@ export default function ContactUs() {
           alignItems: "center",
           padding: "0 1.5rem",
           borderBottom: `1px solid ${BORDER}`,
-          background: "rgba(5,11,20,0.85)",
+          background:
+            "rgba(5,11,20,0.85)",
           backdropFilter: "blur(16px)",
         }}
       >
@@ -300,10 +563,14 @@ export default function ContactUs() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              boxShadow: "0 0 24px rgba(37,99,235,0.3)",
+              boxShadow:
+                "0 0 24px rgba(37,99,235,0.3)",
             }}
           >
-            <Code2 size={18} color="#fff" />
+            <Code2
+              size={18}
+              color="#fff"
+            />
           </div>
 
           <div>
@@ -322,7 +589,8 @@ export default function ContactUs() {
                 fontSize: 9,
                 color: TEXT_MUTED,
                 letterSpacing: "0.16em",
-                textTransform: "uppercase",
+                textTransform:
+                  "uppercase",
               }}
             >
               Learn • Build • Grow
@@ -334,31 +602,49 @@ export default function ContactUs() {
       {/* ─────────────────────────────────────────────
           HERO
       ───────────────────────────────────────────── */}
+
       <section
         style={{
           position: "relative",
           overflow: "hidden",
-          padding: "6rem 1.5rem 4.5rem",
+          padding:
+            "6rem 1.5rem 4.5rem",
           textAlign: "center",
-          borderBottom: `1px solid ${BORDER}`,
+          borderBottom:
+            `1px solid ${BORDER}`,
           background: `
-            radial-gradient(circle at 50% -15%, rgba(37,99,235,0.28), transparent 48%),
-            radial-gradient(circle at 15% 60%, rgba(56,189,248,0.06), transparent 30%),
+            radial-gradient(
+              circle at 50% -15%,
+              rgba(37,99,235,0.28),
+              transparent 48%
+            ),
+            radial-gradient(
+              circle at 15% 60%,
+              rgba(56,189,248,0.06),
+              transparent 30%
+            ),
             ${BG}
           `,
         }}
       >
-        {/* Background grid */}
         <div
           style={{
             position: "absolute",
             inset: 0,
             opacity: 0.17,
             backgroundImage: `
-              linear-gradient(rgba(56,189,248,0.12) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(56,189,248,0.12) 1px, transparent 1px)
+              linear-gradient(
+                rgba(56,189,248,0.12) 1px,
+                transparent 1px
+              ),
+              linear-gradient(
+                90deg,
+                rgba(56,189,248,0.12) 1px,
+                transparent 1px
+              )
             `,
-            backgroundSize: "48px 48px",
+            backgroundSize:
+              "48px 48px",
             maskImage:
               "linear-gradient(to bottom, black, transparent 85%)",
             pointerEvents: "none",
@@ -379,13 +665,16 @@ export default function ContactUs() {
               gap: 8,
               padding: "6px 14px",
               borderRadius: 999,
-              background: ACCENT_LIGHT,
-              border: `1px solid ${ACCENT_BORDER}`,
+              background:
+                ACCENT_LIGHT,
+              border:
+                `1px solid ${ACCENT_BORDER}`,
               color: ACCENT,
               fontSize: 11,
               fontWeight: 700,
               letterSpacing: "0.12em",
-              textTransform: "uppercase",
+              textTransform:
+                "uppercase",
               marginBottom: "1.5rem",
             }}
           >
@@ -395,21 +684,27 @@ export default function ContactUs() {
 
           <h1
             style={{
-              fontSize: "clamp(2.3rem, 7vw, 4.2rem)",
+              fontSize:
+                "clamp(2.3rem, 7vw, 4.2rem)",
               fontWeight: 800,
-              letterSpacing: "-0.055em",
+              letterSpacing:
+                "-0.055em",
               lineHeight: 1.05,
-              margin: "0 auto 1.5rem",
+              margin:
+                "0 auto 1.5rem",
             }}
           >
             Let's build the
             <br />
+
             <span
               style={{
                 background:
                   "linear-gradient(90deg, #38BDF8, #60A5FA, #818CF8)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
+                WebkitBackgroundClip:
+                  "text",
+                WebkitTextFillColor:
+                  "transparent",
               }}
             >
               future together.
@@ -425,8 +720,11 @@ export default function ContactUs() {
               lineHeight: 1.8,
             }}
           >
-            Have a question about our programs, enrollment, partnerships, or
-            joining our instructor team? We'd love to hear from you.
+            Have a question about our
+            programs, enrollment,
+            partnerships, or joining our
+            instructor team? We'd love to
+            hear from you.
           </p>
         </div>
       </section>
@@ -434,6 +732,7 @@ export default function ContactUs() {
       {/* ─────────────────────────────────────────────
           BODY
       ───────────────────────────────────────────── */}
+
       <main
         style={{
           maxWidth: 1120,
@@ -441,7 +740,11 @@ export default function ContactUs() {
           padding: "0 1.5rem",
         }}
       >
-        <section style={{ padding: "5rem 0 3rem" }}>
+        <section
+          style={{
+            padding: "5rem 0 3rem",
+          }}
+        >
           <div
             style={{
               display: "grid",
@@ -454,16 +757,22 @@ export default function ContactUs() {
             {/* ─────────────────────────────────────
                 LEFT SIDE
             ───────────────────────────────────── */}
+
             <div>
-              <SectionLabel>Contact Information</SectionLabel>
+              <SectionLabel>
+                Contact Information
+              </SectionLabel>
 
               <h2
                 style={{
-                  fontSize: "clamp(1.8rem, 4vw, 2.4rem)",
+                  fontSize:
+                    "clamp(1.8rem, 4vw, 2.4rem)",
                   fontWeight: 750,
-                  letterSpacing: "-0.035em",
+                  letterSpacing:
+                    "-0.035em",
                   lineHeight: 1.2,
-                  margin: "0 0 0.75rem",
+                  margin:
+                    "0 0 0.75rem",
                 }}
               >
                 Reach the academy
@@ -471,21 +780,27 @@ export default function ContactUs() {
 
               <p
                 style={{
-                  color: TEXT_SECONDARY,
+                  color:
+                    TEXT_SECONDARY,
                   fontSize: 14,
                   lineHeight: 1.75,
-                  margin: "0 0 1.75rem",
+                  margin:
+                    "0 0 1.75rem",
                 }}
               >
-                Whether you're interested in learning with us, partnering
-                with us, or becoming part of our teaching team, we're here
+                Whether you're interested
+                in learning with us,
+                partnering with us, or
+                becoming part of our
+                teaching team, we're here
                 to help.
               </p>
 
               <div
                 style={{
                   display: "flex",
-                  flexDirection: "column",
+                  flexDirection:
+                    "column",
                   gap: 10,
                 }}
               >
@@ -501,7 +816,9 @@ export default function ContactUs() {
                 <ContactCard
                   icon={Phone}
                   label="Phone"
-                  lines={["+234 810 655 1348"]}
+                  lines={[
+                    "+234 810 655 1348",
+                  ]}
                 />
 
                 <ContactCard
@@ -524,13 +841,13 @@ export default function ContactUs() {
                 />
               </div>
 
-              {/* Instructor CTA */}
               <div
                 style={{
                   marginTop: "1.25rem",
                   padding: "1.25rem",
                   borderRadius: 14,
-                  border: `1px solid ${ACCENT_BORDER}`,
+                  border:
+                    `1px solid ${ACCENT_BORDER}`,
                   background:
                     "linear-gradient(145deg, rgba(14,165,233,0.08), rgba(10,18,32,0.9))",
                 }}
@@ -538,47 +855,60 @@ export default function ContactUs() {
                 <div
                   style={{
                     display: "flex",
-                    alignItems: "center",
+                    alignItems:
+                      "center",
                     gap: 10,
                     marginBottom: 8,
                   }}
                 >
-                  <Briefcase size={17} color={ACCENT} />
+                  <Briefcase
+                    size={17}
+                    color={ACCENT}
+                  />
 
                   <span
                     style={{
                       fontSize: 13,
                       fontWeight: 700,
-                      color: TEXT_PRIMARY,
+                      color:
+                        TEXT_PRIMARY,
                     }}
                   >
-                    Interested in teaching?
+                    Interested in
+                    teaching?
                   </span>
                 </div>
 
                 <p
                   style={{
-                    margin: "0 0 12px",
+                    margin:
+                      "0 0 12px",
                     fontSize: 12.5,
-                    color: TEXT_SECONDARY,
+                    color:
+                      TEXT_SECONDARY,
                     lineHeight: 1.65,
                   }}
                 >
-                  We're building a community of knowledgeable instructors
-                  who can help learners develop practical technology skills.
+                  We're building a
+                  community of knowledgeable
+                  instructors who can help
+                  learners develop practical
+                  technology skills.
                 </p>
 
                 <div
                   style={{
                     display: "flex",
-                    alignItems: "center",
+                    alignItems:
+                      "center",
                     gap: 6,
                     color: ACCENT,
                     fontSize: 12,
                     fontWeight: 700,
                   }}
                 >
-                  Instructor applications are welcome
+                  Instructor applications
+                  are welcome
                   <ArrowRight size={14} />
                 </div>
               </div>
@@ -587,54 +917,72 @@ export default function ContactUs() {
             {/* ─────────────────────────────────────
                 APPLICATION FORM
             ───────────────────────────────────── */}
+
             <div
               style={{
                 background:
                   "linear-gradient(145deg, rgba(13,23,40,0.98), rgba(7,14,25,0.98))",
-                border: `1px solid ${ACCENT_BORDER}`,
+                border:
+                  `1px solid ${ACCENT_BORDER}`,
                 borderRadius: 20,
                 padding: "2rem",
-                boxShadow: "0 20px 60px rgba(0,0,0,0.22)",
+                boxShadow:
+                  "0 20px 60px rgba(0,0,0,0.22)",
               }}
             >
               <div
                 style={{
                   display: "flex",
-                  alignItems: "flex-start",
+                  alignItems:
+                    "flex-start",
                   gap: 12,
-                  marginBottom: "1.5rem",
+                  marginBottom:
+                    "1.5rem",
                 }}
               >
                 <FieldIcon>
-                  <GraduationCap size={18} color={ACCENT} />
+                  <GraduationCap
+                    size={18}
+                    color={ACCENT}
+                  />
                 </FieldIcon>
 
                 <div>
-                  <SectionLabel>Join Our Team</SectionLabel>
+                  <SectionLabel>
+                    Join Our Team
+                  </SectionLabel>
 
                   <h2
                     style={{
-                      fontSize: "clamp(1.4rem, 3vw, 1.9rem)",
+                      fontSize:
+                        "clamp(1.4rem, 3vw, 1.9rem)",
                       fontWeight: 750,
-                      letterSpacing: "-0.03em",
+                      letterSpacing:
+                        "-0.03em",
                       lineHeight: 1.2,
                       margin: 0,
                     }}
                   >
-                    Instructor Application
+                    Instructor
+                    Application
                   </h2>
 
                   <p
                     style={{
-                      color: TEXT_SECONDARY,
+                      color:
+                        TEXT_SECONDARY,
                       fontSize: 13,
                       lineHeight: 1.7,
-                      margin: "0.5rem 0 0",
+                      margin:
+                        "0.5rem 0 0",
                     }}
                   >
-                    Tell us about your experience, expertise, and how you
-                    could contribute to the learning experience at Devad
-                    Tech Academy.
+                    Tell us about your
+                    experience, expertise,
+                    and how you could
+                    contribute to the learning
+                    experience at Devad Tech
+                    Academy.
                   </p>
                 </div>
               </div>
@@ -642,31 +990,44 @@ export default function ContactUs() {
               {sent ? (
                 <div
                   style={{
-                    textAlign: "center",
-                    padding: "3rem 1rem",
+                    textAlign:
+                      "center",
+                    padding:
+                      "3rem 1rem",
                   }}
                 >
                   <div
                     style={{
                       width: 64,
                       height: 64,
-                      borderRadius: "50%",
-                      background: GREEN_BG,
-                      border: "1px solid rgba(74,222,128,0.2)",
+                      borderRadius:
+                        "50%",
+                      background:
+                        GREEN_BG,
+                      border:
+                        "1px solid rgba(74,222,128,0.2)",
                       display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      margin: "0 auto 1.25rem",
+                      alignItems:
+                        "center",
+                      justifyContent:
+                        "center",
+                      margin:
+                        "0 auto 1.25rem",
                     }}
                   >
-                    <CheckCircle size={30} color={GREEN} />
+                    <CheckCircle
+                      size={30}
+                      color={GREEN}
+                    />
                   </div>
 
                   <h3
                     style={{
-                      margin: "0 0 0.5rem",
+                      margin:
+                        "0 0 0.5rem",
                       fontSize: 18,
-                      color: TEXT_PRIMARY,
+                      color:
+                        TEXT_PRIMARY,
                     }}
                   >
                     Application received
@@ -675,31 +1036,101 @@ export default function ContactUs() {
                   <p
                     style={{
                       margin: 0,
-                      color: TEXT_SECONDARY,
+                      color:
+                        TEXT_SECONDARY,
                       fontSize: 14,
                     }}
                   >
-                    Thank you for your interest in teaching at Devad Tech
-                    Academy. Our team will review your application.
+                    Thank you for your
+                    interest in teaching at
+                    Devad Tech Academy. Our
+                    team will review your
+                    application.
                   </p>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSent(false);
+                      setError("");
+                    }}
+                    style={{
+                      marginTop: 20,
+                      border:
+                        `1px solid ${ACCENT_BORDER}`,
+                      background:
+                        ACCENT_LIGHT,
+                      color: ACCENT,
+                      borderRadius: 9,
+                      padding:
+                        "0.7rem 1.1rem",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Submit Another Application
+                  </button>
                 </div>
               ) : (
                 <form
-                  onSubmit={handleSubmit}
+                  onSubmit={
+                    handleSubmit
+                  }
                   style={{
                     display: "flex",
-                    flexDirection: "column",
+                    flexDirection:
+                      "column",
                     gap: "1rem",
                   }}
                 >
+                  {/* ERROR MESSAGE */}
+
+                  {error && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems:
+                          "flex-start",
+                        gap: 9,
+                        padding:
+                          "0.85rem 1rem",
+                        borderRadius: 10,
+                        background:
+                          "rgba(239,68,68,0.08)",
+                        border:
+                          "1px solid rgba(239,68,68,0.2)",
+                        color:
+                          "#FCA5A5",
+                        fontSize: 12,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      <AlertCircle
+                        size={16}
+                        style={{
+                          flexShrink: 0,
+                          marginTop: 1,
+                        }}
+                      />
+
+                      <span>
+                        {error}
+                      </span>
+                    </div>
+                  )}
+
                   {/* PERSONAL INFORMATION */}
+
                   <div
                     style={{
                       fontSize: 10,
                       fontWeight: 700,
                       color: ACCENT,
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
+                      letterSpacing:
+                        "0.12em",
+                      textTransform:
+                        "uppercase",
                       paddingBottom: 3,
                     }}
                   >
@@ -709,37 +1140,68 @@ export default function ContactUs() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
+                      gridTemplateColumns:
+                        "1fr 1fr",
                       gap: 12,
                     }}
                   >
                     <div>
-                      <Label>Full Name *</Label>
+                      <Label>
+                        Full Name *
+                      </Label>
 
                       <input
                         name="name"
                         value={form.name}
-                        onChange={handleChange}
-                        onFocus={() => setFocused("name")}
-                        onBlur={() => setFocused(null)}
+                        onChange={
+                          handleChange
+                        }
+                        onFocus={() =>
+                          setFocused(
+                            "name"
+                          )
+                        }
+                        onBlur={() =>
+                          setFocused(
+                            null
+                          )
+                        }
                         placeholder="Your full name"
-                        style={fieldStyle("name")}
+                        style={fieldStyle(
+                          "name"
+                        )}
                         required
                       />
                     </div>
 
                     <div>
-                      <Label>Email Address *</Label>
+                      <Label>
+                        Email Address *
+                      </Label>
 
                       <input
                         name="email"
                         type="email"
-                        value={form.email}
-                        onChange={handleChange}
-                        onFocus={() => setFocused("email")}
-                        onBlur={() => setFocused(null)}
+                        value={
+                          form.email
+                        }
+                        onChange={
+                          handleChange
+                        }
+                        onFocus={() =>
+                          setFocused(
+                            "email"
+                          )
+                        }
+                        onBlur={() =>
+                          setFocused(
+                            null
+                          )
+                        }
                         placeholder="you@email.com"
-                        style={fieldStyle("email")}
+                        style={fieldStyle(
+                          "email"
+                        )}
                         required
                       />
                     </div>
@@ -748,61 +1210,110 @@ export default function ContactUs() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
+                      gridTemplateColumns:
+                        "1fr 1fr",
                       gap: 12,
                     }}
                   >
                     <div>
-                      <Label>Phone Number *</Label>
+                      <Label>
+                        Phone Number *
+                      </Label>
 
                       <input
                         name="phone"
-                        value={form.phone}
-                        onChange={handleChange}
-                        onFocus={() => setFocused("phone")}
-                        onBlur={() => setFocused(null)}
+                        value={
+                          form.phone
+                        }
+                        onChange={
+                          handleChange
+                        }
+                        onFocus={() =>
+                          setFocused(
+                            "phone"
+                          )
+                        }
+                        onBlur={() =>
+                          setFocused(
+                            null
+                          )
+                        }
                         placeholder="+234 800 000 0000"
-                        style={fieldStyle("phone")}
+                        style={fieldStyle(
+                          "phone"
+                        )}
                         required
                       />
                     </div>
 
                     <div>
-                      <Label>Area of Expertise *</Label>
+                      <Label>
+                        Area of Expertise *
+                      </Label>
 
                       <select
                         name="expertise"
-                        value={form.expertise}
-                        onChange={handleChange}
-                        onFocus={() => setFocused("expertise")}
-                        onBlur={() => setFocused(null)}
+                        value={
+                          form.expertise
+                        }
+                        onChange={
+                          handleChange
+                        }
+                        onFocus={() =>
+                          setFocused(
+                            "expertise"
+                          )
+                        }
+                        onBlur={() =>
+                          setFocused(
+                            null
+                          )
+                        }
                         style={{
-                          ...fieldStyle("expertise"),
-                          cursor: "pointer",
+                          ...fieldStyle(
+                            "expertise"
+                          ),
+                          cursor:
+                            "pointer",
                         }}
                         required
                       >
-                        <option value="" disabled>
+                        <option
+                          value=""
+                          disabled
+                        >
                           Select expertise
                         </option>
 
-                        {expertiseOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
+                        {expertiseOptions.map(
+                          (option) => (
+                            <option
+                              key={
+                                option
+                              }
+                              value={
+                                option
+                              }
+                            >
+                              {option}
+                            </option>
+                          )
+                        )}
                       </select>
                     </div>
                   </div>
 
                   {/* EXPERIENCE */}
+
                   <div
                     style={{
                       fontSize: 10,
                       fontWeight: 700,
                       color: ACCENT,
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
+                      letterSpacing:
+                        "0.12em",
+                      textTransform:
+                        "uppercase",
                       paddingTop: 8,
                       paddingBottom: 3,
                     }}
@@ -813,49 +1324,99 @@ export default function ContactUs() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
+                      gridTemplateColumns:
+                        "1fr 1fr",
                       gap: 12,
                     }}
                   >
                     <div>
-                      <Label>Years of Experience *</Label>
+                      <Label>
+                        Years of Experience *
+                      </Label>
 
                       <select
                         name="experience"
-                        value={form.experience}
-                        onChange={handleChange}
-                        onFocus={() => setFocused("experience")}
-                        onBlur={() => setFocused(null)}
+                        value={
+                          form.experience
+                        }
+                        onChange={
+                          handleChange
+                        }
+                        onFocus={() =>
+                          setFocused(
+                            "experience"
+                          )
+                        }
+                        onBlur={() =>
+                          setFocused(
+                            null
+                          )
+                        }
                         style={{
-                          ...fieldStyle("experience"),
-                          cursor: "pointer",
+                          ...fieldStyle(
+                            "experience"
+                          ),
+                          cursor:
+                            "pointer",
                         }}
                         required
                       >
-                        <option value="" disabled>
+                        <option
+                          value=""
+                          disabled
+                        >
                           Select experience
                         </option>
+
                         <option value="less-than-1">
                           Less than 1 year
                         </option>
-                        <option value="1-2">1–2 years</option>
-                        <option value="3-5">3–5 years</option>
-                        <option value="6-10">6–10 years</option>
-                        <option value="10+">10+ years</option>
+
+                        <option value="1-2">
+                          1–2 years
+                        </option>
+
+                        <option value="3-5">
+                          3–5 years
+                        </option>
+
+                        <option value="6-10">
+                          6–10 years
+                        </option>
+
+                        <option value="10+">
+                          10+ years
+                        </option>
                       </select>
                     </div>
 
                     <div>
-                      <Label>Course You'd Like to Teach *</Label>
+                      <Label>
+                        Course You'd Like to Teach *
+                      </Label>
 
                       <input
                         name="course"
-                        value={form.course}
-                        onChange={handleChange}
-                        onFocus={() => setFocused("course")}
-                        onBlur={() => setFocused(null)}
+                        value={
+                          form.course
+                        }
+                        onChange={
+                          handleChange
+                        }
+                        onFocus={() =>
+                          setFocused(
+                            "course"
+                          )
+                        }
+                        onBlur={() =>
+                          setFocused(
+                            null
+                          )
+                        }
                         placeholder="e.g. Full-Stack Development"
-                        style={fieldStyle("course")}
+                        style={fieldStyle(
+                          "course"
+                        )}
                         required
                       />
                     </div>
@@ -863,23 +1424,34 @@ export default function ContactUs() {
 
                   <div>
                     <Label>
-                      Portfolio / LinkedIn / GitHub{" "}
+                      Portfolio / LinkedIn /
+                      GitHub{" "}
                       <span
                         style={{
-                          color: TEXT_MUTED,
-                          fontWeight: 400,
+                          color:
+                            TEXT_MUTED,
+                          fontWeight:
+                            400,
                         }}
                       >
                         (Optional)
                       </span>
                     </Label>
 
-                    <div style={{ position: "relative" }}>
+                    <div
+                      style={{
+                        position:
+                          "relative",
+                      }}
+                    >
                       <LinkIcon
                         size={15}
-                        color={TEXT_MUTED}
+                        color={
+                          TEXT_MUTED
+                        }
                         style={{
-                          position: "absolute",
+                          position:
+                            "absolute",
                           left: 12,
                           top: 13,
                         }}
@@ -887,13 +1459,27 @@ export default function ContactUs() {
 
                       <input
                         name="portfolio"
-                        value={form.portfolio}
-                        onChange={handleChange}
-                        onFocus={() => setFocused("portfolio")}
-                        onBlur={() => setFocused(null)}
+                        value={
+                          form.portfolio
+                        }
+                        onChange={
+                          handleChange
+                        }
+                        onFocus={() =>
+                          setFocused(
+                            "portfolio"
+                          )
+                        }
+                        onBlur={() =>
+                          setFocused(
+                            null
+                          )
+                        }
                         placeholder="https://..."
                         style={{
-                          ...fieldStyle("portfolio"),
+                          ...fieldStyle(
+                            "portfolio"
+                          ),
                           paddingLeft: 36,
                         }}
                       />
@@ -901,21 +1487,37 @@ export default function ContactUs() {
                   </div>
 
                   <div>
-                    <Label>Teaching / Mentoring Experience *</Label>
+                    <Label>
+                      Teaching / Mentoring
+                      Experience *
+                    </Label>
 
                     <textarea
                       name="teachingExperience"
-                      value={form.teachingExperience}
-                      onChange={handleChange}
-                      onFocus={() =>
-                        setFocused("teachingExperience")
+                      value={
+                        form.teachingExperience
                       }
-                      onBlur={() => setFocused(null)}
+                      onChange={
+                        handleChange
+                      }
+                      onFocus={() =>
+                        setFocused(
+                          "teachingExperience"
+                        )
+                      }
+                      onBlur={() =>
+                        setFocused(
+                          null
+                        )
+                      }
                       placeholder="Tell us briefly about your teaching, mentoring, training, or knowledge-sharing experience."
                       rows={4}
                       style={{
-                        ...fieldStyle("teachingExperience"),
-                        resize: "vertical",
+                        ...fieldStyle(
+                          "teachingExperience"
+                        ),
+                        resize:
+                          "vertical",
                         minHeight: 105,
                       }}
                       required
@@ -923,13 +1525,16 @@ export default function ContactUs() {
                   </div>
 
                   {/* DOCUMENTS */}
+
                   <div
                     style={{
                       fontSize: 10,
                       fontWeight: 700,
                       color: ACCENT,
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
+                      letterSpacing:
+                        "0.12em",
+                      textTransform:
+                        "uppercase",
                       paddingTop: 8,
                       paddingBottom: 3,
                     }}
@@ -942,65 +1547,124 @@ export default function ContactUs() {
                       CV / Resume{" "}
                       <span
                         style={{
-                          color: TEXT_MUTED,
-                          fontWeight: 400,
+                          color:
+                            TEXT_MUTED,
+                          fontWeight:
+                            400,
                         }}
                       >
-                        (Optional for now)
+                        (Optional)
                       </span>
                     </Label>
 
                     <div
                       style={{
-                        position: "relative",
-                        border: `1px dashed ${ACCENT_BORDER}`,
+                        position:
+                          "relative",
+                        border:
+                          `1px dashed ${ACCENT_BORDER}`,
                         borderRadius: 10,
-                        background: ACCENT_LIGHT,
+                        background:
+                          ACCENT_LIGHT,
                         padding: "1rem",
                       }}
                     >
                       <input
                         type="file"
                         name="cv"
-                        accept=".pdf,.doc,.docx"
-                        onChange={handleChange}
+                        accept=".pdf,.doc,.docx,.ppt,.pptx"
+                        onChange={
+                          handleChange
+                        }
                         style={{
-                          width: "100%",
-                          color: TEXT_SECONDARY,
+                          width:
+                            "100%",
+                          color:
+                            TEXT_SECONDARY,
                           fontSize: 12,
                         }}
                       />
 
                       <div
                         style={{
-                          display: "flex",
-                          alignItems: "center",
+                          display:
+                            "flex",
+                          alignItems:
+                            "center",
                           gap: 7,
                           marginTop: 7,
-                          color: TEXT_MUTED,
+                          color:
+                            TEXT_MUTED,
                           fontSize: 11,
                         }}
                       >
-                        <FileText size={13} />
-                        PDF, DOC or DOCX
+                        <FileText
+                          size={13}
+                        />
+
+                        PDF, DOC, DOCX,
+                        PPT or PPTX
                       </div>
+
+                      {form.cv && (
+                        <div
+                          style={{
+                            marginTop: 8,
+                            color:
+                              ACCENT,
+                            fontSize: 11,
+                            fontWeight:
+                              600,
+                            overflow:
+                              "hidden",
+                            textOverflow:
+                              "ellipsis",
+                            whiteSpace:
+                              "nowrap",
+                          }}
+                        >
+                          Selected:{" "}
+                          {
+                            form.cv
+                              .name
+                          }
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   <div>
-                    <Label>Why would you like to teach at Devad? *</Label>
+                    <Label>
+                      Why would you like to
+                      teach at Devad? *
+                    </Label>
 
                     <textarea
                       name="coverLetter"
-                      value={form.coverLetter}
-                      onChange={handleChange}
-                      onFocus={() => setFocused("coverLetter")}
-                      onBlur={() => setFocused(null)}
+                      value={
+                        form.coverLetter
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      onFocus={() =>
+                        setFocused(
+                          "coverLetter"
+                        )
+                      }
+                      onBlur={() =>
+                        setFocused(
+                          null
+                        )
+                      }
                       placeholder="Tell us why you're interested in joining the academy and what you can bring to our learners."
                       rows={5}
                       style={{
-                        ...fieldStyle("coverLetter"),
-                        resize: "vertical",
+                        ...fieldStyle(
+                          "coverLetter"
+                        ),
+                        resize:
+                          "vertical",
                         minHeight: 125,
                       }}
                       required
@@ -1008,56 +1672,112 @@ export default function ContactUs() {
                   </div>
 
                   <div>
-                    <Label>Availability *</Label>
+                    <Label>
+                      Availability *
+                    </Label>
 
                     <input
                       name="availability"
-                      value={form.availability}
-                      onChange={handleChange}
-                      onFocus={() => setFocused("availability")}
-                      onBlur={() => setFocused(null)}
+                      value={
+                        form.availability
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      onFocus={() =>
+                        setFocused(
+                          "availability"
+                        )
+                      }
+                      onBlur={() =>
+                        setFocused(
+                          null
+                        )
+                      }
                       placeholder="e.g. Weekday evenings / Weekends"
-                      style={fieldStyle("availability")}
+                      style={fieldStyle(
+                        "availability"
+                      )}
                       required
                     />
                   </div>
 
                   <button
                     type="submit"
+                    disabled={
+                      submitting
+                    }
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      display:
+                        "flex",
+                      alignItems:
+                        "center",
+                      justifyContent:
+                        "center",
                       gap: 9,
                       background:
-                        "linear-gradient(135deg, #0EA5E9, #2563EB)",
+                        submitting
+                          ? "rgba(37,99,235,0.5)"
+                          : "linear-gradient(135deg, #0EA5E9, #2563EB)",
                       color: "#fff",
                       border: "none",
                       borderRadius: 10,
-                      padding: "0.85rem 1.5rem",
+                      padding:
+                        "0.85rem 1.5rem",
                       fontSize: 14,
                       fontWeight: 700,
-                      cursor: "pointer",
+                      cursor:
+                        submitting
+                          ? "not-allowed"
+                          : "pointer",
                       marginTop: 6,
                       boxShadow:
                         "0 10px 25px rgba(37,99,235,0.2)",
+                      opacity:
+                        submitting
+                          ? 0.8
+                          : 1,
                     }}
                   >
-                    <Send size={15} />
-                    Submit Instructor Application
+                    {submitting ? (
+                      <>
+                        <Loader2
+                          size={15}
+                          style={{
+                            animation:
+                              "spin 1s linear infinite",
+                          }}
+                        />
+
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Send
+                          size={15}
+                        />
+
+                        Submit Instructor
+                        Application
+                      </>
+                    )}
                   </button>
 
                   <p
                     style={{
                       margin: 0,
-                      textAlign: "center",
-                      color: TEXT_MUTED,
+                      textAlign:
+                        "center",
+                      color:
+                        TEXT_MUTED,
                       fontSize: 11,
                       lineHeight: 1.6,
                     }}
                   >
-                    By submitting this application, you confirm that the
-                    information provided is accurate.
+                    By submitting this
+                    application, you confirm
+                    that the information
+                    provided is accurate.
                   </p>
                 </form>
               )}
@@ -1068,14 +1788,24 @@ export default function ContactUs() {
         {/* ─────────────────────────────────────────────
             GENERAL HELP
         ───────────────────────────────────────────── */}
-        <section style={{ padding: "2rem 0 6rem" }}>
-          <SectionLabel>General Support</SectionLabel>
+
+        <section
+          style={{
+            padding:
+              "2rem 0 6rem",
+          }}
+        >
+          <SectionLabel>
+            General Support
+          </SectionLabel>
 
           <h2
             style={{
-              fontSize: "clamp(1.8rem, 4vw, 2.4rem)",
+              fontSize:
+                "clamp(1.8rem, 4vw, 2.4rem)",
               fontWeight: 750,
-              letterSpacing: "-0.035em",
+              letterSpacing:
+                "-0.035em",
               lineHeight: 1.2,
               margin: 0,
             }}
@@ -1085,14 +1815,19 @@ export default function ContactUs() {
 
           <p
             style={{
-              color: TEXT_SECONDARY,
+              color:
+                TEXT_SECONDARY,
               fontSize: 14,
               maxWidth: 600,
-              margin: "0.7rem 0 2rem",
+              margin:
+                "0.7rem 0 2rem",
             }}
           >
-            Have a question that isn't related to instructor applications?
-            These are some of the areas our team can assist with.
+            Have a question that isn't
+            related to instructor
+            applications? These are some
+            of the areas our team can
+            assist with.
           </p>
 
           <div
@@ -1103,70 +1838,117 @@ export default function ContactUs() {
               gap: 10,
             }}
           >
-            {helpTopics.map(({ icon: Icon, label }) => (
-              <div
-                key={label}
-                style={{
-                  background: SURFACE,
-                  border: `1px solid ${BORDER}`,
-                  borderRadius: 12,
-                  padding: "1rem",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 11,
-                  transition:
-                    "border-color 0.2s, transform 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor =
-                    ACCENT_BORDER;
-                  e.currentTarget.style.transform =
-                    "translateY(-2px)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = BORDER;
-                  e.currentTarget.style.transform =
-                    "translateY(0)";
-                }}
-              >
+            {helpTopics.map(
+              ({
+                icon: Icon,
+                label,
+              }) => (
                 <div
+                  key={label}
                   style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 9,
-                    background: ACCENT_LIGHT,
-                    border: `1px solid ${ACCENT_BORDER}`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
+                    background:
+                      SURFACE,
+                    border:
+                      `1px solid ${BORDER}`,
+                    borderRadius: 12,
+                    padding: "1rem",
+                    display:
+                      "flex",
+                    alignItems:
+                      "center",
+                    gap: 11,
+                    transition:
+                      "border-color 0.2s, transform 0.2s",
+                  }}
+                  onMouseEnter={(
+                    e
+                  ) => {
+                    e.currentTarget.style.borderColor =
+                      ACCENT_BORDER;
+
+                    e.currentTarget.style.transform =
+                      "translateY(-2px)";
+                  }}
+                  onMouseLeave={(
+                    e
+                  ) => {
+                    e.currentTarget.style.borderColor =
+                      BORDER;
+
+                    e.currentTarget.style.transform =
+                      "translateY(0)";
                   }}
                 >
-                  <Icon size={15} color={ACCENT} />
+                  <div
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 9,
+                      background:
+                        ACCENT_LIGHT,
+                      border:
+                        `1px solid ${ACCENT_BORDER}`,
+                      display:
+                        "flex",
+                      alignItems:
+                        "center",
+                      justifyContent:
+                        "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon
+                      size={15}
+                      color={
+                        ACCENT
+                      }
+                    />
+                  </div>
+
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color:
+                        TEXT_PRIMARY,
+                      lineHeight:
+                        1.35,
+                    }}
+                  >
+                    {label}
+                  </span>
+
+                  <ChevronRight
+                    size={14}
+                    color={
+                      TEXT_MUTED
+                    }
+                    style={{
+                      marginLeft:
+                        "auto",
+                    }}
+                  />
                 </div>
-
-                <span
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: TEXT_PRIMARY,
-                    lineHeight: 1.35,
-                  }}
-                >
-                  {label}
-                </span>
-
-                <ChevronRight
-                  size={14}
-                  color={TEXT_MUTED}
-                  style={{ marginLeft: "auto" }}
-                />
-              </div>
-            ))}
+              )
+            )}
           </div>
         </section>
       </main>
+
+      {/* Spinner animation */}
+      <style>
+        {`
+          @keyframes spin {
+            from {
+              transform: rotate(0deg);
+            }
+
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}
+      </style>
     </div>
   );
 }
-
