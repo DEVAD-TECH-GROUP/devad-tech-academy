@@ -38,3 +38,4 @@ export const publishCourse = (id) =>
 
 export const getCourseAnalytics = (id) =>
   api.get(`/instructor/courses/${id}/analytics`);
+

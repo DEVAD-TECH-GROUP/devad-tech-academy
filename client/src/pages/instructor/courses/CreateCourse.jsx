@@ -1,40 +1,129 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
+
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  Check,
+  ChevronRight,
+  CircleDollarSign,
+  FileText,
+  GraduationCap,
+  Layers3,
+  Lightbulb,
+  ListChecks,
+  Loader2,
+  Plus,
+  Settings2,
+  Tags,
+  Trash2,
+  Video,
+  X,
+} from "lucide-react";
+
+import api from "../../../api/Api";
 import { createCourse } from "../../../services/instructor/courseService";
 
 import Input from "../../../components/common/Input";
 import Textarea from "../../../components/common/Textarea";
 import Select from "../../../components/common/Select";
 
-import { toast } from "react-hot-toast";
+// ============================================================
+// STEPS
+// ============================================================
 
 const STEPS = [
   {
     number: 1,
     title: "Basic Information",
+    shortTitle: "Basics",
     description: "Tell students what your course is about.",
+    icon: FileText,
   },
   {
     number: 2,
     title: "Classification",
+    shortTitle: "Classification",
     description: "Organize your course and define its technologies.",
+    icon: Tags,
   },
   {
     number: 3,
     title: "Learning",
+    shortTitle: "Learning",
     description: "Define prerequisites and learning outcomes.",
+    icon: Lightbulb,
   },
   {
     number: 4,
     title: "Pricing",
+    shortTitle: "Pricing",
     description: "Configure your course pricing and installments.",
+    icon: CircleDollarSign,
   },
   {
     number: 5,
     title: "Settings & Live Classes",
+    shortTitle: "Settings",
     description: "Configure enrollment, certificates and live classes.",
+    icon: Settings2,
   },
 ];
+
+// ============================================================
+// INITIAL FORM
+// ============================================================
+
+const INITIAL_FORM = {
+  // STEP 1
+  title: "",
+  subtitle: "",
+  shortDescription: "",
+  description: "",
+
+  // STEP 2
+  category: "",
+  level: "beginner",
+  language: "English",
+  tags: [],
+  technologies: [],
+
+  // STEP 3
+  prerequisites: [],
+  learningOutcomes: [],
+
+  // STEP 4
+  isFree: true,
+  price: 0,
+  discountPrice: null,
+  discountExpiry: "",
+
+  installments: {
+    enabled: false,
+    amount: 0,
+    count: 0,
+    interval: "monthly",
+  },
+
+  // STEP 5
+  settings: {
+    enrollmentType: "open",
+    hasCertificate: true,
+    hasDiscussion: true,
+    dripContent: false,
+    allowDownloads: true,
+  },
+
+  liveClasses: {
+    enabled: false,
+    frequency: "weekly",
+    duration: 60,
+    platform: "google-meet",
+    description: "",
+  },
+};
 
 export default function CreateCourse() {
   const navigate = useNavigate();
@@ -42,69 +131,14 @@ export default function CreateCourse() {
   const [step, setStep] = useState(1);
   const [creating, setCreating] = useState(false);
 
-  const [form, setForm] = useState({
-    // ========================================================
-    // STEP 1 - BASIC INFORMATION
-    // ========================================================
+  const [form, setForm] = useState(INITIAL_FORM);
 
-    title: "",
-    subtitle: "",
-    shortDescription: "",
-    description: "",
+  // ==========================================================
+  // CATEGORIES
+  // ==========================================================
 
-    // ========================================================
-    // STEP 2 - CLASSIFICATION
-    // ========================================================
-
-    category: "",
-    level: "beginner",
-    language: "English",
-    tags: [],
-    technologies: [],
-
-    // ========================================================
-    // STEP 3 - LEARNING
-    // ========================================================
-
-    prerequisites: [],
-    learningOutcomes: [],
-
-    // ========================================================
-    // STEP 4 - PRICING
-    // ========================================================
-
-    isFree: true,
-    price: 0,
-    discountPrice: null,
-    discountExpiry: "",
-
-    installments: {
-      enabled: false,
-      amount: 0,
-      count: 0,
-      interval: "monthly",
-    },
-
-    // ========================================================
-    // STEP 5 - SETTINGS
-    // ========================================================
-
-    settings: {
-      enrollmentType: "open",
-      hasCertificate: true,
-      hasDiscussion: true,
-      dripContent: false,
-      allowDownloads: true,
-    },
-
-    liveClasses: {
-      enabled: false,
-      frequency: "weekly",
-      duration: 60,
-      platform: "google-meet",
-      description: "",
-    },
-  });
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   // ==========================================================
   // ARRAY INPUTS
@@ -114,6 +148,45 @@ export default function CreateCourse() {
   const [technologyInput, setTechnologyInput] = useState("");
   const [prerequisiteInput, setPrerequisiteInput] = useState("");
   const [outcomeInput, setOutcomeInput] = useState("");
+
+  // ==========================================================
+  // FETCH ACTIVE CATEGORIES
+  // ==========================================================
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchCategories = async () => {
+      setCategoriesLoading(true);
+
+      try {
+        const response = await api.get("/instructor/categories");
+
+        if (!mounted) return;
+
+        setCategories(response.data?.data || []);
+      } catch (error) {
+        if (!mounted) return;
+
+        setCategories([]);
+
+        toast.error(
+          error.response?.data?.message ||
+            "Failed to load course categories"
+        );
+      } finally {
+        if (mounted) {
+          setCategoriesLoading(false);
+        }
+      }
+    };
+
+    fetchCategories();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // ==========================================================
   // GENERIC SETTERS
@@ -152,7 +225,7 @@ export default function CreateCourse() {
     );
 
     if (exists) {
-      toast.error("Already added");
+      toast.error("This item has already been added");
       return;
     }
 
@@ -172,10 +245,6 @@ export default function CreateCourse() {
   // ==========================================================
 
   const validateStep = (currentStep) => {
-    // --------------------------------------------------------
-    // STEP 1
-    // --------------------------------------------------------
-
     if (currentStep === 1) {
       if (!form.title.trim()) {
         toast.error("Course title is required");
@@ -202,22 +271,14 @@ export default function CreateCourse() {
       return true;
     }
 
-    // --------------------------------------------------------
-    // STEP 2
-    // --------------------------------------------------------
-
     if (currentStep === 2) {
-      if (!form.category.trim()) {
+      if (!form.category) {
         toast.error("Course category is required");
         return false;
       }
 
       return true;
     }
-
-    // --------------------------------------------------------
-    // STEP 3
-    // --------------------------------------------------------
 
     if (currentStep === 3) {
       if (form.learningOutcomes.length === 0) {
@@ -227,10 +288,6 @@ export default function CreateCourse() {
 
       return true;
     }
-
-    // --------------------------------------------------------
-    // STEP 4
-    // --------------------------------------------------------
 
     if (currentStep === 4) {
       if (!form.isFree) {
@@ -272,10 +329,6 @@ export default function CreateCourse() {
       return true;
     }
 
-    // --------------------------------------------------------
-    // STEP 5
-    // --------------------------------------------------------
-
     if (currentStep === 5) {
       if (form.liveClasses.enabled) {
         if (Number(form.liveClasses.duration) < 15) {
@@ -313,6 +366,25 @@ export default function CreateCourse() {
   };
 
   // ==========================================================
+  // CLICK PREVIOUS STEP
+  // ==========================================================
+
+  const handleStepClick = (targetStep) => {
+    if (creating) return;
+
+    // Allow going backward without validation.
+    if (targetStep < step) {
+      setStep(targetStep);
+      return;
+    }
+
+    // Don't jump over unfinished steps.
+    if (targetStep > step) {
+      return;
+    }
+  };
+
+  // ==========================================================
   // CREATE COURSE
   // ==========================================================
 
@@ -322,61 +394,38 @@ export default function CreateCourse() {
     }
 
     const payload = {
-      // ======================================================
       // BASIC INFORMATION
-      // ======================================================
-
       title: form.title.trim(),
 
-      subtitle:
-        form.subtitle.trim() || null,
+      subtitle: form.subtitle.trim() || null,
 
       shortDescription:
         form.shortDescription.trim() || null,
 
-      description:
-        form.description.trim(),
+      description: form.description.trim(),
 
-      // ======================================================
       // CLASSIFICATION
-      // ======================================================
+      category: form.category,
 
-      category:
-        form.category.trim(),
+      level: form.level,
 
-      level:
-        form.level,
+      language: form.language,
 
-      language:
-        form.language,
+      tags: form.tags,
 
-      tags:
-        form.tags,
+      technologies: form.technologies,
 
-      technologies:
-        form.technologies,
-
-      // ======================================================
       // LEARNING
-      // ======================================================
+      prerequisites: form.prerequisites,
 
-      prerequisites:
-        form.prerequisites,
+      learningOutcomes: form.learningOutcomes,
 
-      learningOutcomes:
-        form.learningOutcomes,
-
-      // ======================================================
       // PRICING
-      // ======================================================
+      isFree: form.isFree,
 
-      isFree:
-        form.isFree,
-
-      price:
-        form.isFree
-          ? 0
-          : Number(form.price),
+      price: form.isFree
+        ? 0
+        : Number(form.price),
 
       discountPrice:
         form.isFree ||
@@ -386,35 +435,27 @@ export default function CreateCourse() {
           : Number(form.discountPrice),
 
       discountExpiry:
-        form.isFree ||
-        !form.discountExpiry
+        form.isFree || !form.discountExpiry
           ? null
           : form.discountExpiry,
 
       installments: {
-        enabled:
-          form.isFree
-            ? false
-            : form.installments.enabled,
+        enabled: form.isFree
+          ? false
+          : form.installments.enabled,
 
-        amount:
-          form.isFree
-            ? 0
-            : Number(form.installments.amount || 0),
+        amount: form.isFree
+          ? 0
+          : Number(form.installments.amount || 0),
 
-        count:
-          form.isFree
-            ? 0
-            : Number(form.installments.count || 0),
+        count: form.isFree
+          ? 0
+          : Number(form.installments.count || 0),
 
-        interval:
-          form.installments.interval,
+        interval: form.installments.interval,
       },
 
-      // ======================================================
       // SETTINGS
-      // ======================================================
-
       settings: {
         enrollmentType:
           form.settings.enrollmentType,
@@ -432,10 +473,7 @@ export default function CreateCourse() {
           form.settings.allowDownloads,
       },
 
-      // ======================================================
       // LIVE CLASSES
-      // ======================================================
-
       liveClasses: {
         enabled:
           form.liveClasses.enabled,
@@ -462,19 +500,22 @@ export default function CreateCourse() {
       const course = response.data?.data;
 
       if (!course?._id) {
-        throw new Error("Course was created but no course ID was returned");
+        throw new Error(
+          "Course was created but no course ID was returned"
+        );
       }
 
       toast.success(
-        "Course created! Now add your course content 🎉"
+        "Course created successfully"
       );
 
       navigate(
         `/instructor/courses/${course._id}/build`
       );
-    } catch (err) {
+    } catch (error) {
       toast.error(
-        err.response?.data?.message ||
+        error.response?.data?.message ||
+          error.message ||
           "Failed to create course"
       );
     } finally {
@@ -483,72 +524,170 @@ export default function CreateCourse() {
   };
 
   // ==========================================================
-  // RENDER STEP INDICATOR
+  // STEP INDICATOR
   // ==========================================================
 
   const renderStepIndicator = () => {
     return (
-      <div className="bg-surface border border-border rounded-2xl p-4">
-        <div className="flex items-center justify-between gap-2 overflow-x-auto">
+      <div className="bg-surface border border-border rounded-2xl p-4 md:p-5">
+        {/* DESKTOP */}
+        <div className="hidden md:flex items-start">
           {STEPS.map((item, index) => {
+            const Icon = item.icon;
             const active = step === item.number;
             const completed = step > item.number;
+            const accessible = item.number <= step;
 
             return (
               <div
                 key={item.number}
-                className="flex items-center flex-1 min-w-[130px]"
+                className="flex items-start flex-1 last:flex-none"
               >
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (item.number < step) {
-                      setStep(item.number);
+                <div className="flex flex-col items-center min-w-[100px]">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleStepClick(item.number)
                     }
-                  }}
-                  className="flex items-center gap-2 text-left"
-                >
-                  <div
-                    className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-sm font-bold border transition ${
-                      active
-                        ? "bg-orange text-white border-orange"
-                        : completed
-                        ? "bg-orange/15 text-orange border-orange/30"
-                        : "bg-surfaceHigh text-muted border-border"
+                    disabled={!accessible || creating}
+                    className={`group flex flex-col items-center ${
+                      accessible
+                        ? "cursor-pointer"
+                        : "cursor-default"
                     }`}
                   >
-                    {completed ? "✓" : item.number}
-                  </div>
+                    <div className="relative flex items-center justify-center">
+                      <div
+                        className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${
+                          active
+                            ? "bg-orange border-orange text-white shadow-lg shadow-orange/20"
+                            : completed
+                            ? "bg-orange/10 border-orange/40 text-orange"
+                            : "bg-surfaceHigh border-border text-muted"
+                        }`}
+                      >
+                        {completed ? (
+                          <Check size={17} strokeWidth={2.5} />
+                        ) : (
+                          <Icon size={17} />
+                        )}
+                      </div>
+                    </div>
 
-                  <div className="hidden lg:block">
-                    <p
-                      className={`text-xs font-semibold ${
+                    <span
+                      className={`mt-2 text-xs font-semibold text-center transition ${
                         active
                           ? "text-text"
+                          : completed
+                          ? "text-orange"
                           : "text-muted"
                       }`}
                     >
-                      {item.title}
-                    </p>
+                      {item.shortTitle}
+                    </span>
 
-                    <p className="text-[10px] text-muted mt-0.5">
+                    <span className="text-[10px] text-muted mt-0.5">
                       Step {item.number}
-                    </p>
-                  </div>
-                </button>
+                    </span>
+                  </button>
+                </div>
 
                 {index < STEPS.length - 1 && (
-                  <div
-                    className={`h-px flex-1 mx-3 ${
-                      step > item.number
-                        ? "bg-orange/40"
-                        : "bg-border"
-                    }`}
-                  />
+                  <div className="flex-1 px-2 pt-5">
+                    <div
+                      className={`h-0.5 rounded-full transition ${
+                        step > item.number
+                          ? "bg-orange/50"
+                          : "bg-border"
+                      }`}
+                    />
+                  </div>
                 )}
               </div>
             );
           })}
+        </div>
+
+        {/* MOBILE */}
+        <div className="md:hidden">
+          <div className="flex items-center gap-3">
+            {STEPS.map((item) => {
+              const completed = step > item.number;
+              const active = step === item.number;
+
+              return (
+                <div
+                  key={item.number}
+                  className="flex-1"
+                >
+                  <div
+                    className={`h-1 rounded-full transition ${
+                      active
+                        ? "bg-orange"
+                        : completed
+                        ? "bg-orange/50"
+                        : "bg-border"
+                    }`}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between mt-4">
+            <div className="flex items-center gap-3">
+              {(() => {
+                const Icon = STEPS[step - 1].icon;
+
+                return (
+                  <div className="w-9 h-9 rounded-xl bg-orange/10 border border-orange/20 text-orange flex items-center justify-center">
+                    <Icon size={17} />
+                  </div>
+                );
+              })()}
+
+              <div>
+                <p className="text-sm font-semibold text-text">
+                  {STEPS[step - 1].title}
+                </p>
+
+                <p className="text-[11px] text-muted mt-0.5">
+                  Step {step} of {STEPS.length}
+                </p>
+              </div>
+            </div>
+
+            <div className="text-xs font-medium text-muted">
+              {Math.round(
+                (step / STEPS.length) * 100
+              )}
+              %
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ==========================================================
+  // STEP HEADER
+  // ==========================================================
+
+  const renderStepHeader = (title, description, Icon) => {
+    return (
+      <div className="flex items-start gap-3 pb-5 border-b border-border">
+        <div className="w-10 h-10 shrink-0 rounded-xl bg-orange/10 border border-orange/20 text-orange flex items-center justify-center">
+          <Icon size={19} />
+        </div>
+
+        <div>
+          <h2 className="dsp text-lg font-bold text-text">
+            {title}
+          </h2>
+
+          <p className="text-muted text-sm mt-1 leading-6">
+            {description}
+          </p>
         </div>
       </div>
     );
@@ -561,15 +700,11 @@ export default function CreateCourse() {
   const renderBasicInformation = () => {
     return (
       <div className="space-y-5">
-        <div>
-          <h2 className="dsp text-lg font-bold text-text">
-            Basic Information
-          </h2>
-
-          <p className="text-muted text-sm mt-1">
-            Information students will see when they discover your course.
-          </p>
-        </div>
+        {renderStepHeader(
+          "Basic Information",
+          "Information students will see when they discover your course.",
+          FileText
+        )}
 
         <Input
           label="Course Title *"
@@ -624,28 +759,54 @@ export default function CreateCourse() {
   // ==========================================================
 
   const renderClassification = () => {
+    const categoryOptions = categories.map(
+      (category) => ({
+        value: category._id,
+        label: category.name,
+      })
+    );
+
     return (
-      <div className="space-y-5">
-        <div>
-          <h2 className="dsp text-lg font-bold text-text">
-            Classification
-          </h2>
+      <div className="space-y-6">
+        {renderStepHeader(
+          "Classification",
+          "Help students understand the level, category and technologies covered by this course.",
+          Tags
+        )}
 
-          <p className="text-muted text-sm mt-1">
-            Help students understand the level, category and technologies
-            covered by this course.
-          </p>
+        <div className="space-y-2">
+          <Select
+            label="Course Category *"
+            value={form.category}
+            onChange={(e) =>
+              set("category", e.target.value)
+            }
+            options={[
+              {
+                value: "",
+                label: categoriesLoading
+                  ? "Loading categories..."
+                  : categories.length === 0
+                  ? "No categories available"
+                  : "Select a category",
+              },
+              ...categoryOptions,
+            ]}
+            disabled={
+              categoriesLoading ||
+              categories.length === 0
+            }
+          />
+
+          {categories.length === 0 &&
+            !categoriesLoading && (
+              <p className="text-xs text-red-400">
+                No active categories are available.
+                Contact the Super Admin to create a
+                category.
+              </p>
+            )}
         </div>
-
-        <Input
-          label="Category *"
-          value={form.category}
-          onChange={(e) =>
-            set("category", e.target.value)
-          }
-          placeholder="Enter the course category ID"
-          required
-        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Select
@@ -703,143 +864,48 @@ export default function CreateCourse() {
 
         {/* TECHNOLOGIES */}
 
-        <div className="space-y-3">
-          <div>
-            <h3 className="text-sm font-semibold text-text">
-              Technologies
-            </h3>
-
-            <p className="text-xs text-muted mt-1">
-              Add technologies and tools students will use.
-            </p>
-          </div>
-
-          <div className="flex gap-2 items-end">
-            <div className="flex-1">
-              <Input
-                label=""
-                value={technologyInput}
-                onChange={(e) =>
-                  setTechnologyInput(
-                    e.target.value
-                  )
-                }
-                placeholder="e.g. React"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                addItem(
-                  "technologies",
-                  technologyInput,
-                  setTechnologyInput
-                )
-              }
-              className="px-4 py-3 bg-surfaceHigh border border-border rounded-xl text-sm font-semibold text-text hover:border-orange/40 transition"
-            >
-              Add
-            </button>
-          </div>
-
-          {form.technologies.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {form.technologies.map(
-                (item, index) => (
-                  <div
-                    key={`${item}-${index}`}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surfaceHigh border border-border text-sm text-text"
-                  >
-                    <span>{item}</span>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        removeItem(
-                          "technologies",
-                          index
-                        )
-                      }
-                      className="text-muted hover:text-red-400"
-                    >
-                      ×
-                    </button>
-                  </div>
-                )
-              )}
-            </div>
-          )}
-        </div>
+        <ArrayField
+          title="Technologies"
+          description="Add technologies and tools students will use."
+          value={technologyInput}
+          setValue={setTechnologyInput}
+          placeholder="e.g. React"
+          items={form.technologies}
+          onAdd={() =>
+            addItem(
+              "technologies",
+              technologyInput,
+              setTechnologyInput
+            )
+          }
+          onRemove={(index) =>
+            removeItem("technologies", index)
+          }
+          accent="default"
+        />
 
         {/* TAGS */}
 
-        <div className="space-y-3">
-          <div>
-            <h3 className="text-sm font-semibold text-text">
-              Course Tags
-            </h3>
-
-            <p className="text-xs text-muted mt-1">
-              Add keywords that help identify your course.
-            </p>
-          </div>
-
-          <div className="flex gap-2 items-end">
-            <div className="flex-1">
-              <Input
-                label=""
-                value={tagInput}
-                onChange={(e) =>
-                  setTagInput(e.target.value)
-                }
-                placeholder="e.g. javascript"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                addItem(
-                  "tags",
-                  tagInput,
-                  setTagInput
-                )
-              }
-              className="px-4 py-3 bg-surfaceHigh border border-border rounded-xl text-sm font-semibold text-text hover:border-orange/40 transition"
-            >
-              Add
-            </button>
-          </div>
-
-          {form.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {form.tags.map(
-                (item, index) => (
-                  <div
-                    key={`${item}-${index}`}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange/10 border border-orange/20 text-sm text-orange"
-                  >
-                    <span>#{item}</span>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        removeItem(
-                          "tags",
-                          index
-                        )
-                      }
-                      className="text-orange/70 hover:text-orange"
-                    >
-                      ×
-                    </button>
-                  </div>
-                )
-              )}
-            </div>
-          )}
-        </div>
+        <ArrayField
+          title="Course Tags"
+          description="Add keywords that help identify your course."
+          value={tagInput}
+          setValue={setTagInput}
+          placeholder="e.g. javascript"
+          items={form.tags}
+          onAdd={() =>
+            addItem(
+              "tags",
+              tagInput,
+              setTagInput
+            )
+          }
+          onRemove={(index) =>
+            removeItem("tags", index)
+          }
+          accent="orange"
+          prefix="#"
+        />
       </div>
     );
   };
@@ -851,162 +917,55 @@ export default function CreateCourse() {
   const renderLearning = () => {
     return (
       <div className="space-y-6">
-        <div>
-          <h2 className="dsp text-lg font-bold text-text">
-            Learning
-          </h2>
+        {renderStepHeader(
+          "Learning",
+          "Define what students should know before starting and what they should be able to accomplish after completing the course.",
+          Lightbulb
+        )}
 
-          <p className="text-muted text-sm mt-1">
-            Define what students should know before starting and what they
-            should be able to accomplish after completing the course.
-          </p>
-        </div>
+        <ArrayField
+          title="Prerequisites"
+          description="What should students know or have before starting?"
+          value={prerequisiteInput}
+          setValue={setPrerequisiteInput}
+          placeholder="e.g. Basic JavaScript knowledge"
+          items={form.prerequisites}
+          onAdd={() =>
+            addItem(
+              "prerequisites",
+              prerequisiteInput,
+              setPrerequisiteInput
+            )
+          }
+          onRemove={(index) =>
+            removeItem("prerequisites", index)
+          }
+          listStyle="card"
+        />
 
-        {/* PREREQUISITES */}
-
-        <div className="space-y-3">
-          <div>
-            <h3 className="text-sm font-semibold text-text">
-              Prerequisites
-            </h3>
-
-            <p className="text-xs text-muted mt-1">
-              What should students know or have before starting?
-            </p>
-          </div>
-
-          <div className="flex gap-2 items-end">
-            <div className="flex-1">
-              <Input
-                label=""
-                value={prerequisiteInput}
-                onChange={(e) =>
-                  setPrerequisiteInput(
-                    e.target.value
-                  )
-                }
-                placeholder="e.g. Basic JavaScript knowledge"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                addItem(
-                  "prerequisites",
-                  prerequisiteInput,
-                  setPrerequisiteInput
-                )
-              }
-              className="px-4 py-3 bg-surfaceHigh border border-border rounded-xl text-sm font-semibold text-text hover:border-orange/40 transition"
-            >
-              Add
-            </button>
-          </div>
-
-          {form.prerequisites.length > 0 && (
-            <div className="space-y-2">
-              {form.prerequisites.map(
-                (item, index) => (
-                  <div
-                    key={`${item}-${index}`}
-                    className="flex items-center justify-between gap-3 p-3 rounded-xl bg-surfaceHigh border border-border text-sm text-text"
-                  >
-                    <span>
-                      • {item}
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        removeItem(
-                          "prerequisites",
-                          index
-                        )
-                      }
-                      className="text-muted hover:text-red-400"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* LEARNING OUTCOMES */}
-
-        <div className="space-y-3">
-          <div>
-            <h3 className="text-sm font-semibold text-text">
-              Learning Outcomes *
-            </h3>
-
-            <p className="text-xs text-muted mt-1">
-              What should students be able to do after completing this course?
-            </p>
-          </div>
-
-          <div className="flex gap-2 items-end">
-            <div className="flex-1">
-              <Input
-                label=""
-                value={outcomeInput}
-                onChange={(e) =>
-                  setOutcomeInput(
-                    e.target.value
-                  )
-                }
-                placeholder="e.g. Build production-ready React applications"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                addItem(
-                  "learningOutcomes",
-                  outcomeInput,
-                  setOutcomeInput
-                )
-              }
-              className="px-4 py-3 bg-surfaceHigh border border-border rounded-xl text-sm font-semibold text-text hover:border-orange/40 transition"
-            >
-              Add
-            </button>
-          </div>
-
-          {form.learningOutcomes.length > 0 && (
-            <div className="space-y-2">
-              {form.learningOutcomes.map(
-                (item, index) => (
-                  <div
-                    key={`${item}-${index}`}
-                    className="flex items-center justify-between gap-3 p-3 rounded-xl bg-surfaceHigh border border-border text-sm text-text"
-                  >
-                    <span>
-                      ✓ {item}
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        removeItem(
-                          "learningOutcomes",
-                          index
-                        )
-                      }
-                      className="text-muted hover:text-red-400"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )
-              )}
-            </div>
-          )}
-        </div>
+        <ArrayField
+          title="Learning Outcomes *"
+          description="What should students be able to do after completing this course?"
+          value={outcomeInput}
+          setValue={setOutcomeInput}
+          placeholder="e.g. Build production-ready React applications"
+          items={form.learningOutcomes}
+          onAdd={() =>
+            addItem(
+              "learningOutcomes",
+              outcomeInput,
+              setOutcomeInput
+            )
+          }
+          onRemove={(index) =>
+            removeItem(
+              "learningOutcomes",
+              index
+            )
+          }
+          listStyle="card"
+          accent="orange"
+        />
       </div>
     );
   };
@@ -1018,17 +977,11 @@ export default function CreateCourse() {
   const renderPricing = () => {
     return (
       <div className="space-y-6">
-        <div>
-          <h2 className="dsp text-lg font-bold text-text">
-            Pricing
-          </h2>
-
-          <p className="text-muted text-sm mt-1">
-            Configure how students will pay for this course.
-          </p>
-        </div>
-
-        {/* FREE / PAID */}
+        {renderStepHeader(
+          "Pricing",
+          "Configure how students will pay for this course.",
+          CircleDollarSign
+        )}
 
         <div className="space-y-3">
           <label className="block text-sm font-medium text-text">
@@ -1036,8 +989,11 @@ export default function CreateCourse() {
           </label>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button
-              type="button"
+            <CourseTypeCard
+              active={form.isFree}
+              title="Free Course"
+              description="Students can enroll without payment."
+              icon={BookOpen}
               onClick={() => {
                 set("isFree", true);
                 set("price", 0);
@@ -1050,47 +1006,22 @@ export default function CreateCourse() {
                   false
                 );
               }}
-              className={`p-4 rounded-xl border text-left transition ${
-                form.isFree
-                  ? "bg-orange/10 border-orange text-text"
-                  : "bg-surfaceHigh border-border text-muted hover:text-text"
-              }`}
-            >
-              <p className="font-semibold text-sm">
-                Free Course
-              </p>
+            />
 
-              <p className="text-xs text-muted mt-1">
-                Students can enroll without payment.
-              </p>
-            </button>
-
-            <button
-              type="button"
+            <CourseTypeCard
+              active={!form.isFree}
+              title="Paid Course"
+              description="Students must pay to enroll."
+              icon={CircleDollarSign}
               onClick={() =>
                 set("isFree", false)
               }
-              className={`p-4 rounded-xl border text-left transition ${
-                !form.isFree
-                  ? "bg-orange/10 border-orange text-text"
-                  : "bg-surfaceHigh border-border text-muted hover:text-text"
-              }`}
-            >
-              <p className="font-semibold text-sm">
-                Paid Course
-              </p>
-
-              <p className="text-xs text-muted mt-1">
-                Students must pay to enroll.
-              </p>
-            </button>
+            />
           </div>
         </div>
 
         {!form.isFree && (
           <>
-            {/* PRICE */}
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Course Price (₦) *"
@@ -1135,43 +1066,37 @@ export default function CreateCourse() {
               }
             />
 
-            {/* INSTALLMENTS */}
-
-            <div className="border border-border rounded-2xl p-4 space-y-4">
+            <div className="border border-border rounded-2xl p-4 md:p-5 space-y-5">
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-text">
-                    Installment Payments
-                  </h3>
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-orange/10 text-orange flex items-center justify-center">
+                    <Layers3 size={17} />
+                  </div>
 
-                  <p className="text-xs text-muted mt-1">
-                    Allow students to pay for the course in installments.
-                  </p>
+                  <div>
+                    <h3 className="text-sm font-semibold text-text">
+                      Installment Payments
+                    </h3>
+
+                    <p className="text-xs text-muted mt-1">
+                      Allow students to pay for the course
+                      in installments.
+                    </p>
+                  </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() =>
+                <Toggle
+                  checked={
+                    form.installments.enabled
+                  }
+                  onChange={(value) =>
                     setNested(
                       "installments",
                       "enabled",
-                      !form.installments.enabled
+                      value
                     )
                   }
-                  className={`relative w-11 h-6 rounded-full transition ${
-                    form.installments.enabled
-                      ? "bg-orange"
-                      : "bg-surfaceHigh border border-border"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-1 w-4 h-4 rounded-full bg-white transition ${
-                      form.installments.enabled
-                        ? "left-6"
-                        : "left-1"
-                    }`}
-                  />
-                </button>
+                />
               </div>
 
               {form.installments.enabled && (
@@ -1249,22 +1174,23 @@ export default function CreateCourse() {
   const renderSettings = () => {
     return (
       <div className="space-y-6">
-        <div>
-          <h2 className="dsp text-lg font-bold text-text">
-            Settings & Live Classes
-          </h2>
-
-          <p className="text-muted text-sm mt-1">
-            Configure enrollment, student features and live teaching.
-          </p>
-        </div>
-
-        {/* COURSE SETTINGS */}
+        {renderStepHeader(
+          "Settings & Live Classes",
+          "Configure enrollment, student features and live teaching.",
+          Settings2
+        )}
 
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-text">
-            Course Settings
-          </h3>
+          <div className="flex items-center gap-2">
+            <Settings2
+              size={16}
+              className="text-orange"
+            />
+
+            <h3 className="text-sm font-semibold text-text">
+              Course Settings
+            </h3>
+          </div>
 
           <Select
             label="Enrollment Type"
@@ -1291,8 +1217,6 @@ export default function CreateCourse() {
           />
 
           <div className="space-y-2">
-            {/* CERTIFICATE */}
-
             <SettingToggle
               label="Certificate"
               description="Issue a certificate when students complete the course."
@@ -1307,8 +1231,6 @@ export default function CreateCourse() {
                 )
               }
             />
-
-            {/* DISCUSSION */}
 
             <SettingToggle
               label="Discussion"
@@ -1325,8 +1247,6 @@ export default function CreateCourse() {
               }
             />
 
-            {/* DRIP */}
-
             <SettingToggle
               label="Drip Content"
               description="Release course content gradually over time."
@@ -1341,8 +1261,6 @@ export default function CreateCourse() {
                 )
               }
             />
-
-            {/* DOWNLOADS */}
 
             <SettingToggle
               label="Allow Downloads"
@@ -1363,45 +1281,40 @@ export default function CreateCourse() {
 
         {/* LIVE CLASSES */}
 
-        <div className="border border-border rounded-2xl p-4 space-y-5">
+        <div className="border border-border rounded-2xl p-4 md:p-5 space-y-5">
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <h3 className="text-sm font-semibold text-text">
-                Live Classes
-              </h3>
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-orange/10 text-orange flex items-center justify-center">
+                <Video size={17} />
+              </div>
 
-              <p className="text-xs text-muted mt-1">
-                Schedule live teaching sessions for students.
-              </p>
+              <div>
+                <h3 className="text-sm font-semibold text-text">
+                  Live Classes
+                </h3>
+
+                <p className="text-xs text-muted mt-1">
+                  Schedule live teaching sessions for students.
+                </p>
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() =>
+            <Toggle
+              checked={
+                form.liveClasses.enabled
+              }
+              onChange={(value) =>
                 setNested(
                   "liveClasses",
                   "enabled",
-                  !form.liveClasses.enabled
+                  value
                 )
               }
-              className={`relative w-11 h-6 rounded-full transition ${
-                form.liveClasses.enabled
-                  ? "bg-orange"
-                  : "bg-surfaceHigh border border-border"
-              }`}
-            >
-              <span
-                className={`absolute top-1 w-4 h-4 rounded-full bg-white transition ${
-                  form.liveClasses.enabled
-                    ? "left-6"
-                    : "left-1"
-                }`}
-              />
-            </button>
+            />
           </div>
 
           {form.liveClasses.enabled && (
-            <div className="space-y-4">
+            <div className="space-y-4 pt-1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Select
                   label="Frequency"
@@ -1542,28 +1455,63 @@ export default function CreateCourse() {
   // ==========================================================
 
   return (
-    <div className="space-y-5 fi max-w-4xl pb-8">
+    <div className="space-y-5 fi max-w-5xl pb-8">
       {/* HEADER */}
 
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() =>
-            navigate("/instructor/courses")
-          }
-          className="text-muted hover:text-text transition text-sm"
-        >
-          ← Back
-        </button>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={() =>
+              navigate("/instructor/courses")
+            }
+            disabled={creating}
+            className="w-9 h-9 shrink-0 rounded-xl bg-surface border border-border text-muted hover:text-text hover:border-orange/40 transition flex items-center justify-center"
+            title="Back to courses"
+          >
+            <ArrowLeft size={17} />
+          </button>
 
-        <div>
-          <h1 className="dsp text-xl font-bold text-text">
-            Create New Course
-          </h1>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="dsp text-xl md:text-2xl font-bold text-text">
+                Create New Course
+              </h1>
 
-          <p className="text-muted text-sm mt-1">
-            Set up your course before adding modules, lessons and projects.
-          </p>
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange/10 border border-orange/20 text-orange text-[10px] font-semibold">
+                <GraduationCap size={12} />
+                Instructor
+              </span>
+            </div>
+
+            <p className="text-muted text-sm mt-1">
+              Set up your course before adding modules,
+              lessons and projects.
+            </p>
+          </div>
+        </div>
+
+        <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-surface border border-border">
+          <BookOpen
+            size={15}
+            className="text-orange"
+          />
+
+          <span className="text-xs text-muted">
+            Course setup
+          </span>
+
+          <ChevronRight
+            size={13}
+            className="text-muted"
+          />
+
+          <span className="text-xs font-medium text-text">
+            {Math.round(
+              (step / STEPS.length) * 100
+            )}
+            % complete
+          </span>
         </div>
       </div>
 
@@ -1573,56 +1521,296 @@ export default function CreateCourse() {
 
       {/* CURRENT STEP */}
 
-      <div className="bg-surface border border-border rounded-2xl p-5 md:p-6">
-        {renderCurrentStep()}
+      <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+        <div className="p-5 md:p-7">
+          {renderCurrentStep()}
+        </div>
       </div>
 
       {/* NAVIGATION */}
 
-      <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={
-            step === 1
-              ? () =>
-                  navigate(
-                    "/instructor/courses"
-                  )
-              : handleBack
-          }
-          disabled={creating}
-          className="px-5 py-3 bg-surfaceHigh border border-border text-text font-semibold rounded-xl text-sm hover:border-orange/40 transition disabled:opacity-50"
-        >
-          {step === 1 ? "Cancel" : "← Previous"}
-        </button>
+      <div className="bg-surface border border-border rounded-2xl p-4 md:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={
+              step === 1
+                ? () =>
+                    navigate(
+                      "/instructor/courses"
+                    )
+                : handleBack
+            }
+            disabled={creating}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-surfaceHigh border border-border text-text font-semibold rounded-xl text-sm hover:border-orange/40 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ArrowLeft size={16} />
 
-        <div className="text-xs text-muted">
-          Step {step} of {STEPS.length}
+            {step === 1
+              ? "Cancel"
+              : "Previous"}
+          </button>
+
+          <div className="hidden sm:flex items-center gap-2 text-xs text-muted">
+            <span>Step</span>
+
+            <span className="font-semibold text-text">
+              {step}
+            </span>
+
+            <span>of</span>
+
+            <span className="font-semibold text-text">
+              {STEPS.length}
+            </span>
+          </div>
+
+          {step < STEPS.length ? (
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={creating}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange hover:bg-orange/90 text-white font-semibold rounded-xl text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Continue
+
+              <ArrowRight size={16} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={creating}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange hover:bg-orange/90 text-white font-semibold rounded-xl text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {creating ? (
+                <>
+                  <Loader2
+                    size={16}
+                    className="animate-spin"
+                  />
+
+                  Creating...
+                </>
+              ) : (
+                <>
+                  Create Course
+
+                  <Check size={16} />
+                </>
+              )}
+            </button>
+          )}
         </div>
-
-        {step < STEPS.length ? (
-          <button
-            type="button"
-            onClick={handleNext}
-            disabled={creating}
-            className="px-6 py-3 bg-orange hover:bg-orange/90 text-white font-semibold rounded-xl text-sm transition disabled:opacity-50"
-          >
-            Continue →
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={creating}
-            className="px-6 py-3 bg-orange hover:bg-orange/90 text-white font-semibold rounded-xl text-sm transition disabled:opacity-50"
-          >
-            {creating
-              ? "Creating..."
-              : "Create Course →"}
-          </button>
-        )}
       </div>
     </div>
+  );
+}
+
+// ============================================================
+// ARRAY FIELD
+// ============================================================
+
+function ArrayField({
+  title,
+  description,
+  value,
+  setValue,
+  placeholder,
+  items,
+  onAdd,
+  onRemove,
+  accent = "default",
+  prefix = "",
+  listStyle = "tags",
+}) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-text">
+          {title}
+        </h3>
+
+        <p className="text-xs text-muted mt-1">
+          {description}
+        </p>
+      </div>
+
+      <div className="flex gap-2 items-end">
+        <div className="flex-1">
+          <Input
+            label=""
+            value={value}
+            onChange={(e) =>
+              setValue(e.target.value)
+            }
+            placeholder={placeholder}
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={onAdd}
+          className="h-[46px] px-4 bg-surfaceHigh border border-border rounded-xl text-sm font-semibold text-text hover:border-orange/40 hover:text-orange transition inline-flex items-center gap-2"
+        >
+          <Plus size={16} />
+          Add
+        </button>
+      </div>
+
+      {items.length > 0 && (
+        <>
+          {listStyle === "card" ? (
+            <div className="space-y-2">
+              {items.map((item, index) => (
+                <div
+                  key={`${item}-${index}`}
+                  className={`flex items-center justify-between gap-3 p-3 rounded-xl bg-surfaceHigh border ${
+                    accent === "orange"
+                      ? "border-orange/20"
+                      : "border-border"
+                  }`}
+                >
+                  <div className="flex items-start gap-2 min-w-0">
+                    <div
+                      className={`mt-0.5 w-5 h-5 shrink-0 rounded-full flex items-center justify-center ${
+                        accent === "orange"
+                          ? "bg-orange/10 text-orange"
+                          : "bg-surface text-muted"
+                      }`}
+                    >
+                      <Check size={12} />
+                    </div>
+
+                    <span className="text-sm text-text leading-5">
+                      {item}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onRemove(index)
+                    }
+                    className="shrink-0 w-8 h-8 rounded-lg text-muted hover:text-red-400 hover:bg-red-400/10 transition flex items-center justify-center"
+                    title="Remove"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {items.map((item, index) => (
+                <div
+                  key={`${item}-${index}`}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm ${
+                    accent === "orange"
+                      ? "bg-orange/10 border-orange/20 text-orange"
+                      : "bg-surfaceHigh border-border text-text"
+                  }`}
+                >
+                  <span>
+                    {prefix}
+                    {item}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onRemove(index)
+                    }
+                    className="w-5 h-5 rounded-md flex items-center justify-center opacity-70 hover:opacity-100 transition"
+                    title="Remove"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// COURSE TYPE CARD
+// ============================================================
+
+function CourseTypeCard({
+  active,
+  title,
+  description,
+  icon: Icon,
+  onClick,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative p-4 rounded-xl border text-left transition ${
+        active
+          ? "bg-orange/10 border-orange/50"
+          : "bg-surfaceHigh border-border hover:border-orange/30"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+            active
+              ? "bg-orange text-white"
+              : "bg-surface border border-border text-muted"
+          }`}
+        >
+          <Icon size={17} />
+        </div>
+
+        <div className="min-w-0">
+          <p className="font-semibold text-sm text-text">
+            {title}
+          </p>
+
+          <p className="text-xs text-muted mt-1 leading-5">
+            {description}
+          </p>
+        </div>
+
+        {active && (
+          <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-orange text-white flex items-center justify-center">
+            <Check size={12} strokeWidth={3} />
+          </div>
+        )}
+      </div>
+    </button>
+  );
+}
+
+// ============================================================
+// TOGGLE
+// ============================================================
+
+function Toggle({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative w-11 h-6 shrink-0 rounded-full transition ${
+        checked
+          ? "bg-orange"
+          : "bg-surfaceHigh border border-border"
+      }`}
+    >
+      <span
+        className={`absolute top-1 w-4 h-4 rounded-full bg-white transition ${
+          checked ? "left-6" : "left-1"
+        }`}
+      />
+    </button>
   );
 }
 
@@ -1643,32 +1831,16 @@ function SettingToggle({
           {label}
         </p>
 
-        <p className="text-xs text-muted mt-1">
+        <p className="text-xs text-muted mt-1 leading-5">
           {description}
         </p>
       </div>
 
-      <button
-        type="button"
-        onClick={() =>
-          onChange(!checked)
-        }
-        className={`relative w-11 h-6 shrink-0 rounded-full transition ${
-          checked
-            ? "bg-orange"
-            : "bg-surface border border-border"
-        }`}
-      >
-        <span
-          className={`absolute top-1 w-4 h-4 rounded-full bg-white transition ${
-            checked
-              ? "left-6"
-              : "left-1"
-          }`}
-        />
-      </button>
+      <Toggle
+        checked={checked}
+        onChange={onChange}
+      />
     </div>
   );
 }
-
 
