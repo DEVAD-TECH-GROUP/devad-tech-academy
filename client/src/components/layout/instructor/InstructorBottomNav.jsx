@@ -1,17 +1,44 @@
 import { NavLink } from "react-router-dom";
+import {
+  LayoutDashboard,
+  BookOpen,
+  Users,
+  Wallet,
+  User,
+} from "lucide-react";
 
 const tabs = [
-  { to: "/instructor/dashboard", icon: "⊞",  label: "Home" },
-  { to: "/instructor/courses",   icon: "📚", label: "Courses" },
-  { to: "/instructor/students",  icon: "👥", label: "Students" },
-  { to: "/instructor/earnings",  icon: "💰", label: "Earnings" },
-  { to: "/instructor/profile",   icon: "👤", label: "Profile" },
+  {
+    to: "/instructor/dashboard",
+    icon: LayoutDashboard,
+    label: "Home",
+  },
+  {
+    to: "/instructor/courses",
+    icon: BookOpen,
+    label: "Courses",
+  },
+  {
+    to: "/instructor/students",
+    icon: Users,
+    label: "Students",
+  },
+  {
+    to: "/instructor/earnings",
+    icon: Wallet,
+    label: "Earnings",
+  },
+  {
+    to: "/instructor/profile",
+    icon: User,
+    label: "Profile",
+  },
 ];
 
 export default function InstructorBottomNav() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-border flex lg:hidden z-30">
-      {tabs.map(({ to, icon, label }) => (
+      {tabs.map(({ to, icon: Icon, label }) => (
         <NavLink
           key={to}
           to={to}
@@ -20,7 +47,12 @@ export default function InstructorBottomNav() {
             ${isActive ? "text-orange" : "text-muted"}`
           }
         >
-          <span className="text-lg leading-none">{icon}</span>
+          <Icon
+            size={18}
+            strokeWidth={1.8}
+            className="shrink-0"
+          />
+
           <span>{label}</span>
         </NavLink>
       ))}
