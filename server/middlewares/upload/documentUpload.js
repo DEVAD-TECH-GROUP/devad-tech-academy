@@ -1,16 +1,32 @@
 import multer from "multer";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import cloudinary from "../../config/cloudinary.js";
-import { UPLOAD_LIMITS, ALLOWED_FILE_TYPES } from "../../utils/constants.js";
+import {
+  UPLOAD_LIMITS,
+  ALLOWED_FILE_TYPES,
+} from "../../utils/constants.js";
 
 const documentStorage = new CloudinaryStorage({
   cloudinary,
+
   params: async (req, file) => {
+    // Authentication must run before this upload middleware
+    const userId = req.user?._id || req.user?.id;
+
+    if (!userId) {
+      throw new Error(
+        "Authenticated user is required before uploading a document"
+      );
+    }
+
+    const originalName = file.originalname || "document";
+    const fileNameWithoutExtension = originalName.replace(/\.[^/.]+$/, "");
+
     return {
-      folder: `devad-academy/documents/${req.user._id}`,
+      folder: `devad-academy/documents/${userId}`,
       resource_type: "raw",
       allowed_formats: ["pdf", "doc", "docx", "ppt", "pptx"],
-      public_id: `${Date.now()}-${file.originalname.split(".")[0]}`,
+      public_id: `${Date.now()}-${fileNameWithoutExtension}`,
     };
   },
 });
@@ -20,7 +36,9 @@ const documentFilter = (req, file, cb) => {
     cb(null, true);
   } else {
     cb(
-      new Error("Invalid file type. Only PDF, DOC, DOCX, PPT, PPTX allowed"),
+      new Error(
+        "Invalid file type. Only PDF, DOC, DOCX, PPT, and PPTX files are allowed"
+      ),
       false
     );
   }
@@ -28,7 +46,11 @@ const documentFilter = (req, file, cb) => {
 
 const documentUpload = multer({
   storage: documentStorage,
-  limits: { fileSize: UPLOAD_LIMITS.DOCUMENT_SIZE },
+
+  limits: {
+    fileSize: UPLOAD_LIMITS.DOCUMENT_SIZE,
+  },
+
   fileFilter: documentFilter,
 });
 
