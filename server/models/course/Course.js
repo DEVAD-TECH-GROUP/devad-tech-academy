@@ -91,16 +91,11 @@ const courseSchema = new mongoose.Schema(
     // ============================================================
 
     thumbnail: {
-      public_id: {
-        type: String,
-        default: null,
-      },
-
-      url: {
-        type: String,
-        default: null,
-      },
-    },
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "CourseThumbnail",
+  default: null,
+  index: true,
+},
 
     previewVideo: {
       public_id: {

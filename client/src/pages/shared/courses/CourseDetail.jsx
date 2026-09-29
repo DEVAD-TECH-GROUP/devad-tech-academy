@@ -4,7 +4,49 @@ import { useParams, useNavigate } from "react-router-dom";
 import { getCourse } from "../../../services/public/courseService";
 import { formatNaira } from "../../../utils/formatCurrency";
 
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────
+
+const getCategoryName = (category) => {
+  if (!category) return "";
+
+  if (typeof category === "object") {
+    return category?.name || "";
+  }
+
+  return String(category);
+};
+
+const getInstructorName = (instructor) => {
+  if (!instructor) return "";
+
+  if (typeof instructor === "object") {
+    return `${instructor?.firstName || ""} ${
+      instructor?.lastName || ""
+    }`.trim();
+  }
+
+  return String(instructor);
+};
+
+const safeText = (value, fallback = "") => {
+  if (value === null || value === undefined) return fallback;
+
+  if (typeof value === "object") {
+    return fallback;
+  }
+
+  return String(value);
+};
+
+const safeArray = (value) => {
+  return Array.isArray(value) ? value : [];
+};
+
+// ─────────────────────────────────────────────────────────────
+// STAR RATING
+// ─────────────────────────────────────────────────────────────
 
 const StarRating = ({ rating = 0 }) => (
   <div className="flex gap-0.5">
@@ -12,7 +54,9 @@ const StarRating = ({ rating = 0 }) => (
       <svg
         key={s}
         className={`w-4 h-4 ${
-          s <= rating ? "text-amber-400" : "text-slate-600"
+          s <= Number(rating || 0)
+            ? "text-amber-400"
+            : "text-slate-600"
         }`}
         fill="currentColor"
         viewBox="0 0 20 20"
@@ -23,56 +67,84 @@ const StarRating = ({ rating = 0 }) => (
   </div>
 );
 
+// ─────────────────────────────────────────────────────────────
+// TECHNOLOGY BADGE
+// ─────────────────────────────────────────────────────────────
+
 const TechBadge = ({ name }) => {
   const colors = {
-    HTML5: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-    CSS3: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-    JavaScript: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-    React: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
-    "Node.js": "bg-green-500/20 text-green-300 border-green-500/30",
-    MongoDB: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-    Git: "bg-red-500/20 text-red-300 border-red-500/30",
-    GitHub: "bg-slate-500/20 text-slate-300 border-slate-500/30",
-    "VS Code": "bg-blue-600/20 text-blue-300 border-blue-600/30",
-    default: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+    HTML5:
+      "bg-orange-500/20 text-orange-300 border-orange-500/30",
+    CSS3:
+      "bg-blue-500/20 text-blue-300 border-blue-500/30",
+    JavaScript:
+      "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+    React:
+      "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+    "Node.js":
+      "bg-green-500/20 text-green-300 border-green-500/30",
+    MongoDB:
+      "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+    Git:
+      "bg-red-500/20 text-red-300 border-red-500/30",
+    GitHub:
+      "bg-slate-500/20 text-slate-300 border-slate-500/30",
+    "VS Code":
+      "bg-blue-600/20 text-blue-300 border-blue-600/30",
+    default:
+      "bg-violet-500/20 text-violet-300 border-violet-500/30",
   };
 
-  const cls = colors[name] || colors.default;
+  const safeName = safeText(name);
+  const cls = colors[safeName] || colors.default;
 
   return (
     <span
       className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${cls} tracking-wide`}
     >
-      {name}
+      {safeName}
     </span>
   );
 };
 
-// ─── COURSE DETAIL PAGE ───────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// COURSE DETAIL PAGE
+// ─────────────────────────────────────────────────────────────
 
 export default function CourseDetailPage({
   course: propCourse,
   onBack: propOnBack,
 }) {
-  const [course, setCourse] = useState(propCourse || null);
+  const { id: routeValue } = useParams();
+  const navigate = useNavigate();
 
+  const [course, setCourse] = useState(propCourse || null);
   const [loading, setLoading] = useState(!propCourse);
   const [error, setError] = useState("");
 
   const [openModule, setOpenModule] = useState(null);
   const [openFaq, setOpenFaq] = useState(null);
 
-  const { id } = useParams();
-  const navigate = useNavigate();
-
   const handleBack =
     propOnBack || (() => navigate("/courses"));
 
-  // ─── Get public single course ───────────────────────────
+  // ───────────────────────────────────────────────────────────
+  // LOAD COURSE
+  // ───────────────────────────────────────────────────────────
+
   useEffect(() => {
+    let mounted = true;
+
     if (propCourse) {
       setCourse(propCourse);
       setLoading(false);
+      setError("");
+      return;
+    }
+
+    if (!routeValue) {
+      setLoading(false);
+      setError("Course resource not found.");
       return;
     }
 
@@ -81,50 +153,106 @@ export default function CourseDetailPage({
         setLoading(true);
         setError("");
 
-        const response = await getCourse(id);
+        /*
+         * IMPORTANT:
+         *
+         * CourseGrid navigates using:
+         *
+         * /courses/${course.slug}
+         *
+         * Therefore routeValue is the COURSE SLUG.
+         *
+         * getCourse() must therefore hit the public
+         * endpoint using this slug.
+         */
+        const response = await getCourse(routeValue);
 
+        console.log(
+          "[CourseDetailPage] Course response:",
+          response
+        );
+
+        /*
+         * Support the different response structures
+         * your backend may currently return.
+         */
         const fetchedCourse =
           response?.data?.data?.course ||
-          response?.data?.data ||
           response?.data?.course ||
+          response?.data?.data ||
+          response?.data ||
           null;
 
-        if (!fetchedCourse) {
-          throw new Error("Course not found");
+        if (
+          !fetchedCourse ||
+          typeof fetchedCourse !== "object"
+        ) {
+          throw new Error(
+            "Course resource not found."
+          );
         }
+
+        if (!mounted) return;
 
         setCourse(fetchedCourse);
       } catch (err) {
-        console.error("Failed to load course:", err);
-
-        setError(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Failed to load course."
+        console.error(
+          "[CourseDetailPage] Failed to load course:",
+          err
         );
+
+        if (!mounted) return;
+
+        const status = err?.response?.status;
+
+        const message =
+          err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          err?.message ||
+          "Failed to load course.";
+
+        if (status === 404) {
+          setError("Course resource not found.");
+        } else {
+          setError(message);
+        }
+
+        setCourse(null);
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
-    if (id) {
-      loadCourse();
-    }
-  }, [id, propCourse]);
+    loadCourse();
 
-  // ─── Scroll helper ──────────────────────────────────────
+    return () => {
+      mounted = false;
+    };
+  }, [routeValue, propCourse]);
+
+  // ───────────────────────────────────────────────────────────
+  // SCROLL
+  // ───────────────────────────────────────────────────────────
+
   const scrollTo = (sectionId) => {
     document
       .getElementById(sectionId)
-      ?.scrollIntoView({ behavior: "smooth" });
+      ?.scrollIntoView({
+        behavior: "smooth",
+      });
   };
 
-  // ─── Loading ────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────
+  // LOADING
+  // ───────────────────────────────────────────────────────────
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
         <div className="text-center">
-          <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-4" />
+          <div className="w-10 h-10 border-4 border-white/20 border-t-violet-500 rounded-full animate-spin mx-auto mb-4" />
 
           <p className="text-slate-400">
             Loading course...
@@ -134,17 +262,42 @@ export default function CourseDetailPage({
     );
   }
 
-  // ─── Error ──────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────
+  // ERROR
+  // ───────────────────────────────────────────────────────────
+
   if (error || !course) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-4 px-6">
-        <p className="text-slate-400 text-center">
-          {error || "Course not found."}
-        </p>
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-5 px-6">
+        <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+          <svg
+            className="w-8 h-8 text-red-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.8}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 9v3.75m0 3.75h.007M10.29 3.86l-8.12 14a1.5 1.5 0 001.3 2.25h17.06a1.5 1.5 0 001.3-2.25l-8.12-14a1.5 1.5 0 00-2.6 0z"
+            />
+          </svg>
+        </div>
+
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-white mb-2">
+            Course Not Found
+          </h2>
+
+          <p className="text-slate-400 text-sm max-w-md">
+            {error || "The requested course resource could not be found."}
+          </p>
+        </div>
 
         <button
           onClick={() => navigate("/courses")}
-          className="bg-violet-600 hover:bg-violet-500 px-4 py-2 rounded-xl text-sm font-semibold transition"
+          className="bg-violet-600 hover:bg-violet-500 px-5 py-2.5 rounded-xl text-sm font-semibold transition"
         >
           Return to Courses
         </button>
@@ -152,11 +305,64 @@ export default function CourseDetailPage({
     );
   }
 
-  // ─── Quick stats ────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────
+  // SAFE COURSE VALUES
+  // ───────────────────────────────────────────────────────────
+
+  const categoryName = getCategoryName(
+    course.category
+  );
+
+  const instructorName = getInstructorName(
+    course.instructor
+  );
+
+  const technologies = safeArray(
+    course.technologies
+  );
+
+  const outcomes = safeArray(course.outcomes);
+
+  const prerequisites = safeArray(
+    course.prerequisites
+  );
+
+  const curriculum = safeArray(
+    course.curriculum
+  );
+
+  const projects = safeArray(course.projects);
+
+  const faqs = safeArray(course.faqs);
+
+  const thumbnail =
+    safeText(course.thumbnail) ||
+    "/images/course-placeholder.png";
+
+  const title =
+    safeText(course.title) || "Untitled Course";
+
+  const subtitle =
+    safeText(course.subtitle);
+
+  const description =
+    safeText(course.description);
+
+  const level =
+    safeText(course.level);
+
+  // ───────────────────────────────────────────────────────────
+  // QUICK STATS
+  // ───────────────────────────────────────────────────────────
+
   const quickStats = [
     {
       label: "Duration",
-      val: course.duration,
+      val:
+        course.duration !== undefined &&
+        course.duration !== null
+          ? course.duration
+          : "—",
       icon: (
         <svg
           className="w-5 h-5 text-slate-500 mx-auto"
@@ -175,7 +381,7 @@ export default function CourseDetailPage({
     },
     {
       label: "Modules",
-      val: course.modulesCount,
+      val: course.modulesCount ?? curriculum.length ?? 0,
       icon: (
         <svg
           className="w-5 h-5 text-slate-500 mx-auto"
@@ -194,7 +400,7 @@ export default function CourseDetailPage({
     },
     {
       label: "Lessons",
-      val: `${course.lessonsCount || 0}+`,
+      val: `${course.lessonsCount ?? 0}+`,
       icon: (
         <svg
           className="w-5 h-5 text-slate-500 mx-auto"
@@ -206,14 +412,14 @@ export default function CourseDetailPage({
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
-            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.584-4.5 1.253"
+            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.584 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.584 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.584-4.5 1.253"
           />
         </svg>
       ),
     },
     {
       label: "Projects",
-      val: course.projectsCount,
+      val: course.projectsCount ?? projects.length ?? 0,
       icon: (
         <svg
           className="w-5 h-5 text-slate-500 mx-auto"
@@ -232,22 +438,14 @@ export default function CourseDetailPage({
     },
   ];
 
-  const categoryName =
-    typeof course.category === "object"
-      ? course.category?.name
-      : course.category;
-
-  const instructorName =
-    typeof course.instructor === "object"
-      ? `${course.instructor?.firstName || ""} ${
-          course.instructor?.lastName || ""
-        }`.trim()
-      : "";
+  // ───────────────────────────────────────────────────────────
+  // RENDER
+  // ───────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-slate-950 text-white pt-20">
 
-      {/* ───────────────── HERO ───────────────── */}
+      {/* HERO */}
       <section className="relative overflow-hidden">
         <button
           onClick={handleBack}
@@ -274,20 +472,23 @@ export default function CourseDetailPage({
 
         <div className="relative max-w-7xl mx-auto px-6 py-16 grid lg:grid-cols-3 gap-12 items-start">
 
-          {/* Hero Content */}
+          {/* HERO CONTENT */}
           <div className="lg:col-span-2">
 
             <div className="inline-flex items-center gap-2 bg-violet-900/30 border border-violet-700/40 rounded-full px-4 py-1.5 text-xs text-violet-300 font-medium mb-6">
-              {categoryName} · {course.level}
+              {categoryName || "Course"}
+              {level ? ` · ${level}` : ""}
             </div>
 
             <h1 className="text-4xl md:text-5xl font-black leading-tight mb-4">
-              {course.title}
+              {title}
             </h1>
 
-            <p className="text-slate-400 text-lg mb-8 leading-relaxed">
-              {course.subtitle}
-            </p>
+            {subtitle && (
+              <p className="text-slate-400 text-lg mb-8 leading-relaxed">
+                {subtitle}
+              </p>
+            )}
 
             {instructorName && (
               <p className="text-sm text-slate-500 mb-6">
@@ -298,7 +499,7 @@ export default function CourseDetailPage({
               </p>
             )}
 
-            {/* Quick Stats */}
+            {/* QUICK STATS */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               {quickStats.map((stat) => (
                 <div
@@ -310,7 +511,7 @@ export default function CourseDetailPage({
                   </div>
 
                   <div className="font-black text-white text-lg">
-                    {stat.val ?? 0}
+                    {safeText(stat.val, "0")}
                   </div>
 
                   <div className="text-xs text-slate-500 mt-0.5">
@@ -320,7 +521,7 @@ export default function CourseDetailPage({
               ))}
             </div>
 
-            {/* Program Badges */}
+            {/* PROGRAM BADGES */}
             <div className="flex flex-wrap items-center justify-center gap-4 border-t border-slate-800/80 pt-6">
               <div className="md:ml-auto flex flex-wrap gap-2">
 
@@ -366,14 +567,18 @@ export default function CourseDetailPage({
             </div>
           </div>
 
-          {/* Pricing Card */}
+          {/* PRICING CARD */}
           <div className="lg:col-span-1 bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl shadow-violet-900/20 lg:sticky lg:top-24">
 
             <div className="h-52 overflow-hidden relative">
               <img
-                src={course.thumbnail}
-                alt={course.title}
+                src={thumbnail}
+                alt={title}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.src =
+                    "/images/course-placeholder.png";
+                }}
               />
 
               <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
@@ -382,7 +587,7 @@ export default function CourseDetailPage({
             <div className="p-6">
 
               <div className="text-4xl font-black text-white mb-1">
-                {formatNaira(course.price)}
+                {formatNaira(course.price ?? 0)}
               </div>
 
               <div className="text-slate-400 text-sm mb-2">
@@ -391,8 +596,10 @@ export default function CourseDetailPage({
 
               {course.installmentEnabled && (
                 <div className="text-violet-400 font-bold text-lg mb-6">
-                  {formatNaira(course.installmentAmount)} ×{" "}
-                  {course.installmentCount} Months
+                  {formatNaira(
+                    course.installmentAmount ?? 0
+                  )}{" "}
+                  × {course.installmentCount ?? 0} Months
                 </div>
               )}
 
@@ -439,7 +646,7 @@ export default function CourseDetailPage({
         </div>
       </section>
 
-      {/* ───────────────── OVERVIEW ───────────────── */}
+      {/* OVERVIEW */}
       <section
         id="overview"
         className="px-6 py-16 max-w-7xl mx-auto border-t border-slate-800/60"
@@ -454,19 +661,19 @@ export default function CourseDetailPage({
               </h2>
 
               <p className="text-slate-400 leading-relaxed text-base">
-                {course.description}
+                {description || "Course description coming soon."}
               </p>
             </div>
 
-            {/* Outcomes */}
-            {course.outcomes?.length > 0 && (
+            {/* OUTCOMES */}
+            {outcomes.length > 0 && (
               <div>
                 <h3 className="text-xl font-bold mb-4">
                   What you will learn
                 </h3>
 
                 <div className="grid sm:grid-cols-2 gap-3">
-                  {course.outcomes.map((outcome, i) => (
+                  {outcomes.map((outcome, i) => (
                     <div
                       key={i}
                       className="flex items-start gap-2.5 text-sm text-slate-300"
@@ -485,47 +692,53 @@ export default function CourseDetailPage({
                         />
                       </svg>
 
-                      <span>{outcome}</span>
+                      <span>
+                        {safeText(outcome)}
+                      </span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Prerequisites */}
-            {course.prerequisites?.length > 0 && (
+            {/* PREREQUISITES */}
+            {prerequisites.length > 0 && (
               <div>
                 <h3 className="text-xl font-bold mb-3">
                   Prerequisites
                 </h3>
 
                 <ul className="space-y-2 text-sm text-slate-400">
-                  {course.prerequisites.map((prereq, i) => (
+                  {prerequisites.map((prereq, i) => (
                     <li
                       key={i}
                       className="flex items-start gap-2"
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-slate-700 mt-2 flex-shrink-0" />
-                      <span>{prereq}</span>
+
+                      <span>
+                        {safeText(prereq)}
+                      </span>
                     </li>
                   ))}
                 </ul>
               </div>
             )}
+
           </div>
 
-          {/* Tech Stack */}
+          {/* TECHNOLOGIES */}
           <div className="lg:col-span-1 space-y-6">
-            {course.technologies?.length > 0 && (
+            {technologies.length > 0 && (
               <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6">
                 <h3 className="font-bold text-sm tracking-wide text-slate-400 uppercase mb-4">
                   Technologies Covered
                 </h3>
 
                 <div className="flex flex-wrap gap-2">
-                  {course.technologies.map((tech) => (
+                  {technologies.map((tech, index) => (
                     <TechBadge
-                      key={tech}
+                      key={`${safeText(tech)}-${index}`}
                       name={tech}
                     />
                   ))}
@@ -533,10 +746,11 @@ export default function CourseDetailPage({
               </div>
             )}
           </div>
+
         </div>
       </section>
 
-      {/* ───────────────── CURRICULUM ───────────────── */}
+      {/* CURRICULUM */}
       <section
         id="curriculum"
         className="px-6 py-16 bg-slate-900/20 border-t border-slate-800/60"
@@ -553,81 +767,113 @@ export default function CourseDetailPage({
             </p>
           </div>
 
-          {course.curriculum?.length > 0 ? (
+          {curriculum.length > 0 ? (
             <div className="space-y-3">
 
-              {course.curriculum.map((mod, i) => (
-                <div
-                  key={i}
-                  className="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden"
-                >
-                  <button
-                    onClick={() =>
-                      setOpenModule(
-                        openModule === i ? null : i
-                      )
-                    }
-                    className="w-full flex flex-col sm:flex-row sm:items-center justify-between p-5 text-left transition-colors hover:bg-slate-800/30"
+              {curriculum.map((mod, i) => {
+                const moduleTitle =
+                  typeof mod === "object"
+                    ? safeText(mod?.title)
+                    : safeText(mod);
+
+                const moduleName =
+                  typeof mod === "object"
+                    ? safeText(mod?.module)
+                    : `Module ${i + 1}`;
+
+                const lessons =
+                  typeof mod === "object"
+                    ? safeArray(mod?.lessons)
+                    : [];
+
+                return (
+                  <div
+                    key={mod?._id || i}
+                    className="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden"
                   >
-                    <div>
-                      <span className="text-xs font-bold text-violet-400 uppercase tracking-widest">
-                        {mod.module}
-                      </span>
+                    <button
+                      onClick={() =>
+                        setOpenModule(
+                          openModule === i ? null : i
+                        )
+                      }
+                      className="w-full flex flex-col sm:flex-row sm:items-center justify-between p-5 text-left transition-colors hover:bg-slate-800/30"
+                    >
+                      <div>
+                        <span className="text-xs font-bold text-violet-400 uppercase tracking-widest">
+                          {moduleName}
+                        </span>
 
-                      <h3 className="font-bold text-white text-base mt-0.5">
-                        {mod.title}
-                      </h3>
-                    </div>
+                        <h3 className="font-bold text-white text-base mt-0.5">
+                          {moduleTitle}
+                        </h3>
+                      </div>
 
-                    <div className="flex items-center gap-3 mt-2 sm:mt-0 text-xs text-slate-400">
-                      <span>
-                        {mod.lessons?.length || 0} Lessons
-                      </span>
+                      <div className="flex items-center gap-3 mt-2 sm:mt-0 text-xs text-slate-400">
+                        <span>
+                          {lessons.length} Lessons
+                        </span>
 
-                      <svg
-                        className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${
-                          openModule === i
-                            ? "rotate-180"
-                            : ""
-                        }`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M19.5 8.25l-7.5 7.5-7.5-7.5"
-                        />
-                      </svg>
-                    </div>
-                  </button>
+                        <svg
+                          className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${
+                            openModule === i
+                              ? "rotate-180"
+                              : ""
+                          }`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+                          />
+                        </svg>
+                      </div>
+                    </button>
 
-                  {openModule === i && (
-                    <div className="px-6 pb-5 pt-1 border-t border-slate-800/50 bg-slate-950/40">
-                      <ul className="space-y-2.5">
+                    {openModule === i && (
+                      <div className="px-6 pb-5 pt-1 border-t border-slate-800/50 bg-slate-950/40">
+                        <ul className="space-y-2.5">
 
-                        {mod.lessons?.map((lesson, idx) => (
-                          <li
-                            key={idx}
-                            className="flex items-center gap-3 text-sm text-slate-400"
-                          >
-                            <span className="text-slate-600 font-mono text-xs">
-                              {(idx + 1)
-                                .toString()
-                                .padStart(2, "0")}
-                            </span>
+                          {lessons.map((lesson, idx) => {
+                            const lessonText =
+                              typeof lesson === "object"
+                                ? safeText(
+                                    lesson?.title ||
+                                      lesson?.name
+                                  )
+                                : safeText(lesson);
 
-                            <span>{lesson}</span>
-                          </li>
-                        ))}
+                            return (
+                              <li
+                                key={
+                                  lesson?._id ||
+                                  idx
+                                }
+                                className="flex items-center gap-3 text-sm text-slate-400"
+                              >
+                                <span className="text-slate-600 font-mono text-xs">
+                                  {(idx + 1)
+                                    .toString()
+                                    .padStart(2, "0")}
+                                </span>
 
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              ))}
+                                <span>
+                                  {lessonText}
+                                </span>
+                              </li>
+                            );
+                          })}
+
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
             </div>
           ) : (
@@ -635,10 +881,11 @@ export default function CourseDetailPage({
               Full curriculum release schedule details coming soon.
             </div>
           )}
+
         </div>
       </section>
 
-      {/* ───────────────── PROJECTS ───────────────── */}
+      {/* PROJECTS */}
       <section
         id="projects"
         className="px-6 py-16 max-w-7xl mx-auto border-t border-slate-800/60"
@@ -653,27 +900,47 @@ export default function CourseDetailPage({
           </p>
         </div>
 
-        {course.projects?.length > 0 ? (
+        {projects.length > 0 ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
 
-            {course.projects.map((proj, i) => (
-              <div
-                key={i}
-                className="bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-colors"
-              >
-                <div className="w-8 h-8 rounded-lg bg-violet-600/20 text-violet-400 font-bold flex items-center justify-center text-sm mb-4">
-                  {String(i + 1).padStart(2, "0")}
+            {projects.map((proj, i) => {
+              const projectName =
+                typeof proj === "object"
+                  ? safeText(
+                      proj?.name ||
+                        proj?.title
+                    )
+                  : safeText(proj);
+
+              const projectDescription =
+                typeof proj === "object"
+                  ? safeText(
+                      proj?.desc ||
+                        proj?.description
+                    )
+                  : "";
+
+              return (
+                <div
+                  key={proj?._id || i}
+                  className="bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-violet-600/20 text-violet-400 font-bold flex items-center justify-center text-sm mb-4">
+                    {String(i + 1).padStart(2, "0")}
+                  </div>
+
+                  <h3 className="font-bold text-lg text-white mb-1.5">
+                    {projectName}
+                  </h3>
+
+                  {projectDescription && (
+                    <p className="text-slate-400 text-sm leading-relaxed">
+                      {projectDescription}
+                    </p>
+                  )}
                 </div>
-
-                <h3 className="font-bold text-lg text-white mb-1.5">
-                  {proj.name}
-                </h3>
-
-                <p className="text-slate-400 text-sm leading-relaxed">
-                  {proj.desc}
-                </p>
-              </div>
-            ))}
+              );
+            })}
 
           </div>
         ) : (
@@ -683,7 +950,7 @@ export default function CourseDetailPage({
         )}
       </section>
 
-      {/* ───────────────── PRICING ───────────────── */}
+      {/* PRICING */}
       <section
         id="pricing"
         className="px-6 py-20 border-t border-slate-800/60 bg-gradient-to-b from-slate-950 to-slate-900/40 text-center"
@@ -706,7 +973,7 @@ export default function CourseDetailPage({
 
           <div className="grid md:grid-cols-2 gap-6 items-stretch max-w-2xl mx-auto text-left">
 
-            {/* Full Payment */}
+            {/* FULL PAYMENT */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between hover:border-slate-700 transition-colors">
 
               <div>
@@ -719,7 +986,7 @@ export default function CourseDetailPage({
                 </p>
 
                 <div className="text-3xl font-black text-white my-5">
-                  {formatNaira(course.price)}
+                  {formatNaira(course.price ?? 0)}
                 </div>
               </div>
 
@@ -728,7 +995,7 @@ export default function CourseDetailPage({
               </button>
             </div>
 
-            {/* Installments */}
+            {/* INSTALLMENTS */}
             {course.installmentEnabled && (
               <div className="bg-slate-900 border border-violet-500/50 rounded-2xl p-6 flex flex-col justify-between relative shadow-lg shadow-violet-900/10">
 
@@ -746,7 +1013,9 @@ export default function CourseDetailPage({
                   </p>
 
                   <div className="text-3xl font-black text-violet-400 my-5">
-                    {formatNaira(course.installmentAmount)}
+                    {formatNaira(
+                      course.installmentAmount ?? 0
+                    )}
 
                     <span className="text-slate-400 text-xs font-normal">
                       {" "}
@@ -755,7 +1024,9 @@ export default function CourseDetailPage({
                   </div>
 
                   <div className="text-xs font-semibold text-slate-300 mb-5 bg-slate-800 px-2.5 py-1.5 rounded border border-slate-700/60 inline-block">
-                    Total: {course.installmentCount} sequential monthly installments
+                    Total:{" "}
+                    {course.installmentCount ?? 0}{" "}
+                    sequential monthly installments
                   </div>
                 </div>
 
@@ -764,59 +1035,82 @@ export default function CourseDetailPage({
                 </button>
               </div>
             )}
+
           </div>
 
-          {/* FAQs */}
-          {course.faqs?.length > 0 && (
+          {/* FAQ */}
+          {faqs.length > 0 && (
             <div className="max-w-2xl mx-auto pt-16 text-left space-y-4">
 
               <h3 className="text-xl font-bold text-center text-white mb-6">
                 Program Specific FAQ
               </h3>
 
-              {course.faqs.map((faq, idx) => (
-                <div
-                  key={idx}
-                  className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden"
-                >
-                  <button
-                    onClick={() =>
-                      setOpenFaq(
-                        openFaq === idx ? null : idx
+              {faqs.map((faq, idx) => {
+                const question =
+                  typeof faq === "object"
+                    ? safeText(
+                        faq?.q ||
+                          faq?.question
                       )
-                    }
-                    className="w-full flex items-center justify-between px-5 py-4 text-left font-semibold text-sm hover:text-violet-400 transition-colors"
+                    : "";
+
+                const answer =
+                  typeof faq === "object"
+                    ? safeText(
+                        faq?.a ||
+                          faq?.answer
+                      )
+                    : "";
+
+                return (
+                  <div
+                    key={faq?._id || idx}
+                    className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden"
                   >
-                    <span>{faq.q}</span>
-
-                    <svg
-                      className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${
-                        openFaq === idx
-                          ? "rotate-180"
-                          : ""
-                      }`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
+                    <button
+                      onClick={() =>
+                        setOpenFaq(
+                          openFaq === idx
+                            ? null
+                            : idx
+                        )
+                      }
+                      className="w-full flex items-center justify-between px-5 py-4 text-left font-semibold text-sm hover:text-violet-400 transition-colors"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M19.5 8.25l-7.5 7.5-7.5-7.5"
-                      />
-                    </svg>
-                  </button>
+                      <span>{question}</span>
 
-                  {openFaq === idx && (
-                    <div className="px-5 pb-4 text-slate-400 text-sm leading-relaxed">
-                      {faq.a}
-                    </div>
-                  )}
-                </div>
-              ))}
+                      <svg
+                        className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${
+                          openFaq === idx
+                            ? "rotate-180"
+                            : ""
+                        }`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+                        />
+                      </svg>
+                    </button>
+
+                    {openFaq === idx && (
+                      <div className="px-5 pb-4 text-slate-400 text-sm leading-relaxed">
+                        {answer}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
             </div>
           )}
+
         </div>
       </section>
     </div>
