@@ -1,6 +1,5 @@
-// hooks/public/useCourses.js
-
 import { useCallback, useEffect, useState } from "react";
+
 import {
   getCourses,
   getCourse,
@@ -29,9 +28,14 @@ export function useCourses(params = {}) {
           : []
       );
 
-      setPagination(result?.pagination || null);
+      setPagination(
+        result?.pagination || null
+      );
     } catch (error) {
-      console.error("Failed to load courses:", error);
+      console.error(
+        "Failed to load courses:",
+        error
+      );
 
       setError(
         error?.response?.data?.message ||
@@ -58,7 +62,6 @@ export function useCourses(params = {}) {
   };
 }
 
-// Get a single course
 export function useCourse(id) {
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(Boolean(id));
@@ -81,7 +84,10 @@ export function useCourse(id) {
 
       setCourse(result || null);
     } catch (error) {
-      console.error("Failed to load course:", error);
+      console.error(
+        "Failed to load course:",
+        error
+      );
 
       setError(
         error?.response?.data?.message ||

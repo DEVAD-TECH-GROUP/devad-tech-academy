@@ -46,10 +46,22 @@ const courseIcons = {
 // ─────────────────────────────────────────────────────────────
 
 const quickLinks = [
-  { label: "Home", path: "/" },
-  { label: "Courses", path: "/courses" },
-  { label: "About", path: "/about" },
-  { label: "Contact", path: "/contact" },
+  {
+    label: "Home",
+    path: "/",
+  },
+  {
+    label: "Courses",
+    path: "/courses",
+  },
+  {
+    label: "About",
+    path: "/about",
+  },
+  {
+    label: "Contact",
+    path: "/contact",
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -90,6 +102,49 @@ const socialLinks = [
 ];
 
 // ─────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────
+
+const getCategorySlug = (category) => {
+  if (!category) {
+    return "";
+  }
+
+  if (typeof category === "object") {
+    return category?.slug || "";
+  }
+
+  return "";
+};
+
+const getCourseSlug = (course) => {
+  if (!course || typeof course !== "object") {
+    return "";
+  }
+
+  return (
+    course.slug ||
+    getCategorySlug(course.category) ||
+    ""
+  );
+};
+
+const getCourseTitle = (course) => {
+  if (!course) {
+    return "Untitled Course";
+  }
+
+  if (
+    typeof course.title === "string" &&
+    course.title.trim()
+  ) {
+    return course.title;
+  }
+
+  return "Untitled Course";
+};
+
+// ─────────────────────────────────────────────────────────────
 // Footer
 // ─────────────────────────────────────────────────────────────
 
@@ -97,27 +152,55 @@ export default function Footer() {
   const navigate = useNavigate();
 
   // ───────────────────────────────────────────────────────────
-  // Public courses
+  // Fetch public courses
+  //
+  // The public backend endpoint already restricts courses
+  // to status: "published", so we do NOT send status: "active".
   // ───────────────────────────────────────────────────────────
 
   const {
-    courses,
+    courses = [],
     loading: loadingCourses,
   } = useCourses({
     page: 1,
     limit: 100,
-    status: "active",
   });
 
   // ───────────────────────────────────────────────────────────
   // Show maximum 8 courses
   // ───────────────────────────────────────────────────────────
 
-  const visibleCourses = courses.slice(0, 8);
+  const visibleCourses = Array.isArray(courses)
+    ? courses.slice(0, 8)
+    : [];
+
+  // ───────────────────────────────────────────────────────────
+  // Navigate to course
+  // ───────────────────────────────────────────────────────────
+
+  const handleCourseNavigation = (course) => {
+    const courseId =
+      course?._id ||
+      course?.id ||
+      "";
+
+    if (!courseId) {
+      console.error(
+        "Cannot navigate to course: missing course ID",
+        course
+      );
+
+      return;
+    }
+
+    navigate(`/courses/${courseId}`);
+  };
 
   return (
     <footer className="relative overflow-hidden border-t border-slate-800 bg-slate-950">
-      {/* Background Glow */}
+      {/* =====================================================
+          Background Glow
+      ====================================================== */}
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-0 top-0 h-96 w-96 rounded-full bg-cyan-500/5 blur-3xl" />
@@ -126,12 +209,14 @@ export default function Footer() {
       </div>
 
       <div className="relative z-10 mx-auto max-w-7xl px-6 py-20 lg:px-8">
-        {/* Top Grid */}
+        {/* =====================================================
+            Top Grid
+        ====================================================== */}
 
         <div className="grid gap-12 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
-          {/* ───────────────────────────────────────────────────
+          {/* ===================================================
               Brand
-          ─────────────────────────────────────────────────── */}
+          ==================================================== */}
 
           <div>
             <div className="flex items-center gap-4">
@@ -174,9 +259,9 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* ───────────────────────────────────────────────────
+          {/* ===================================================
               Courses
-          ─────────────────────────────────────────────────── */}
+          ==================================================== */}
 
           <div>
             <h3 className="text-lg font-semibold text-white">
@@ -194,17 +279,28 @@ export default function Footer() {
                 </>
               ) : visibleCourses.length > 0 ? (
                 visibleCourses.map((course) => {
+                  const courseSlug =
+                    getCourseSlug(course);
+
                   const Icon =
-                    courseIcons[course.slug] ??
-                    courseIcons[course.category?.slug] ??
+                    courseIcons[courseSlug] ||
                     Code2;
 
                   return (
-                    <li key={course._id}>
+                    <li
+                      key={
+                        course?._id ||
+                        course?.id ||
+                        courseSlug ||
+                        course?.title
+                      }
+                    >
                       <button
                         type="button"
                         onClick={() =>
-                          navigate(`/courses/${course._id}`)
+                          handleCourseNavigation(
+                            course
+                          )
                         }
                         className="group flex w-full items-center gap-3 text-left text-slate-400 transition hover:text-cyan-400"
                       >
@@ -213,7 +309,9 @@ export default function Footer() {
                           className="shrink-0 transition group-hover:translate-x-0.5"
                         />
 
-                        <span>{course.title}</span>
+                        <span className="line-clamp-1">
+                          {getCourseTitle(course)}
+                        </span>
                       </button>
                     </li>
                   );
@@ -231,7 +329,9 @@ export default function Footer() {
               visibleCourses.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => navigate("/courses")}
+                  onClick={() =>
+                    navigate("/courses")
+                  }
                   className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-cyan-400 transition hover:text-cyan-300"
                 >
                   View all courses
@@ -241,9 +341,9 @@ export default function Footer() {
               )}
           </div>
 
-          {/* ───────────────────────────────────────────────────
+          {/* ===================================================
               Quick Links
-          ─────────────────────────────────────────────────── */}
+          ==================================================== */}
 
           <div>
             <h3 className="text-lg font-semibold text-white">
@@ -251,28 +351,32 @@ export default function Footer() {
             </h3>
 
             <ul className="mt-6 space-y-4">
-              {quickLinks.map(({ label, path }) => (
-                <li key={label}>
-                  <button
-                    type="button"
-                    onClick={() => navigate(path)}
-                    className="group flex w-full items-center gap-2 text-left text-slate-400 transition hover:text-cyan-400"
-                  >
-                    {label}
+              {quickLinks.map(
+                ({ label, path }) => (
+                  <li key={label}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(path)
+                      }
+                      className="group flex w-full items-center gap-2 text-left text-slate-400 transition hover:text-cyan-400"
+                    >
+                      {label}
 
-                    <ArrowUpRight
-                      size={14}
-                      className="opacity-0 transition group-hover:opacity-100"
-                    />
-                  </button>
-                </li>
-              ))}
+                      <ArrowUpRight
+                        size={14}
+                        className="opacity-0 transition group-hover:opacity-100"
+                      />
+                    </button>
+                  </li>
+                )
+              )}
             </ul>
           </div>
 
-          {/* ───────────────────────────────────────────────────
+          {/* ===================================================
               Contact
-          ─────────────────────────────────────────────────── */}
+          ==================================================== */}
 
           <div>
             <h3 className="text-lg font-semibold text-white">
@@ -280,16 +384,23 @@ export default function Footer() {
             </h3>
 
             <div className="mt-6 space-y-5">
+              {/* Email */}
+
               <div className="flex gap-3">
                 <Mail
                   size={18}
                   className="mt-1 shrink-0 text-cyan-400"
                 />
 
-                <span className="break-all text-slate-400">
+                <a
+                  href="mailto:devadacademy@gmail.com"
+                  className="break-all text-slate-400 transition hover:text-cyan-400"
+                >
                   devadacademy@gmail.com
-                </span>
+                </a>
               </div>
+
+              {/* Phone */}
 
               <div className="flex gap-3">
                 <Phone
@@ -297,10 +408,15 @@ export default function Footer() {
                   className="mt-1 shrink-0 text-cyan-400"
                 />
 
-                <span className="text-slate-400">
+                <a
+                  href="tel:+2348106551348"
+                  className="text-slate-400 transition hover:text-cyan-400"
+                >
                   +234 810 655 1348
-                </span>
+                </a>
               </div>
+
+              {/* Location */}
 
               <div className="flex gap-3">
                 <MapPin
@@ -322,8 +438,9 @@ export default function Footer() {
               </h4>
 
               <p className="mt-2 text-sm text-slate-400">
-                Speak with our admissions team and get guidance on
-                choosing the right program.
+                Speak with our admissions team and
+                get guidance on choosing the right
+                program.
               </p>
 
               <a
@@ -338,19 +455,23 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Bottom Bar */}
+        {/* =====================================================
+            Bottom Bar
+        ====================================================== */}
 
         <div className="mt-16 border-t border-slate-800 pt-8">
           <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
             <p className="text-center text-xs text-slate-500 md:text-left">
-              © {new Date().getFullYear()} DEVAD TECH ACADEMY. All
-              rights reserved.
+              © {new Date().getFullYear()} DEVAD TECH
+              ACADEMY. All rights reserved.
             </p>
 
             <div className="flex gap-6 text-sm">
               <button
                 type="button"
-                onClick={() => navigate("/privacy")}
+                onClick={() =>
+                  navigate("/privacy")
+                }
                 className="text-slate-500 transition hover:text-cyan-400"
               >
                 Privacy Policy
@@ -358,7 +479,9 @@ export default function Footer() {
 
               <button
                 type="button"
-                onClick={() => navigate("/terms")}
+                onClick={() =>
+                  navigate("/terms")
+                }
                 className="text-slate-500 transition hover:text-cyan-400"
               >
                 Terms of Service

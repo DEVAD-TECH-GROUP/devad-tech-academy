@@ -16,20 +16,25 @@ export const getAllCourses = asyncHandler(async (req, res) => {
   const {
     page,
     limit,
-    status,
     category,
     search,
   } = req.query;
 
-  const query = {};
+  const query = {
+    status: "published",
+  };
 
-  if (status) {
-    query.status = status;
-  }
+  // ----------------------------------------------------------
+  // Category filter
+  // ----------------------------------------------------------
 
   if (category) {
     query.category = category;
   }
+
+  // ----------------------------------------------------------
+  // Search
+  // ----------------------------------------------------------
 
   if (search) {
     query.$or = [
@@ -54,6 +59,10 @@ export const getAllCourses = asyncHandler(async (req, res) => {
     ];
   }
 
+  // ----------------------------------------------------------
+  // Pagination
+  // ----------------------------------------------------------
+
   const result = await paginate(Course, query, {
     page,
     limit,
@@ -65,7 +74,7 @@ export const getAllCourses = asyncHandler(async (req, res) => {
     },
   });
 
-  sendResponse(
+  return sendResponse(
     res,
     200,
     "Courses retrieved",

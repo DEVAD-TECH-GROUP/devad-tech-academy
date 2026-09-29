@@ -48,7 +48,10 @@ const getCategoryName = (category) => {
  * Safely convert a value into a renderable string.
  */
 const getText = (value) => {
-  if (value === null || value === undefined) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
     return "";
   }
 
@@ -60,7 +63,10 @@ const getText = (value) => {
 };
 
 /**
- * Get a reliable course ID.
+ * Get the MongoDB course ID.
+ *
+ * IMPORTANT:
+ * This is what is used for the course detail URL.
  *
  * Primary:
  *   course._id
@@ -69,7 +75,10 @@ const getText = (value) => {
  *   course.id
  */
 const getCourseId = (course) => {
-  if (!course || typeof course !== "object") {
+  if (
+    !course ||
+    typeof course !== "object"
+  ) {
     return "";
   }
 
@@ -79,20 +88,22 @@ const getCourseId = (course) => {
 /**
  * Normalize a course before giving it to UI components.
  *
- * IMPORTANT:
- * The populated category object is preserved as categoryData,
- * while category itself becomes a simple string.
- *
- * This prevents errors such as:
- *
- * "Objects are not valid as a React child"
+ * The populated category object is preserved
+ * as categoryData, while category itself becomes
+ * a simple string.
  */
 const normalizeCourseForCard = (course) => {
-  if (!course || typeof course !== "object") {
+  if (
+    !course ||
+    typeof course !== "object"
+  ) {
     return course;
   }
 
-  const categoryName = getCategoryName(course.category);
+  const categoryName =
+    getCategoryName(course.category);
+
+  const courseId = getCourseId(course);
 
   return {
     ...course,
@@ -100,7 +111,7 @@ const normalizeCourseForCard = (course) => {
     /*
      * Keep MongoDB ID available.
      */
-    id: getCourseId(course),
+    id: courseId,
 
     /*
      * Safe string for components that render:
@@ -123,15 +134,21 @@ const normalizeCourseForCard = (course) => {
      */
     title: getText(course.title),
 
-    subtitle: getText(course.subtitle),
+    subtitle: getText(
+      course.subtitle
+    ),
 
-    description: getText(course.description),
+    description: getText(
+      course.description
+    ),
 
     level: getText(course.level),
   };
 };
 
-export default function CoursesPage({ onNavigate }) {
+export default function CoursesPage({
+  onNavigate,
+}) {
   const navigate = useNavigate();
 
   /*
@@ -153,27 +170,36 @@ export default function CoursesPage({ onNavigate }) {
   |--------------------------------------------------------------------------
   */
 
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All");
-  const [level, setLevel] = useState("All");
-  const [priceMax, setPriceMax] = useState(400000);
+  const [search, setSearch] =
+    useState("");
+
+  const [category, setCategory] =
+    useState("All");
+
+  const [level, setLevel] =
+    useState("All");
+
+  const [priceMax, setPriceMax] =
+    useState(400000);
 
   /*
   |--------------------------------------------------------------------------
-  | Safe courses array
+  | Safe Courses Array
   |--------------------------------------------------------------------------
   */
 
   const safeCourses = useMemo(() => {
-    return Array.isArray(courses) ? courses : [];
+    return Array.isArray(courses)
+      ? courses
+      : [];
   }, [courses]);
 
   /*
   |--------------------------------------------------------------------------
-  | Course navigation
+  | Course Navigation
   |--------------------------------------------------------------------------
   |
-  | Every course goes to:
+  | ALL course detail navigation uses:
   |
   | /courses/:id
   |
@@ -181,47 +207,94 @@ export default function CoursesPage({ onNavigate }) {
   |
   | /courses/68d123456789abcdef123456
   |
-  | We use MongoDB _id, NOT category slug and NOT course title.
+  | NOT:
+  |
+  | /courses/full-stack-development
+  |
+  | NOT:
+  |
+  | /courses/software-development
+  |
+  | NOT:
+  |
+  | /courses/course-name
   |
   */
 
-  const handleCourseNavigation = (course) => {
-    const courseId = getCourseId(course);
+  const handleCourseNavigation = (
+    courseOrId,
+    courseData = null
+  ) => {
+    /*
+     * Support both:
+     *
+     * handleCourseNavigation(course)
+     *
+     * and:
+     *
+     * handleCourseNavigation(courseId, course)
+     *
+     */
+
+    let courseId = "";
+
+    if (
+      typeof courseOrId === "object" &&
+      courseOrId !== null
+    ) {
+      courseId =
+        getCourseId(courseOrId);
+
+      courseData = courseOrId;
+    } else {
+      courseId =
+        courseOrId || "";
+    }
 
     if (!courseId) {
       console.error(
         "Cannot navigate to course: missing course ID",
-        course
+        courseData || courseOrId
       );
 
       return;
     }
 
     /*
-     * If the parent provides its own navigation handler,
-     * allow the parent to handle it.
+     * Parent navigation handler, if supplied.
      */
-    if (typeof onNavigate === "function") {
-      onNavigate(courseId, course);
+    if (
+      typeof onNavigate ===
+      "function"
+    ) {
+      onNavigate(
+        courseId,
+        courseData
+      );
+
       return;
     }
 
     /*
      * Default navigation.
      */
-    navigate(`/courses/${courseId}`);
+    navigate(
+      `/courses/${courseId}`
+    );
   };
 
   /*
   |--------------------------------------------------------------------------
-  | Category names
+  | Category Names
   |--------------------------------------------------------------------------
   */
 
   const categories = useMemo(() => {
     const names = safeCourses
       .map((course) =>
-        getCategoryName(course?.category)
+        getCategoryName(
+          course?.category
+        )
       )
       .filter(Boolean);
 
@@ -247,116 +320,136 @@ export default function CoursesPage({ onNavigate }) {
 
   /*
   |--------------------------------------------------------------------------
-  | Filter courses
+  | Filter Courses
   |--------------------------------------------------------------------------
   */
 
   const filtered = useMemo(() => {
-    const normalizedSearch = search
-      .trim()
-      .toLowerCase();
+    const normalizedSearch =
+      search.trim().toLowerCase();
 
-    return safeCourses.filter((course) => {
-      /*
-      |--------------------------------------------------------------------------
-      | Title
-      |--------------------------------------------------------------------------
-      */
+    return safeCourses.filter(
+      (course) => {
+        /*
+        |--------------------------------------------------------------------
+        | Title
+        |--------------------------------------------------------------------
+        */
 
-      const title = getText(course?.title);
+        const title = getText(
+          course?.title
+        );
 
-      /*
-      |--------------------------------------------------------------------------
-      | Subtitle / Description
-      |--------------------------------------------------------------------------
-      */
+        /*
+        |--------------------------------------------------------------------
+        | Subtitle / Description
+        |--------------------------------------------------------------------
+        */
 
-      const subtitle =
-        getText(course?.subtitle) ||
-        getText(course?.description);
+        const subtitle =
+          getText(
+            course?.subtitle
+          ) ||
+          getText(
+            course?.description
+          );
 
-      /*
-      |--------------------------------------------------------------------------
-      | Category
-      |--------------------------------------------------------------------------
-      */
+        /*
+        |--------------------------------------------------------------------
+        | Category
+        |--------------------------------------------------------------------
+        */
 
-      const courseCategory =
-        getCategoryName(course?.category);
+        const courseCategory =
+          getCategoryName(
+            course?.category
+          );
 
-      /*
-      |--------------------------------------------------------------------------
-      | Level
-      |--------------------------------------------------------------------------
-      */
+        /*
+        |--------------------------------------------------------------------
+        | Level
+        |--------------------------------------------------------------------
+        */
 
-      const courseLevel =
-        getText(course?.level);
+        const courseLevel =
+          getText(
+            course?.level
+          );
 
-      /*
-      |--------------------------------------------------------------------------
-      | Search
-      |--------------------------------------------------------------------------
-      */
+        /*
+        |--------------------------------------------------------------------
+        | Search
+        |--------------------------------------------------------------------
+        */
 
-      const matchSearch =
-        !normalizedSearch ||
-        title
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        subtitle
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        courseCategory
-          .toLowerCase()
-          .includes(normalizedSearch);
+        const matchSearch =
+          !normalizedSearch ||
+          title
+            .toLowerCase()
+            .includes(
+              normalizedSearch
+            ) ||
+          subtitle
+            .toLowerCase()
+            .includes(
+              normalizedSearch
+            ) ||
+          courseCategory
+            .toLowerCase()
+            .includes(
+              normalizedSearch
+            );
 
-      /*
-      |--------------------------------------------------------------------------
-      | Category filter
-      |--------------------------------------------------------------------------
-      */
+        /*
+        |--------------------------------------------------------------------
+        | Category Filter
+        |--------------------------------------------------------------------
+        */
 
-      const matchCategory =
-        category === "All" ||
-        courseCategory === category;
+        const matchCategory =
+          category === "All" ||
+          courseCategory ===
+            category;
 
-      /*
-      |--------------------------------------------------------------------------
-      | Level filter
-      |--------------------------------------------------------------------------
-      */
+        /*
+        |--------------------------------------------------------------------
+        | Level Filter
+        |--------------------------------------------------------------------
+        */
 
-      const matchLevel =
-        level === "All" ||
-        courseLevel === level;
+        const matchLevel =
+          level === "All" ||
+          courseLevel === level;
 
-      /*
-      |--------------------------------------------------------------------------
-      | Price filter
-      |--------------------------------------------------------------------------
-      */
+        /*
+        |--------------------------------------------------------------------
+        | Price Filter
+        |--------------------------------------------------------------------
+        */
 
-      const numericPrice = Number(
-        course?.price ?? 0
-      );
+        const numericPrice =
+          Number(
+            course?.price ?? 0
+          );
 
-      const safePrice = Number.isFinite(
-        numericPrice
-      )
-        ? numericPrice
-        : 0;
+        const safePrice =
+          Number.isFinite(
+            numericPrice
+          )
+            ? numericPrice
+            : 0;
 
-      const matchPrice =
-        safePrice <= priceMax;
+        const matchPrice =
+          safePrice <= priceMax;
 
-      return (
-        matchSearch &&
-        matchCategory &&
-        matchLevel &&
-        matchPrice
-      );
-    });
+        return (
+          matchSearch &&
+          matchCategory &&
+          matchLevel &&
+          matchPrice
+        );
+      }
+    );
   }, [
     safeCourses,
     search,
@@ -367,31 +460,29 @@ export default function CoursesPage({ onNavigate }) {
 
   /*
   |--------------------------------------------------------------------------
-  | Normalize filtered courses
+  | Normalize Filtered Courses
   |--------------------------------------------------------------------------
   */
 
-  const normalizedFilteredCourses = useMemo(() => {
-    return filtered.map(
-      normalizeCourseForCard
-    );
-  }, [filtered]);
+  const normalizedFilteredCourses =
+    useMemo(() => {
+      return filtered.map(
+        normalizeCourseForCard
+      );
+    }, [filtered]);
 
   /*
   |--------------------------------------------------------------------------
-  | Normalize featured courses too
+  | Normalize Featured Courses
   |--------------------------------------------------------------------------
-  |
-  | FeaturedCourses may also render category directly.
-  | Therefore we normalize these as well.
-  |
   */
 
-  const normalizedFeaturedCourses = useMemo(() => {
-    return safeCourses.map(
-      normalizeCourseForCard
-    );
-  }, [safeCourses]);
+  const normalizedFeaturedCourses =
+    useMemo(() => {
+      return safeCourses.map(
+        normalizeCourseForCard
+      );
+    }, [safeCourses]);
 
   /*
   |--------------------------------------------------------------------------
@@ -498,11 +589,15 @@ export default function CoursesPage({ onNavigate }) {
       {/* ---------------------------------------------------------------- */}
 
       <CourseGrid
-        filtered={normalizedFilteredCourses}
+        filtered={
+          normalizedFilteredCourses
+        }
         categories={categories}
         category={category}
         setCategory={setCategory}
-        onNavigate={handleCourseNavigation}
+        onNavigate={
+          handleCourseNavigation
+        }
       />
 
       {/* ---------------------------------------------------------------- */}
@@ -510,28 +605,13 @@ export default function CoursesPage({ onNavigate }) {
       {/* ---------------------------------------------------------------- */}
 
       <FeaturedCourses
-        courses={normalizedFeaturedCourses}
-        onNavigate={handleCourseNavigation}
+        courses={
+          normalizedFeaturedCourses
+        }
+        onNavigate={
+          handleCourseNavigation
+        }
       />
     </div>
   );
 }
-
-
-const handleCourseNavigation = (course) => {
-  const courseId = course?._id || course?.id;
-
-  if (!courseId) return;
-
-  navigate(`/courses/${courseId}`);
-};
-
-<CourseGrid
-...
-  onNavigate={handleCourseNavigation}
-/>
-
-<FeaturedCourses
-  courses={normalizedFeaturedCourses}
-  onNavigate={handleCourseNavigation}
-/>
