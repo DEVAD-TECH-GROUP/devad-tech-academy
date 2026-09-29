@@ -114,6 +114,10 @@ export const getLesson = asyncHandler(async (req, res) => {
 // CREATE LESSON
 // ============================================================
 
+// ============================================================
+// CREATE LESSON
+// ============================================================
+
 export const createLesson = asyncHandler(async (req, res) => {
   const { moduleId } = req.params;
 
@@ -127,7 +131,9 @@ export const createLesson = asyncHandler(async (req, res) => {
     return sendResponse(
       res,
       400,
-      error.details.map((detail) => detail.message).join(", ")
+      error.details
+        .map((detail) => detail.message)
+        .join(", ")
     );
   }
 
@@ -150,14 +156,28 @@ export const createLesson = asyncHandler(async (req, res) => {
     module: moduleId,
   });
 
+  const {
+    duration,
+    ...lessonData
+  } = value;
+
   const lesson = await Lesson.create({
-    ...value,
+    ...lessonData,
+
     module: moduleId,
     course: course._id,
+
     order:
       value.order !== undefined
         ? value.order
         : lessonCount,
+
+    video: {
+      duration:
+        duration !== undefined
+          ? duration
+          : 0,
+    },
   });
 
   await Module.findByIdAndUpdate(moduleId, {
