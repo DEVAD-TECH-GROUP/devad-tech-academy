@@ -204,15 +204,31 @@ export const createLesson = asyncHandler(async (req, res) => {
 // UPDATE LESSON
 // ============================================================
 
+// ============================================================
+// UPDATE LESSON
+// ============================================================
+
 export const updateLesson = asyncHandler(async (req, res) => {
   const { moduleId, id } = req.params;
+
+  // ----------------------------------------------------------
+  // Validate IDs
+  // ----------------------------------------------------------
 
   if (
     !mongoose.Types.ObjectId.isValid(moduleId) ||
     !mongoose.Types.ObjectId.isValid(id)
   ) {
-    return sendResponse(res, 400, "Invalid module or lesson ID");
+    return sendResponse(
+      res,
+      400,
+      "Invalid module or lesson ID"
+    );
   }
+
+  // ----------------------------------------------------------
+  // Validate request body
+  // ----------------------------------------------------------
 
   const { error, value } = updateLessonValidator(req.body);
 
@@ -220,15 +236,29 @@ export const updateLesson = asyncHandler(async (req, res) => {
     return sendResponse(
       res,
       400,
-      error.details.map((detail) => detail.message).join(", ")
+      error.details
+        .map((detail) => detail.message)
+        .join(", ")
     );
   }
+
+  // ----------------------------------------------------------
+  // Find module
+  // ----------------------------------------------------------
 
   const module = await Module.findById(moduleId);
 
   if (!module) {
-    return sendResponse(res, 404, "Module not found");
+    return sendResponse(
+      res,
+      404,
+      "Module not found"
+    );
   }
+
+  // ----------------------------------------------------------
+  // Make sure instructor owns the course
+  // ----------------------------------------------------------
 
   const course = await Course.findOne({
     _id: module.course,
@@ -236,8 +266,16 @@ export const updateLesson = asyncHandler(async (req, res) => {
   });
 
   if (!course) {
-    return sendResponse(res, 404, "Course not found");
+    return sendResponse(
+      res,
+      404,
+      "Course not found"
+    );
   }
+
+  // ----------------------------------------------------------
+  // Find lesson
+  // ----------------------------------------------------------
 
   const lesson = await Lesson.findOne({
     _id: id,
@@ -246,12 +284,54 @@ export const updateLesson = asyncHandler(async (req, res) => {
   });
 
   if (!lesson) {
-    return sendResponse(res, 404, "Lesson not found");
+    return sendResponse(
+      res,
+      404,
+      "Lesson not found"
+    );
   }
 
-  Object.assign(lesson, value);
+  // ----------------------------------------------------------
+  // Separate duration because it is stored inside video
+  // ----------------------------------------------------------
+
+  const {
+    duration,
+    ...lessonData
+  } = value;
+
+  // ----------------------------------------------------------
+  // Update normal lesson fields
+  // ----------------------------------------------------------
+
+  Object.assign(
+    lesson,
+    lessonData
+  );
+
+  // ----------------------------------------------------------
+  // Update duration inside video
+  // ----------------------------------------------------------
+
+  if (duration !== undefined) {
+    lesson.video = {
+      ...(lesson.video?.toObject?.() ||
+        lesson.video ||
+        {}),
+
+      duration: Number(duration),
+    };
+  }
+
+  // ----------------------------------------------------------
+  // Save lesson
+  // ----------------------------------------------------------
 
   await lesson.save();
+
+  // ----------------------------------------------------------
+  // Return updated lesson
+  // ----------------------------------------------------------
 
   return sendResponse(
     res,
