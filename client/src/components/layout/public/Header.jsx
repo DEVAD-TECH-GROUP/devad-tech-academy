@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   Menu,
   X,
@@ -8,9 +8,14 @@ import {
   Route,
   Building2,
   Phone,
+  ChevronDown,
+  LogOut,
+  LayoutDashboard,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../../../assets/logo.png";
+
+import { useAuthStore } from "../../../store/authStore";
 
 const HEADER_HEIGHT = 80;
 
@@ -38,10 +43,141 @@ const throttle = (func, limit) => {
 // ─────────────────────────────────────────────────────────────
 
 export default function Header() {
+  const navigate = useNavigate();
+
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const menuRef = useRef(null);
+  const profileRef = useRef(null);
+
+  // ───────────────────────────────────────────────────────────
+  // Auth
+  // ───────────────────────────────────────────────────────────
+
+  const {
+    user,
+    isAuthenticated,
+    logout,
+  } = useAuthStore();
+
+  // ───────────────────────────────────────────────────────────
+  // User information
+  // ───────────────────────────────────────────────────────────
+
+  const userName = useMemo(() => {
+    if (!user) {
+      return "User";
+    }
+
+    const fullName = [
+      user.firstName,
+      user.lastName,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    if (fullName) {
+      return fullName;
+    }
+
+    if (user.name) {
+      return user.name;
+    }
+
+    if (user.email) {
+      return user.email.split("@")[0];
+    }
+
+    return "User";
+  }, [user]);
+
+  const userInitials = useMemo(() => {
+    if (!user) {
+      return "U";
+    }
+
+    const firstName =
+      user.firstName?.trim() || "";
+
+    const lastName =
+      user.lastName?.trim() || "";
+
+    if (firstName && lastName) {
+      return (
+        firstName.charAt(0) +
+        lastName.charAt(0)
+      ).toUpperCase();
+    }
+
+    if (firstName) {
+      return firstName
+        .slice(0, 2)
+        .toUpperCase();
+    }
+
+    if (user.name) {
+      const parts = user.name
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+
+      if (parts.length >= 2) {
+        return (
+          parts[0].charAt(0) +
+          parts[1].charAt(0)
+        ).toUpperCase();
+      }
+
+      return (
+        parts[0]
+          ?.slice(0, 2)
+          .toUpperCase() || "U"
+      );
+    }
+
+    if (user.email) {
+      return user.email
+        .charAt(0)
+        .toUpperCase();
+    }
+
+    return "U";
+  }, [user]);
+
+  const profileImage = useMemo(() => {
+    if (!user) {
+      return null;
+    }
+
+    const image =
+      user.profileImage ||
+      user.profilePicture ||
+      user.avatar ||
+      user.photo ||
+      null;
+
+    if (!image) {
+      return null;
+    }
+
+    if (typeof image === "string") {
+      return image;
+    }
+
+    if (typeof image === "object") {
+      return (
+        image.url ||
+        image.secure_url ||
+        image.path ||
+        null
+      );
+    }
+
+    return null;
+  }, [user]);
 
   // ───────────────────────────────────────────────────────────
   // Scroll effect
@@ -55,30 +191,71 @@ export default function Header() {
   );
 
   useEffect(() => {
-    window.addEventListener("scroll", handleScroll, {
-      passive: true,
-    });
+    window.addEventListener(
+      "scroll",
+      handleScroll,
+      {
+        passive: true,
+      }
+    );
 
     return () => {
-      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener(
+        "scroll",
+        handleScroll
+      );
     };
   }, [handleScroll]);
 
   // ───────────────────────────────────────────────────────────
-  // Close menu when clicking outside
+  // Close mobile menu when clicking outside
   // ───────────────────────────────────────────────────────────
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
         menuRef.current &&
-        !menuRef.current.contains(event.target)
+        !menuRef.current.contains(
+          event.target
+        )
       ) {
         setIsOpen(false);
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener(
+      "mousedown",
+      handleClickOutside
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside
+      );
+    };
+  }, []);
+
+  // ───────────────────────────────────────────────────────────
+  // Close profile dropdown when clicking outside
+  // ───────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        profileRef.current &&
+        !profileRef.current.contains(
+          event.target
+        )
+      ) {
+        setIsProfileOpen(false);
+      }
+    };
+
+    document.addEventListener(
+      "mousedown",
+      handleClickOutside
+    );
 
     return () => {
       document.removeEventListener(
@@ -93,7 +270,9 @@ export default function Header() {
   // ───────────────────────────────────────────────────────────
 
   useEffect(() => {
-    document.body.style.overflow = isOpen ? "hidden" : "auto";
+    document.body.style.overflow = isOpen
+      ? "hidden"
+      : "auto";
 
     return () => {
       document.body.style.overflow = "auto";
@@ -146,6 +325,71 @@ export default function Header() {
   const closeMenu = useCallback(() => {
     setIsOpen(false);
   }, []);
+
+  // ───────────────────────────────────────────────────────────
+  // Dashboard
+  // ───────────────────────────────────────────────────────────
+
+
+  const getDashboardPath = (role) => {
+  switch (role) {
+    case "student":
+      return "/student/dashboard";
+
+    case "instructor":
+      return "/instructor/dashboard";
+
+    case "super_admin":
+      return "/admin/dashboard";
+
+    default:
+      return "/";
+  }
+};
+
+  const handleDashboard = useCallback(() => {
+  setIsProfileOpen(false);
+  setIsOpen(false);
+
+  const dashboardPath =
+    getDashboardPath(user?.role);
+
+  navigate(dashboardPath);
+}, [navigate, user?.role]);
+  // ───────────────────────────────────────────────────────────
+  // Logout
+  // ───────────────────────────────────────────────────────────
+
+  const handleLogout = useCallback(async () => {
+    setIsProfileOpen(false);
+    setIsOpen(false);
+
+    await logout();
+  }, [logout]);
+
+  // ───────────────────────────────────────────────────────────
+  // Profile avatar
+  // ───────────────────────────────────────────────────────────
+
+  const renderAvatar = (size = "w-10 h-10") => {
+    return (
+      <div
+        className={`${size} rounded-full overflow-hidden border border-cyan-500/30 bg-[#071126] flex items-center justify-center shrink-0`}
+      >
+        {profileImage ? (
+          <img
+            src={profileImage}
+            alt={userName}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <span className="text-cyan-400 font-semibold text-sm">
+            {userInitials}
+          </span>
+        )}
+      </div>
+    );
+  };
 
   // ───────────────────────────────────────────────────────────
   // Render
@@ -218,13 +462,104 @@ export default function Header() {
             </NavLink>
           ))}
 
-          {/* Enroll Now */}
-          <NavLink
-            to="/login"
-            className="ml-4 px-6 py-2.5 rounded-lg text-black font-semibold text-sm transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/30 bg-[linear-gradient(90deg,#22d3ee,#2563eb)]"
-          >
-            Enroll Now
-          </NavLink>
+          {/* ─────────────────────────────────────────────────
+              Desktop Auth
+          ────────────────────────────────────────────────── */}
+
+          {!isAuthenticated ? (
+            <NavLink
+              to="/login"
+              className="ml-4 px-6 py-2.5 rounded-lg text-black font-semibold text-sm transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/30 bg-[linear-gradient(90deg,#22d3ee,#2563eb)]"
+            >
+              Login
+            </NavLink>
+          ) : (
+            <div
+              ref={profileRef}
+              className="relative ml-4"
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setIsProfileOpen(
+                    (prev) => !prev
+                  )
+                }
+                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-all duration-300 hover:bg-white/5"
+                aria-expanded={isProfileOpen}
+                aria-haspopup="menu"
+              >
+                {renderAvatar("w-9 h-9")}
+
+                <span className="text-white text-sm font-semibold max-w-32 truncate">
+                  {userName}
+                </span>
+
+                <ChevronDown
+                  size={16}
+                  className={`text-gray-400 transition-transform duration-300 ${
+                    isProfileOpen
+                      ? "rotate-180"
+                      : ""
+                  }`}
+                />
+              </button>
+
+              {/* Desktop User Dropdown */}
+
+              <AnimatePresence>
+                {isProfileOpen && (
+                  <motion.div
+                    initial={{
+                      opacity: 0,
+                      y: -8,
+                    }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                    }}
+                    exit={{
+                      opacity: 0,
+                      y: -8,
+                    }}
+                    transition={{
+                      duration: 0.2,
+                    }}
+                    className="absolute right-0 top-full mt-3 w-52 rounded-xl bg-[#040816] border border-white/10 shadow-xl shadow-black/30 overflow-hidden"
+                  >
+                    <button
+                      type="button"
+                      onClick={
+                        handleDashboard
+                      }
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      <LayoutDashboard
+                        size={18}
+                        className="text-cyan-400"
+                      />
+
+                      <span>
+                        My Dashboard
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:text-red-400 hover:bg-white/5 transition-colors border-t border-white/5"
+                    >
+                      <LogOut size={18} />
+
+                      <span>
+                        Logout
+                      </span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </nav>
 
         {/* ─────────────────────────────────────────────────────
@@ -235,7 +570,11 @@ export default function Header() {
           <button
             type="button"
             onClick={toggleMenu}
-            aria-label={isOpen ? "Close Menu" : "Open Menu"}
+            aria-label={
+              isOpen
+                ? "Close Menu"
+                : "Open Menu"
+            }
             aria-expanded={isOpen}
             className="p-2 rounded-lg hover:bg-white/5 transition-colors"
           >
@@ -248,18 +587,25 @@ export default function Header() {
         </div>
       </div>
 
-      {/* ─────────────────────────────────────────────────────
+      {/* ──────────────────────────────────────────────────────────
           Mobile Menu
-      ────────────────────────────────────────────────────── */}
+      ────────────────────────────────────────────────────────── */}
 
       <AnimatePresence>
         {isOpen && (
           <>
             {/* Backdrop */}
+
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={{
+                opacity: 0,
+              }}
+              animate={{
+                opacity: 1,
+              }}
+              exit={{
+                opacity: 0,
+              }}
               className="fixed left-0 w-full bg-black/80 backdrop-blur-lg z-40 xl:hidden"
               style={{
                 top: HEADER_HEIGHT,
@@ -269,6 +615,7 @@ export default function Header() {
             />
 
             {/* Mobile Dropdown */}
+
             <motion.div
               ref={menuRef}
               initial={{
@@ -294,6 +641,7 @@ export default function Header() {
             >
               <div className="flex flex-col gap-4 px-6 py-6">
                 {/* Mobile Navigation Links */}
+
                 {navLinks.map((link) => {
                   const Icon = link.icon;
 
@@ -319,13 +667,113 @@ export default function Header() {
                   );
                 })}
 
-                {/* Mobile Enroll Now */}
-              <NavLink
-                to="/login"
-                className="ml-4 px-6 py-2.5 rounded-lg text-black font-semibold text-sm transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/30 bg-[linear-gradient(90deg,#22d3ee,#2563eb)]"
-              >
-                Enroll Now
-              </NavLink>
+                {/* ─────────────────────────────────────────────
+                    Mobile Auth
+                ───────────────────────────────────────────── */}
+
+                {!isAuthenticated ? (
+                  <NavLink
+                    to="/login"
+                    onClick={closeMenu}
+                    className="ml-4 px-6 py-2.5 rounded-lg text-black font-semibold text-sm transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/30 bg-[linear-gradient(90deg,#22d3ee,#2563eb)]"
+                  >
+                    Login
+                  </NavLink>
+                ) : (
+                  <div className="ml-4 relative">
+                    {/* Mobile Profile Button */}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setIsProfileOpen(
+                          (prev) => !prev
+                        )
+                      }
+                      className="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-white/5 transition-all duration-300"
+                      aria-expanded={
+                        isProfileOpen
+                      }
+                    >
+                      <div className="flex items-center gap-3">
+                        {renderAvatar(
+                          "w-10 h-10"
+                        )}
+
+                        <span className="text-white text-sm font-semibold">
+                          {userName}
+                        </span>
+                      </div>
+
+                      <ChevronDown
+                        size={18}
+                        className={`text-gray-400 transition-transform duration-300 ${
+                          isProfileOpen
+                            ? "rotate-180"
+                            : ""
+                        }`}
+                      />
+                    </button>
+
+                    {/* Mobile Profile Dropdown */}
+
+                    <AnimatePresence>
+                      {isProfileOpen && (
+                        <motion.div
+                          initial={{
+                            opacity: 0,
+                            height: 0,
+                          }}
+                          animate={{
+                            opacity: 1,
+                            height: "auto",
+                          }}
+                          exit={{
+                            opacity: 0,
+                            height: 0,
+                          }}
+                          transition={{
+                            duration: 0.2,
+                          }}
+                          className="mt-2 rounded-xl border border-white/10 bg-white/[0.02] overflow-hidden"
+                        >
+                          <button
+                            type="button"
+                            onClick={
+                              handleDashboard
+                            }
+                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                          >
+                            <LayoutDashboard
+                              size={18}
+                              className="text-cyan-400"
+                            />
+
+                            <span>
+                              My Dashboard
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={
+                              handleLogout
+                            }
+                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:text-red-400 hover:bg-white/5 transition-colors border-t border-white/5"
+                          >
+                            <LogOut
+                              size={18}
+                            />
+
+                            <span>
+                              Logout
+                            </span>
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
               </div>
             </motion.div>
           </>
