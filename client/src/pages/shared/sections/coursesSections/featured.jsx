@@ -3,20 +3,6 @@ import { fmt } from "../../../../components/ui/courseUi/fmt";
 
 /**
  * Safely get the category name regardless of API shape.
- *
- * Supported:
- * category = {
- *   _id,
- *   name,
- *   description,
- *   icon,
- *   color,
- *   ...
- * }
- *
- * category = "Software Development"
- *
- * category = null
  */
 const getCategoryName = (category) => {
   if (!category) {
@@ -42,10 +28,21 @@ const getCategoryColor = (category) => {
 };
 
 /**
- * Category icon.
+ * Get the MongoDB course ID.
  *
- * We deliberately use the category NAME here, not the whole category
- * object, so React never receives an object as a child.
+ * IMPORTANT:
+ * Course detail navigation must use the MongoDB _id.
+ */
+const getCourseId = (course) => {
+  if (!course || typeof course !== "object") {
+    return "";
+  }
+
+  return course._id || course.id || "";
+};
+
+/**
+ * Category icon.
  */
 const getCategoryIcon = (category) => {
   const categoryName = getCategoryName(category);
@@ -232,7 +229,7 @@ const getCategoryIcon = (category) => {
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
-            d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
+            d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
           />
         </svg>
       );
@@ -252,7 +249,10 @@ const getCoursePrice = (price) => {
   return fmt(numericPrice);
 };
 
-export default function FeaturedCourses({ courses = [] }) {
+export default function FeaturedCourses({
+  courses = [],
+  onNavigate,
+}) {
   const navigate = useNavigate();
 
   /*
@@ -266,6 +266,36 @@ export default function FeaturedCourses({ courses = [] }) {
    * First three courses are displayed as featured.
    */
   const featuredCourses = safeCourses.slice(0, 3);
+
+  /*
+   * Navigate using MongoDB course ID.
+   */
+  const handleCourseNavigation = (course) => {
+    const courseId = getCourseId(course);
+
+    if (!courseId) {
+      console.error(
+        "Cannot navigate to course: missing course ID",
+        course
+      );
+
+      return;
+    }
+
+    /*
+     * If parent supplied a navigation handler,
+     * use it.
+     */
+    if (typeof onNavigate === "function") {
+      onNavigate(courseId, course);
+      return;
+    }
+
+    /*
+     * Default navigation.
+     */
+    navigate(`/courses/${courseId}`);
+  };
 
   return (
     <section className="px-6 py-20 border-t border-slate-800/60 max-w-7xl mx-auto">
@@ -289,46 +319,48 @@ export default function FeaturedCourses({ courses = [] }) {
         <div className="grid md:grid-cols-3 gap-8">
           {featuredCourses.map((course) => {
             /*
-             * IMPORTANT:
-             *
-             * category may be a populated MongoDB object:
-             *
-             * {
-             *   _id,
-             *   name,
-             *   description,
-             *   icon,
-             *   color,
-             *   ...
-             * }
-             *
-             * We NEVER render course.category directly.
+             * Get MongoDB ID.
              */
-            const categoryName = getCategoryName(
-              course?.category
-            );
+            const courseId =
+              getCourseId(course);
 
-            const categoryColor = getCategoryColor(
-              course?.category
-            );
+            /*
+             * Category information.
+             */
+            const categoryName =
+              getCategoryName(
+                course?.category
+              );
 
-            const categoryStyle = categoryColor
-              ? {
-                  borderColor: `${categoryColor}30`,
-                  backgroundColor: `${categoryColor}10`,
-                }
-              : undefined;
+            const categoryColor =
+              getCategoryColor(
+                course?.category
+              );
+
+            const categoryStyle =
+              categoryColor
+                ? {
+                    borderColor: `${categoryColor}30`,
+                    backgroundColor: `${categoryColor}10`,
+                  }
+                : undefined;
 
             return (
               <div
-                key={course?._id || course?.slug}
+                key={
+                  courseId ||
+                  course?.slug ||
+                  course?.title
+                }
                 onClick={() => {
-                  if (course?.slug) {
-                    navigate(`/courses/${course.slug}`);
+                  if (courseId) {
+                    handleCourseNavigation(
+                      course
+                    );
                   }
                 }}
                 className={`cursor-pointer group relative bg-gradient-to-br from-slate-900 to-slate-900/50 border border-slate-800 rounded-2xl p-6 hover:border-violet-500/50 transition-all flex flex-col justify-between ${
-                  course?.slug
+                  courseId
                     ? ""
                     : "cursor-default"
                 }`}
@@ -339,9 +371,14 @@ export default function FeaturedCourses({ courses = [] }) {
                   <div
                     className="w-12 h-12 rounded-xl bg-violet-600/10 border border-violet-500/10 flex items-center justify-center mb-5 group-hover:scale-105 transition-transform duration-300"
                     style={categoryStyle}
-                    title={categoryName || "Course"}
+                    title={
+                      categoryName ||
+                      "Course"
+                    }
                   >
-                    {getCategoryIcon(course?.category)}
+                    {getCategoryIcon(
+                      course?.category
+                    )}
                   </div>
 
                   {/* CATEGORY NAME */}
@@ -353,7 +390,8 @@ export default function FeaturedCourses({ courses = [] }) {
 
                   {/* TITLE */}
                   <h3 className="font-bold text-lg mb-2 group-hover:text-violet-400 transition-colors">
-                    {course?.title || "Untitled Course"}
+                    {course?.title ||
+                      "Untitled Course"}
                   </h3>
 
                   {/* DESCRIPTION */}
@@ -368,7 +406,9 @@ export default function FeaturedCourses({ courses = [] }) {
                 <div className="flex items-center justify-between pt-2 border-t border-slate-800/40">
                   {/* PRICE */}
                   <span className="font-black text-white">
-                    {getCoursePrice(course?.price)}
+                    {getCoursePrice(
+                      course?.price
+                    )}
                   </span>
 
                   {/* EXPLORE */}

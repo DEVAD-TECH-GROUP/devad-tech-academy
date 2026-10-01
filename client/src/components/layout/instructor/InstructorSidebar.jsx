@@ -21,6 +21,8 @@ import {
   Settings,
 } from "lucide-react";
 
+import logo from "../../../assets/logo.png";
+
 import useUIStore from "../../../store/uiStore";
 import useAuthStore from "../../../store/authStore";
 import {
@@ -156,37 +158,49 @@ export default function InstructorSidebar() {
       {/* ─────────────────────────────────────────────
           HEADER
       ───────────────────────────────────────────── */}
-      <div
-        className={`
-          flex items-center gap-3 p-4
-          border-b border-border shrink-0
-          ${collapsed ? "justify-center" : ""}
-        `}
-      >
-        <div
-          className="
-            w-8 h-8 rounded-lg
-            bg-orange/10 border border-orange/20
-            flex items-center justify-center shrink-0
-          "
-        >
-          <span className="dsp text-sm font-bold text-orange">
-            I
-          </span>
-        </div>
+     <div
+  className={`
+    flex items-center gap-3 p-4
+    border-b border-border shrink-0
+    cursor-pointer
+    hover:bg-surfaceHigh
+    transition
+    ${collapsed ? "justify-center" : ""}
+  `}
+  onClick={() => {
+    navigate("/");
+    closeMobileDrawer();
+  }}
+>
+  <div
+    className="
+      w-8 h-8 rounded-lg
+      flex items-center justify-center shrink-0
+      overflow-hidden
+    "
+  >
+    <img
+      src={logo}
+      alt="Devad Tech Academy"
+      className="
+        w-8 h-8
+        object-contain
+      "
+    />
+  </div>
 
-        {!collapsed && (
-          <div>
-            <p className="dsp text-sm font-bold text-text">
-              Instructor
-            </p>
+  {!collapsed && (
+    <div>
+      <p className="dsp text-sm font-bold text-text">
+        Instructor
+      </p>
 
-            <p className="text-[10px] text-muted">
-              Devad Academy
-            </p>
-          </div>
-        )}
-      </div>
+      <p className="text-[10px] text-muted">
+        DEVAD Tech Academy
+      </p>
+    </div>
+  )}
+</div>
 
       {/* ─────────────────────────────────────────────
           NAVIGATION
