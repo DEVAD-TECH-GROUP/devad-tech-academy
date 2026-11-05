@@ -93,26 +93,172 @@ export const getInstructorApplications = asyncHandler(
 // ─────────────────────────────────────────────────────────────
 // Get single instructor
 // ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// Get single instructor with essential details
+// ─────────────────────────────────────────────────────────────
 export const getInstructor = asyncHandler(async (req, res) => {
   const instructor = await Instructor.findOne({
     user: req.params.id,
-  }).populate("user");
+  })
+    .select(
+      [
+        "applicationStatus",
+        "applicationDate",
+        "applicationEmail",
+        "applicationPhone",
+        "expertise",
+        "experience",
+        "portfolio",
+        "teachingExperience",
+        "course",
+        "availability",
+        "coverLetter",
+        "cv",
+        "education",
+        "certifications",
+        "totalCourses",
+        "totalStudents",
+        "totalRevenue",
+        "totalLiveClasses",
+        "totalAssignmentsGraded",
+        "averageRating",
+        "totalReviews",
+        "xpPoints",
+        "level",
+        "approvedBy",
+        "approvedAt",
+        "rejectionReason",
+        "createdAt",
+        "updatedAt",
+      ].join(" ")
+    )
+    .populate({
+      path: "user",
+      select: [
+        "firstName",
+        "lastName",
+        "email",
+        "phone",
+        "avatar",
+        "role",
+        "status",
+        "isEmailVerified",
+        "isPhoneVerified",
+        "isGoogleAuth",
+        "isTwoFactorEnabled",
+        "lastLogin",
+        "bio",
+        "headline",
+        "location",
+        "socialLinks",
+        "connectedAccounts",
+        "createdAt",
+        "updatedAt",
+      ].join(" "),
+    })
+    .populate({
+      path: "approvedBy",
+      select: "firstName lastName email avatar",
+    });
 
   if (!instructor) {
-    return sendResponse(
-      res,
-      404,
-      "Instructor not found"
-    );
+    return sendResponse(res, 404, "Instructor not found");
   }
 
-  sendResponse(
-    res,
-    200,
-    "Instructor retrieved",
-    instructor
-  );
+  const userId = instructor.user._id;
+
+  // Get instructor's courses
+  const courses = await Course.find({
+    instructor: userId,
+  })
+    .select(
+      [
+        "title",
+        "slug",
+        "subtitle",
+        "shortDescription",
+        "thumbnail",
+        "level",
+        "language",
+        "status",
+        "price",
+        "isFree",
+        "discountPrice",
+        "totalModules",
+        "totalLessons",
+        "totalProjects",
+        "totalAssignments",
+        "totalDuration",
+        "totalStudents",
+        "totalReviews",
+        "averageRating",
+        "totalRevenue",
+        "isFeatured",
+        "publishedAt",
+        "createdAt",
+        "updatedAt",
+      ].join(" ")
+    )
+    .sort({ createdAt: -1 });
+
+  // Get the instructor's 10 most recent reviews
+  const reviews = await Review.find({
+    instructor: userId,
+  })
+    .select(
+      [
+        "student",
+        "course",
+        "rating",
+        "title",
+        "content",
+        "detailedRatings",
+        "instructorReply",
+        "totalLikes",
+        "isFlagged",
+        "flagReason",
+        "isRemoved",
+        "removedAt",
+        "isVerified",
+        "createdAt",
+      ].join(" ")
+    )
+    .populate({
+      path: "student",
+      select: "firstName lastName avatar",
+    })
+    .populate({
+      path: "course",
+      select: "title slug thumbnail",
+    })
+    .sort({ createdAt: -1 })
+    .limit(10);
+
+  // Keep existing instructor fields available to the frontend
+  const instructorData = instructor.toObject();
+
+  sendResponse(res, 200, "Instructor retrieved", {
+    ...instructorData,
+
+    courses,
+    reviews,
+
+    stats: {
+      totalCourses: instructor.totalCourses || 0,
+      totalStudents: instructor.totalStudents || 0,
+      totalRevenue: instructor.totalRevenue || 0,
+      averageRating: instructor.averageRating || 0,
+      totalReviews: instructor.totalReviews || 0,
+      totalLiveClasses: instructor.totalLiveClasses || 0,
+      totalAssignmentsGraded:
+        instructor.totalAssignmentsGraded || 0,
+      xpPoints: instructor.xpPoints || 0,
+      level: instructor.level || 0,
+    },
+  });
 });
+
 
 // ─────────────────────────────────────────────────────────────
 // Approve instructor
@@ -170,7 +316,7 @@ export const approveInstructor = asyncHandler(
     /*
     ----------------------------------------------------------
     4. Change the actual User role
-       
+
        THIS IS THE IMPORTANT FIX.
 
        Student:
@@ -313,7 +459,7 @@ export const rejectInstructor = asyncHandler(
     ----------------------------------------------------------
     Make sure rejection does not accidentally leave a student
     as an instructor.
-    
+
     Normally a pending student application should still have
     role = student, so we only force the role back if needed.
     ----------------------------------------------------------
