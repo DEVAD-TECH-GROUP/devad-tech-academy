@@ -13,6 +13,7 @@ import instructorRejectedTemplate from "../../templates/email/instructorRejected
 import { EMAIL_SUBJECTS } from "../../utils/constants.js";
 import { createNotification } from "../../services/notification/inAppService.js";
 import { NOTIFICATION_TYPES } from "../../utils/constants.js";
+import Review from "../../models/review/Review.js";
 
 // ─────────────────────────────────────────────────────────────
 // Get all instructors
