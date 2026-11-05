@@ -237,6 +237,7 @@ export const getInstructor = asyncHandler(async (req, res) => {
 
   // Keep existing instructor fields available to the frontend
   const instructorData = instructor.toObject();
+  console.log("Instructor Data:", instructorData);
 
   sendResponse(res, 200, "Instructor retrieved", {
     ...instructorData,
