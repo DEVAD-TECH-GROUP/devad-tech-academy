@@ -153,7 +153,12 @@ export const getCourse = asyncHandler(async (req, res) => {
     .populate(
       "instructor",
       "firstName lastName email"
-    );
+    )
+
+    .populate(
+  "thumbnail",
+  "title description image category"
+);
 
   if (!course) {
     return sendResponse(
@@ -211,7 +216,13 @@ export const getCourseBuildData = asyncHandler(
       .populate(
         "approvedBy",
         "firstName lastName email"
-      );
+      )
+.populate(
+  "thumbnail",
+  "title description image category"
+)
+
+      ;
 
     if (!course) {
       return sendResponse(
@@ -304,6 +315,11 @@ export const getCourseBuildData = asyncHandler(
  * UPDATE COURSE
  * ============================================================
  */
+/**
+ * ============================================================
+ * UPDATE COURSE
+ * ============================================================
+ */
 export const updateCourse = asyncHandler(async (req, res) => {
   const {
     error,
@@ -331,6 +347,32 @@ export const updateCourse = asyncHandler(async (req, res) => {
       404,
       "Course not found"
     );
+  }
+
+  /**
+   * Validate a newly selected thumbnail.
+   *
+   * If thumbnail is null, the instructor is
+   * intentionally removing the current thumbnail.
+   *
+   * If thumbnail is undefined, leave it unchanged.
+   */
+  if (
+    value.thumbnail !== undefined &&
+    value.thumbnail !== null
+  ) {
+    const thumbnailExists = await CourseThumbnail.exists({
+      _id: value.thumbnail,
+      isActive: true,
+    });
+
+    if (!thumbnailExists) {
+      return sendResponse(
+        res,
+        400,
+        "Selected course thumbnail is unavailable. Please choose another thumbnail."
+      );
+    }
   }
 
   /**
@@ -374,6 +416,10 @@ export const updateCourse = asyncHandler(async (req, res) => {
     .populate(
       "instructor",
       "firstName lastName email"
+    )
+    .populate(
+      "thumbnail",
+      "title description image category"
     );
 
   return sendResponse(
