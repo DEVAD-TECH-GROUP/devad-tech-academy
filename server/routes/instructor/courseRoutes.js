@@ -13,6 +13,10 @@ import {
   rebuildCourseStatistics,
 } from "../../controllers/instructor/courseController.js";
 
+import {
+  getActiveThumbnails,
+} from "../../controllers/superadmin/courseThumbnailController.js";
+
 import authenticate from "../../middlewares/auth/authenticate.js";
 import isInstructor from "../../middlewares/auth/isInstructor.js";
 
@@ -37,6 +41,13 @@ router.get("/", getMyCourses);
 
 // POST /api/instructor/courses
 router.post("/", createCourse);
+
+// ============================================================
+// AVAILABLE COURSE THUMBNAILS
+// ============================================================
+
+// GET /api/instructor/courses/thumbnails
+router.get("/thumbnails", getActiveThumbnails);
 
 // ============================================================
 // SINGLE COURSE
