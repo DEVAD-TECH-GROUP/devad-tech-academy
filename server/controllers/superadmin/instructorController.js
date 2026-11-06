@@ -3,106 +3,62 @@ import User from "../../models/user/User.js";
 import Instructor from "../../models/user/Instructor.js";
 import Course from "../../models/course/Course.js";
 import Payment from "../../models/payment/Payment.js";
+import Review from "../../models/review/Review.js";
 import paginate from "../../utils/pagination.js";
 import sendResponse from "../../utils/sendResponse.js";
 import asyncHandler from "../../middlewares/error/asyncHandler.js";
 import auditLogger from "../../services/audit/auditLogger.js";
-import { AUDIT_TYPES } from "../../utils/constants.js";
 import sendEmail from "../../services/email/emailService.js";
 import instructorApprovedTemplate from "../../templates/email/instructorApproved.js";
 import instructorRejectedTemplate from "../../templates/email/instructorRejected.js";
-import { EMAIL_SUBJECTS } from "../../utils/constants.js";
 import { createNotification } from "../../services/notification/inAppService.js";
-import { NOTIFICATION_TYPES } from "../../utils/constants.js";
-import Review from "../../models/review/Review.js";
+import {
+  AUDIT_TYPES,
+  EMAIL_SUBJECTS,
+  NOTIFICATION_TYPES,
+} from "../../utils/constants.js";
 
 // ─────────────────────────────────────────────────────────────
 // Get all instructors
 // ─────────────────────────────────────────────────────────────
 export const getAllInstructors = asyncHandler(async (req, res) => {
-  const { page, limit, status, search } = req.query;
+  const { page, limit, search } = req.query;
 
-  const query = {
-    role: "instructor",
-  };
+  const query = { role: "instructor" };
 
   if (search) {
     query.$or = [
-      {
-        firstName: {
-          $regex: search,
-          $options: "i",
-        },
-      },
-      {
-        lastName: {
-          $regex: search,
-          $options: "i",
-        },
-      },
-      {
-        email: {
-          $regex: search,
-          $options: "i",
-        },
-      },
+      { firstName: { $regex: search, $options: "i" } },
+      { lastName: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } },
     ];
   }
 
-  const result = await paginate(User, query, {
-    page,
-    limit,
-  });
+  const result = await paginate(User, query, { page, limit });
 
-  sendResponse(
-    res,
-    200,
-    "Instructors retrieved",
-    result
-  );
+  sendResponse(res, 200, "Instructors retrieved", result);
 });
 
 // ─────────────────────────────────────────────────────────────
 // Get instructor applications
 // ─────────────────────────────────────────────────────────────
-export const getInstructorApplications = asyncHandler(
-  async (req, res) => {
-    const {
-      page,
-      limit,
-      status = "pending",
-    } = req.query;
+export const getInstructorApplications = asyncHandler(async (req, res) => {
+  const { page, limit, status = "pending" } = req.query;
 
-    const query = {
-      applicationStatus: status,
-    };
+  const result = await paginate(
+    Instructor,
+    { applicationStatus: status },
+    { page, limit, populate: "user" }
+  );
 
-    const result = await paginate(Instructor, query, {
-      page,
-      limit,
-      populate: "user",
-    });
-
-    sendResponse(
-      res,
-      200,
-      "Instructor applications retrieved",
-      result
-    );
-  }
-);
-
-// ─────────────────────────────────────────────────────────────
-// Get single instructor
-// ─────────────────────────────────────────────────────────────
+  sendResponse(res, 200, "Instructor applications retrieved", result);
+});
 
 // ─────────────────────────────────────────────────────────────
 // Get single instructor with essential details
 // ─────────────────────────────────────────────────────────────
 export const getInstructor = asyncHandler(async (req, res) => {
-  const instructor = await Instructor.findOne({
-    user: req.params.id,
-  })
+  const instructor = await Instructor.findOne({ user: req.params.id })
     .select(
       [
         "applicationStatus",
@@ -170,10 +126,7 @@ export const getInstructor = asyncHandler(async (req, res) => {
 
   const userId = instructor.user._id;
 
-  // Get instructor's courses
-  const courses = await Course.find({
-    instructor: userId,
-  })
+  const courses = await Course.find({ instructor: userId })
     .select(
       [
         "title",
@@ -204,10 +157,7 @@ export const getInstructor = asyncHandler(async (req, res) => {
     )
     .sort({ createdAt: -1 });
 
-  // Get the instructor's 10 most recent reviews
-  const reviews = await Review.find({
-    instructor: userId,
-  })
+  const reviews = await Review.find({ instructor: userId })
     .select(
       [
         "student",
@@ -226,27 +176,17 @@ export const getInstructor = asyncHandler(async (req, res) => {
         "createdAt",
       ].join(" ")
     )
-    .populate({
-      path: "student",
-      select: "firstName lastName avatar",
-    })
-    .populate({
-      path: "course",
-      select: "title slug thumbnail",
-    })
+    .populate({ path: "student", select: "firstName lastName avatar" })
+    .populate({ path: "course", select: "title slug thumbnail" })
     .sort({ createdAt: -1 })
     .limit(10);
 
-  // Keep existing instructor fields available to the frontend
   const instructorData = instructor.toObject();
-  console.log("Instructor Data:", instructorData);
 
   sendResponse(res, 200, "Instructor retrieved", {
     ...instructorData,
-
     courses,
     reviews,
-
     stats: {
       totalCourses: instructor.totalCourses || 0,
       totalStudents: instructor.totalStudents || 0,
@@ -254,405 +194,215 @@ export const getInstructor = asyncHandler(async (req, res) => {
       averageRating: instructor.averageRating || 0,
       totalReviews: instructor.totalReviews || 0,
       totalLiveClasses: instructor.totalLiveClasses || 0,
-      totalAssignmentsGraded:
-        instructor.totalAssignmentsGraded || 0,
+      totalAssignmentsGraded: instructor.totalAssignmentsGraded || 0,
       xpPoints: instructor.xpPoints || 0,
       level: instructor.level || 0,
     },
   });
 });
 
-
 // ─────────────────────────────────────────────────────────────
 // Approve instructor
 // ─────────────────────────────────────────────────────────────
-export const approveInstructor = asyncHandler(
-  async (req, res) => {
-    /*
-    ----------------------------------------------------------
-    1. Find the instructor application
-    ----------------------------------------------------------
-    */
-    const instructor = await Instructor.findOne({
-      user: req.params.id,
-    });
+export const approveInstructor = asyncHandler(async (req, res) => {
+  // 1. Find application
+  const instructor = await Instructor.findOne({ user: req.params.id });
 
-    if (!instructor) {
-      return sendResponse(
-        res,
-        404,
-        "Instructor application not found"
-      );
-    }
+  if (!instructor) {
+    return sendResponse(res, 404, "Instructor application not found");
+  }
 
-    /*
-    ----------------------------------------------------------
-    2. Find the actual User account
-    ----------------------------------------------------------
-    */
-    const user = await User.findById(instructor.user);
+  // 2. Find user
+  const user = await User.findById(instructor.user);
 
-    if (!user) {
-      return sendResponse(
-        res,
-        404,
-        "User associated with this instructor application was not found"
-      );
-    }
+  if (!user) {
+    return sendResponse(
+      res,
+      404,
+      "User associated with this instructor application was not found"
+    );
+  }
 
-    /*
-    ----------------------------------------------------------
-    3. Prevent unnecessary duplicate approval
-    ----------------------------------------------------------
-    */
-    if (
-      instructor.applicationStatus === "approved" &&
-      user.role === "instructor"
-    ) {
-      return sendResponse(
-        res,
-        400,
-        "This instructor application has already been approved"
-      );
-    }
+  // 3. Prevent duplicate approval
+  if (instructor.applicationStatus === "approved" && user.role === "instructor") {
+    return sendResponse(
+      res,
+      400,
+      "This instructor application has already been approved"
+    );
+  }
 
-    /*
-    ----------------------------------------------------------
-    4. Change the actual User role
+  // 4. Promote user, verify email, create one-time password setup token
+  const setPasswordToken = crypto.randomBytes(32).toString("hex");
 
-       THIS IS THE IMPORTANT FIX.
-
-       Student:
-       role = "student"
-
-       After approval:
-       role = "instructor"
-    ----------------------------------------------------------
-    */
-    user.role = "instructor";
-
-    await user.save();
-
-    /*
-    ----------------------------------------------------------
-    5. Update instructor application
-    ----------------------------------------------------------
-    */
-    instructor.applicationStatus = "approved";
-    instructor.approvedBy = req.user._id;
-    instructor.approvedAt = new Date();
-    instructor.rejectionReason = null;
-
-    await instructor.save();
-
-
-/*
-----------------------------------------------------------
-6. Populate user for email/notification/response
-----------------------------------------------------------
-*/
-
-await instructor.populate("user");
-
-/*
-----------------------------------------------------------
-7. Generate secure one-time password setup token
-----------------------------------------------------------
-*/
-
-// Generate a cryptographically secure random token
-const setPasswordToken = crypto.randomBytes(32).toString("hex");
-
-// Store only the SHA-256 hash in the database
-user.passwordSetupTokenHash = crypto
-  .createHash("sha256")
-  .update(setPasswordToken)
-  .digest("hex");
-
-// Token expires after 7 days
-user.passwordSetupExpire = new Date(
-  Date.now() + 7 * 24 * 60 * 60 * 1000
-);
-
-await user.save();
-
-/*
-----------------------------------------------------------
-8. Send instructor approval email
-----------------------------------------------------------
-*/
-
-try {
-  await sendEmail({
-    to: instructor.user.email,
-
-    subject: EMAIL_SUBJECTS.INSTRUCTOR_APPROVED,
-
-    htmlContent: instructorApprovedTemplate({
-      firstName: instructor.user.firstName,
-
-      setPasswordUrl:
-        `${process.env.CLIENT_URL}/set-password/${setPasswordToken}`,
-
-      loginUrl:
-        `${process.env.CLIENT_URL}/login`,
-    }),
-  });
-} catch (err) {
-  // Invalidate the token if email delivery fails.
-  user.passwordSetupTokenHash = undefined;
-  user.passwordSetupExpire = undefined;
+  user.role = "instructor";
+  user.isEmailVerified = true;
+  user.passwordSetupTokenHash = crypto
+    .createHash("sha256")
+    .update(setPasswordToken)
+    .digest("hex");
+  user.passwordSetupExpire = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   await user.save();
 
-  console.error(
-    "[INSTRUCTOR APPROVED EMAIL]",
-    err.message
-  );
-}
+  // 5. Update application
+  instructor.applicationStatus = "approved";
+  instructor.approvedBy = req.user._id;
+  instructor.approvedAt = new Date();
+  instructor.rejectionReason = null;
 
+  await instructor.save();
 
-    /*
-    ----------------------------------------------------------
-    8. Create in-app notification
-    ----------------------------------------------------------
-    */
-    await createNotification({
-      recipientId: instructor.user._id,
+  // 6. Populate user for email / notification / response
+  await instructor.populate("user");
 
-      type: NOTIFICATION_TYPES.SYSTEM,
-
-      title: "Application Approved! 🎓",
-
-      message:
-        "Congratulations! Your instructor application has been approved. Your account is now an instructor account.",
-
-      actionUrl:
-        "/instructor/dashboard",
+  // 7. Send approval email (a mail failure must not break the approval)
+  try {
+    await sendEmail({
+      to: instructor.user.email,
+      subject: EMAIL_SUBJECTS.INSTRUCTOR_APPROVED,
+      htmlContent: instructorApprovedTemplate({
+        firstName: instructor.user.firstName,
+        setPasswordUrl: `${process.env.CLIENT_URL}/set-password/${setPasswordToken}`,
+        loginUrl: `${process.env.CLIENT_URL}/login`,
+      }),
     });
+  } catch (err) {
+    console.error("[INSTRUCTOR APPROVED EMAIL]", err.message);
 
-    /*
-    ----------------------------------------------------------
-    9. Audit log
-    ----------------------------------------------------------
-    */
-    await auditLogger({
-      actor: req.user._id,
-
-      actorRole: req.user.role,
-
-      action:
-        `Approved instructor: ${instructor.user.email}`,
-
-      type: AUDIT_TYPES.APPROVAL,
-
-      targetModel: "Instructor",
-
-      targetId: instructor._id,
-
-      ipAddress: req.ip,
-    });
-
-    /*
-    ----------------------------------------------------------
-    10. Return successful response
-    ----------------------------------------------------------
-    */
-    sendResponse(
-      res,
-      200,
-      "Instructor approved successfully. User role changed to instructor.",
-      instructor
-    );
+    // Token was never delivered, so invalidate it. They can use Forgot password.
+    user.passwordSetupTokenHash = undefined;
+    user.passwordSetupExpire = undefined;
+    await user.save();
   }
-);
+
+  // 8. In-app notification
+  await createNotification({
+    recipientId: instructor.user._id,
+    type: NOTIFICATION_TYPES.SYSTEM,
+    title: "Application Approved! 🎓",
+    message:
+      "Congratulations! Your instructor application has been approved. Your account is now an instructor account.",
+    actionUrl: "/instructor/dashboard",
+  });
+
+  // 9. Audit log
+  await auditLogger({
+    actor: req.user._id,
+    actorRole: req.user.role,
+    action: `Approved instructor: ${instructor.user.email}`,
+    type: AUDIT_TYPES.APPROVAL,
+    targetModel: "Instructor",
+    targetId: instructor._id,
+    ipAddress: req.ip,
+  });
+
+  // 10. Response
+  sendResponse(
+    res,
+    200,
+    "Instructor approved successfully. User role changed to instructor.",
+    instructor
+  );
+});
 
 // ─────────────────────────────────────────────────────────────
 // Reject instructor
 // ─────────────────────────────────────────────────────────────
-export const rejectInstructor = asyncHandler(
-  async (req, res) => {
-    const { reason } = req.body;
+export const rejectInstructor = asyncHandler(async (req, res) => {
+  const { reason } = req.body;
 
-    const instructor = await Instructor.findOneAndUpdate(
-      {
-        user: req.params.id,
-      },
-      {
-        applicationStatus: "rejected",
-        rejectionReason:
-          reason ||
-          "Your application did not meet our current requirements.",
-      },
-      {
-        new: true,
-      }
-    ).populate("user");
+  const rejectionReason =
+    reason || "Your application did not meet our current requirements.";
 
-    if (!instructor) {
-      return sendResponse(
-        res,
-        404,
-        "Instructor not found"
-      );
-    }
+  const instructor = await Instructor.findOneAndUpdate(
+    { user: req.params.id },
+    {
+      applicationStatus: "rejected",
+      rejectionReason,
+    },
+    { new: true }
+  ).populate("user");
 
-    /*
-    ----------------------------------------------------------
-    Make sure rejection does not accidentally leave a student
-    as an instructor.
+  if (!instructor) {
+    return sendResponse(res, 404, "Instructor not found");
+  }
 
-    Normally a pending student application should still have
-    role = student, so we only force the role back if needed.
-    ----------------------------------------------------------
-    */
-    if (instructor.user.role === "instructor") {
-      instructor.user.role = "student";
-      await instructor.user.save();
-    }
+  // Never leave a rejected applicant as an instructor
+  if (instructor.user.role === "instructor") {
+    instructor.user.role = "student";
+    await instructor.user.save();
+  }
 
-    /*
-    ----------------------------------------------------------
-    Send rejection email
-    ----------------------------------------------------------
-    */
+  try {
     await sendEmail({
       to: instructor.user.email,
-
-      subject:
-        EMAIL_SUBJECTS.INSTRUCTOR_REJECTED,
-
-      htmlContent:
-        instructorRejectedTemplate({
-          firstName:
-            instructor.user.firstName,
-
-          reason:
-            reason ||
-            "Your application did not meet our current requirements.",
-
-          reapplyUrl:
-            `${process.env.CLIENT_URL}/apply-instructor`,
-        }),
+      subject: EMAIL_SUBJECTS.INSTRUCTOR_REJECTED,
+      htmlContent: instructorRejectedTemplate({
+        firstName: instructor.user.firstName,
+        reason: rejectionReason,
+        reapplyUrl: `${process.env.CLIENT_URL}/apply-instructor`,
+      }),
     });
-
-    /*
-    ----------------------------------------------------------
-    Audit log
-    ----------------------------------------------------------
-    */
-    await auditLogger({
-      actor: req.user._id,
-
-      actorRole: req.user.role,
-
-      action:
-        `Rejected instructor: ${instructor.user.email}`,
-
-      type: AUDIT_TYPES.APPROVAL,
-
-      targetModel: "Instructor",
-
-      targetId: instructor._id,
-
-      ipAddress: req.ip,
-    });
-
-    sendResponse(
-      res,
-      200,
-      "Instructor rejected",
-      instructor
-    );
+  } catch (err) {
+    console.error("[INSTRUCTOR REJECTED EMAIL]", err.message);
   }
-);
+
+  await auditLogger({
+    actor: req.user._id,
+    actorRole: req.user.role,
+    action: `Rejected instructor: ${instructor.user.email}`,
+    type: AUDIT_TYPES.APPROVAL,
+    targetModel: "Instructor",
+    targetId: instructor._id,
+    ipAddress: req.ip,
+  });
+
+  sendResponse(res, 200, "Instructor rejected", instructor);
+});
 
 // ─────────────────────────────────────────────────────────────
 // Get instructor performance
 // ─────────────────────────────────────────────────────────────
-export const getInstructorPerformance = asyncHandler(
-  async (req, res) => {
-    const instructor = await Instructor.findOne({
-      user: req.params.id,
-    });
+export const getInstructorPerformance = asyncHandler(async (req, res) => {
+  const instructor = await Instructor.findOne({ user: req.params.id });
 
-    if (!instructor) {
-      return sendResponse(
-        res,
-        404,
-        "Instructor not found"
-      );
-    }
-
-    const courses = await Course.find({
-      instructor: req.params.id,
-    });
-
-    sendResponse(
-      res,
-      200,
-      "Instructor performance retrieved",
-      {
-        instructor,
-
-        courses,
-
-        stats: {
-          totalCourses:
-            instructor.totalCourses,
-
-          totalStudents:
-            instructor.totalStudents,
-
-          totalRevenue:
-            instructor.totalRevenue,
-
-          averageRating:
-            instructor.averageRating,
-        },
-      }
-    );
+  if (!instructor) {
+    return sendResponse(res, 404, "Instructor not found");
   }
-);
+
+  const courses = await Course.find({ instructor: req.params.id });
+
+  sendResponse(res, 200, "Instructor performance retrieved", {
+    instructor,
+    courses,
+    stats: {
+      totalCourses: instructor.totalCourses,
+      totalStudents: instructor.totalStudents,
+      totalRevenue: instructor.totalRevenue,
+      averageRating: instructor.averageRating,
+    },
+  });
+});
 
 // ─────────────────────────────────────────────────────────────
 // Get instructor earnings
 // ─────────────────────────────────────────────────────────────
-export const getInstructorEarnings = asyncHandler(
-  async (req, res) => {
-    const payments = await Payment.find({
-      status: "success",
-    }).sort({
-      createdAt: -1,
-    });
+export const getInstructorEarnings = asyncHandler(async (req, res) => {
+  const payments = await Payment.find({ status: "success" }).sort({
+    createdAt: -1,
+  });
 
-    sendResponse(
-      res,
-      200,
-      "Instructor earnings retrieved",
-      payments
-    );
-  }
-);
+  sendResponse(res, 200, "Instructor earnings retrieved", payments);
+});
 
 // ─────────────────────────────────────────────────────────────
 // Get instructor activity
 // ─────────────────────────────────────────────────────────────
-export const getInstructorActivity = asyncHandler(
-  async (req, res) => {
-    const courses = await Course.find({
-      instructor: req.params.id,
-    })
-      .sort({
-        updatedAt: -1,
-      })
-      .limit(10);
+export const getInstructorActivity = asyncHandler(async (req, res) => {
+  const courses = await Course.find({ instructor: req.params.id })
+    .sort({ updatedAt: -1 })
+    .limit(10);
 
-    sendResponse(
-      res,
-      200,
-      "Instructor activity retrieved",
-      courses
-    );
-  }
-);
+  sendResponse(res, 200, "Instructor activity retrieved", courses);
+});

@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import jwt from "jsonwebtoken";
 import User from "../../models/user/User.js";
 import sendResponse from "../../utils/sendResponse.js";
 import asyncHandler from "../../middlewares/error/asyncHandler.js";
@@ -82,6 +81,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
   }
 
   user.password = password;
+  user.isEmailVerified = true; // the code was delivered to their inbox
   user.passwordResetToken = undefined;
   user.passwordResetExpire = undefined;
 
@@ -122,12 +122,9 @@ export const changePassword = asyncHandler(async (req, res) => {
   return sendResponse(res, 200, "Password changed successfully");
 });
 
-
 // ── Set password with invitation token ────────────────────
 // POST /api/auth/set-password (PUBLIC)
-
 export const setPasswordWithToken = asyncHandler(async (req, res) => {
-  // 1. Validate request
   const { error } = setPasswordValidator(req.body);
 
   if (error) {
@@ -140,14 +137,9 @@ export const setPasswordWithToken = asyncHandler(async (req, res) => {
 
   const { token, password } = req.body;
 
-  // 2. Hash the incoming token
-  const tokenHash = crypto
-    .createHash("sha256")
-    .update(token)
-    .digest("hex");
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 
-  // 3. Atomically find and consume the valid token.
-  // This prevents two requests from using the same invitation.
+  // Atomically find and consume the token so it can only be used once
   const user = await User.findOneAndUpdate(
     {
       passwordSetupTokenHash: tokenHash,
@@ -159,10 +151,7 @@ export const setPasswordWithToken = asyncHandler(async (req, res) => {
         passwordSetupExpire: 1,
       },
     },
-    {
-      new: true,
-      runValidators: false,
-    }
+    { new: true, runValidators: false }
   ).select("+password");
 
   if (!user) {
@@ -173,10 +162,9 @@ export const setPasswordWithToken = asyncHandler(async (req, res) => {
     );
   }
 
-  // 4. Set password
   user.password = password;
+  user.isEmailVerified = true; // clicking the emailed link proves inbox ownership
 
-  // 5. Save through User model password hashing middleware
   await user.save();
 
   return sendResponse(
