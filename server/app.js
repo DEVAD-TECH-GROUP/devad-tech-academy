@@ -48,6 +48,7 @@ import integrationRoutes from "./routes/superadmin/integrationRoutes.js";
 import settingRoutes from "./routes/superadmin/settingRoutes.js";
 import aiRoutes from "./routes/superadmin/aiRoutes.js";
 import notificationRoutes from "./routes/superadmin/notificationRoutes.js";
+import courseThumbnailRoutes from "./routes/superadmin/courseThumbnailRoutes.js";
 
 
 // Instructor routes
@@ -248,6 +249,11 @@ app.use(
 app.use(
   "/api/superadmin/courses",
   courseRoutes
+);
+
+app.use(
+  "/api/superadmin/course-thumbnails",
+  courseThumbnailRoutes
 );
 
 app.use(
