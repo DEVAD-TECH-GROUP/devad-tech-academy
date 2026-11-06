@@ -112,6 +112,8 @@ import AdminProfile from "../pages/superadmin/Profile";
 import AdminUsers from "../pages/superadmin/users/Users";
 import AdminUserDetail from "../pages/superadmin/users/UserDetail";
 
+import CourseThumbnails from "../pages/superadmin/CourseThumbnails";
+
 import Categories from "../pages/superadmin/Categories";
 import AdminInstructors from "../pages/superadmin/instructors/Instructors";
 import AdminInstructorDetail from "../pages/superadmin/instructors/InstructorDetail";
@@ -609,6 +611,11 @@ const router = createBrowserRouter([
       {
         path: "courses",
         element: <AdminCourses />,
+      },
+
+      {
+        path: "course-thumbnails",
+        element: <CourseThumbnails />,
       },
 
       {
