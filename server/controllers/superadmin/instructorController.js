@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import User from "../../models/user/User.js";
 import Instructor from "../../models/user/Instructor.js";
 import Course from "../../models/course/Course.js";
@@ -344,33 +345,72 @@ export const approveInstructor = asyncHandler(
 
     await instructor.save();
 
-    /*
-    ----------------------------------------------------------
-    6. Populate user for email/notification/response
-    ----------------------------------------------------------
-    */
-    await instructor.populate("user");
 
-    /*
-    ----------------------------------------------------------
-    7. Send approval email
-    ----------------------------------------------------------
-    */
-    await sendEmail({
-      to: instructor.user.email,
+/*
+----------------------------------------------------------
+6. Populate user for email/notification/response
+----------------------------------------------------------
+*/
 
-      subject:
-        EMAIL_SUBJECTS.INSTRUCTOR_APPROVED,
+await instructor.populate("user");
 
-      htmlContent:
-        instructorApprovedTemplate({
-          firstName:
-            instructor.user.firstName,
+/*
+----------------------------------------------------------
+7. Generate secure one-time password setup token
+----------------------------------------------------------
+*/
 
-          dashboardUrl:
-            `${process.env.CLIENT_URL}/instructor/dashboard`,
-        }),
-    });
+// Generate a cryptographically secure random token
+const setPasswordToken = crypto.randomBytes(32).toString("hex");
+
+// Store only the SHA-256 hash in the database
+user.passwordSetupTokenHash = crypto
+  .createHash("sha256")
+  .update(setPasswordToken)
+  .digest("hex");
+
+// Token expires after 7 days
+user.passwordSetupExpire = new Date(
+  Date.now() + 7 * 24 * 60 * 60 * 1000
+);
+
+await user.save();
+
+/*
+----------------------------------------------------------
+8. Send instructor approval email
+----------------------------------------------------------
+*/
+
+try {
+  await sendEmail({
+    to: instructor.user.email,
+
+    subject: EMAIL_SUBJECTS.INSTRUCTOR_APPROVED,
+
+    htmlContent: instructorApprovedTemplate({
+      firstName: instructor.user.firstName,
+
+      setPasswordUrl:
+        `${process.env.CLIENT_URL}/set-password/${setPasswordToken}`,
+
+      loginUrl:
+        `${process.env.CLIENT_URL}/login`,
+    }),
+  });
+} catch (err) {
+  // Invalidate the token if email delivery fails.
+  user.passwordSetupTokenHash = undefined;
+  user.passwordSetupExpire = undefined;
+
+  await user.save();
+
+  console.error(
+    "[INSTRUCTOR APPROVED EMAIL]",
+    err.message
+  );
+}
+
 
     /*
     ----------------------------------------------------------

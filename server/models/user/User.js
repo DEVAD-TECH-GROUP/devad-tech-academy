@@ -208,6 +208,19 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
 
+
+
+    passwordSetupTokenHash: {
+      type: String,
+      select: false,
+    },
+
+    passwordSetupExpire: {
+      type: Date,
+      select: false,
+    },
+
+
     // ============================================================
     // GOOGLE AUTHENTICATION
     // ============================================================

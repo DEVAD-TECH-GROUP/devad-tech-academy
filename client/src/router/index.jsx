@@ -40,6 +40,7 @@ import InstructorApplication from "../pages/shared/contact/InstructorApplication
 import Login from "../pages/auth/Login";
 import Register from "../pages/auth/Register";
 import ForgotPassword from "../pages/auth/ForgotPassword";
+import SetPassword from "../pages/auth/SetPassword";
 import ResetPassword from "../pages/auth/ResetPassword";
 import VerifyEmail from "../pages/auth/VerifyEmail";
 import GoogleCallback from "../pages/auth/GoogleCallback";
@@ -255,6 +256,11 @@ const router = createBrowserRouter([
       {
         path: "reset-password/:token",
         element: <ResetPassword />,
+      },
+
+      {
+        path: "/set-password/:token",
+        element: <SetPassword />,
       },
 
       // /verify-email/:token
