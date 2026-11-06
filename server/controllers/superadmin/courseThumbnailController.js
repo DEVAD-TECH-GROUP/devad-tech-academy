@@ -1,5 +1,5 @@
 
-import CourseThumbnail from "../../models/course/CourseThumbnail.js";
+import CourseThumbnail from "../../models/course/Thumbnail.js";
 import Course from "../../models/course/Course.js";
 import cloudinary from "../../config/cloudinary.js";
 import sendResponse from "../../utils/sendResponse.js";
