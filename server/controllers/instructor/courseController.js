@@ -4,6 +4,7 @@ import Course from "../../models/course/Course.js";
 import Module from "../../models/course/Module.js";
 import Lesson from "../../models/course/Lesson.js";
 import Project from "../../models/course/Project.js";
+import CourseThumbnail from "../../models/course/Thumbnail.js";
 import FAQ from "../../models/course/FAQ.js";
 import Resource from "../../models/course/Resource.js";
 import Enrollment from "../../models/learning/Enrollment.js";
@@ -68,6 +69,11 @@ export const getMyCourses = asyncHandler(async (req, res) => {
  * CREATE COURSE
  * ============================================================
  */
+/**
+ * ============================================================
+ * CREATE COURSE
+ * ============================================================
+ */
 export const createCourse = asyncHandler(async (req, res) => {
   const {
     error,
@@ -82,6 +88,22 @@ export const createCourse = asyncHandler(async (req, res) => {
         .map((detail) => detail.message)
         .join(", ")
     );
+  }
+
+  // Verify that the selected thumbnail exists and is active.
+  if (value.thumbnail) {
+    const thumbnailExists = await CourseThumbnail.exists({
+      _id: value.thumbnail,
+      isActive: true,
+    });
+
+    if (!thumbnailExists) {
+      return sendResponse(
+        res,
+        400,
+        "Selected course thumbnail is unavailable. Please choose another thumbnail."
+      );
+    }
   }
 
   const course = await Course.create({
@@ -99,7 +121,8 @@ export const createCourse = asyncHandler(async (req, res) => {
 
   const populatedCourse = await Course.findById(course._id)
     .populate("category", "name slug description icon color")
-    .populate("instructor", "firstName lastName email");
+    .populate("instructor", "firstName lastName email")
+    .populate("thumbnail", "title description image category");
 
   return sendResponse(
     res,

@@ -1,3 +1,4 @@
+
 import Joi from "joi";
 
 const settingsSchema = Joi.object({
@@ -70,6 +71,12 @@ const liveClassesSchema = Joi.object({
     .default(null),
 });
 
+// MongoDB ObjectId validation
+const thumbnailSchema = Joi.string()
+  .hex()
+  .length(24)
+  .allow(null);
+
 export const createCourseValidator = (data) => {
   const schema = Joi.object({
     title: Joi.string()
@@ -91,6 +98,9 @@ export const createCourseValidator = (data) => {
       .min(20)
       .max(5000)
       .required(),
+
+    // Optional course thumbnail
+    thumbnail: thumbnailSchema.default(null),
 
     category: Joi.string()
       .required(),
@@ -139,14 +149,11 @@ export const createCourseValidator = (data) => {
       .allow(null)
       .default(null),
 
-    installments: installmentsSchema
-      .default(),
+    installments: installmentsSchema.default(),
 
-    settings: settingsSchema
-      .default(),
+    settings: settingsSchema.default(),
 
-    liveClasses: liveClassesSchema
-      .default(),
+    liveClasses: liveClassesSchema.default(),
   });
 
   return schema.validate(data, {
@@ -176,6 +183,9 @@ export const updateCourseValidator = (data) => {
       .min(20)
       .max(5000)
       .optional(),
+
+    // Allows changing or removing the selected thumbnail
+    thumbnail: thumbnailSchema.optional(),
 
     category: Joi.string()
       .optional(),
@@ -223,14 +233,11 @@ export const updateCourseValidator = (data) => {
       .allow(null)
       .optional(),
 
-    installments: installmentsSchema
-      .optional(),
+    installments: installmentsSchema.optional(),
 
-    settings: settingsSchema
-      .optional(),
+    settings: settingsSchema.optional(),
 
-    liveClasses: liveClassesSchema
-      .optional(),
+    liveClasses: liveClassesSchema.optional(),
   });
 
   return schema.validate(data, {
