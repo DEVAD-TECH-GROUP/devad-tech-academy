@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import mongoose from "mongoose";
 
 import User from "../../models/user/User.js";
@@ -12,80 +13,71 @@ HELPERS
 ============================================================
 */
 
-/**
- * Get authenticated user's ID.
- *
- * authenticate.js attaches the full User document to req.user.
- */
-const getUserId = (req) => {
-  return req.user?._id || req.user?.id || null;
-};
+const getUserId = (req) => req.user?._id || req.user?.id || null;
 
-/**
- * Convert expertise input into an array.
- *
- * Supports:
- *
- * "JavaScript, Python, React"
- *
- * or:
- *
- * ["JavaScript", "Python", "React"]
- */
+const clean = (v) => String(v ?? "").trim();
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// "JavaScript, Python" or ["JavaScript", "Python"] -> array
 const normalizeExpertise = (value) => {
   if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item).trim())
-      .filter(Boolean);
+    return value.map((i) => String(i).trim()).filter(Boolean);
   }
-
   if (typeof value === "string") {
     return value
       .split(",")
-      .map((item) => item.trim())
+      .map((i) => i.trim())
       .filter(Boolean);
   }
-
   return [];
 };
 
-/**
- * Convert experience input into a number.
- *
- * Supports:
- *
- * "5"
- * 5
- * "5 years"
- * "5 years of experience"
- */
+// "5", 5, "5 years" -> 5
 const normalizeExperience = (value) => {
-  if (value === undefined || value === null || value === "") {
-    return null;
-  }
+  if (value === undefined || value === null || value === "") return null;
 
   const matched = String(value).match(/\d+(\.\d+)?/);
-
-  if (!matched) {
-    return null;
-  }
+  if (!matched) return null;
 
   const number = Number.parseFloat(matched[0]);
-
-  if (Number.isNaN(number)) {
-    return null;
-  }
-
-  return number;
+  return Number.isNaN(number) ? null : number;
 };
 
-/**
- * Build CV object from multer-storage-cloudinary.
- */
-const buildCVData = (file) => {
-  if (!file) {
-    return null;
+// JSON string or array -> array
+const parseJSONArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
+};
+
+const normalizeEducation = (value) =>
+  parseJSONArray(value)
+    .map((i) => ({
+      degree: clean(i?.degree),
+      institution: clean(i?.institution),
+      year: clean(i?.year),
+    }))
+    .filter((i) => i.degree || i.institution);
+
+const normalizeCertifications = (value) =>
+  parseJSONArray(value)
+    .map((i) => ({
+      name: clean(i?.name),
+      issuer: clean(i?.issuer),
+      year: clean(i?.year),
+      url: clean(i?.url),
+    }))
+    .filter((i) => i.name);
+
+// multer-storage-cloudinary file -> CV object
+const buildCVData = (file) => {
+  if (!file) return null;
 
   return {
     url: file.path || null,
@@ -94,123 +86,274 @@ const buildCVData = (file) => {
   };
 };
 
-/**
- * Populate application consistently.
- */
-const populateApplication = (query) => {
-  return query.populate(
-    "user",
-    "firstName lastName email phone role"
-  );
-};
+const populateApplication = (query) =>
+  query.populate("user", "firstName lastName email phone role");
 
-/**
- * Validate a MongoDB ObjectId.
- */
-const isValidObjectId = (id) => {
-  return mongoose.Types.ObjectId.isValid(id);
-};
+const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 /*
 ============================================================
-1. SUBMIT INSTRUCTOR APPLICATION
-============================================================
-
+1. SUBMIT INSTRUCTOR APPLICATION  (PUBLIC - no login)
 POST /api/instructor/applications
 ============================================================
 */
 
-export const submitInstructorApplication = asyncHandler(
-  async (req, res) => {
-    const userId = getUserId(req);
+export const submitInstructorApplication = asyncHandler(async (req, res) => {
+  const {
+    name,
+    email,
+    phone,
+    expertise,
+    experience,
+    portfolio,
+    teachingExperience,
+    course,
+    availability,
+    coverLetter,
+    education,
+    certifications,
+  } = req.body;
 
-    /*
-    --------------------------------------------------------
-    AUTHENTICATION
-    --------------------------------------------------------
-    */
+  /* ---------- Required fields ---------- */
 
-    if (!userId) {
-      return sendResponse(
-        res,
-        401,
-        "Authentication required"
-      );
+  const required = {
+    "Full name": name,
+    Email: email,
+    "Phone number": phone,
+    "Teaching experience": teachingExperience,
+    Course: course,
+    Availability: availability,
+    "Cover letter": coverLetter,
+  };
+
+  for (const [label, value] of Object.entries(required)) {
+    if (!clean(value)) {
+      return sendResponse(res, 400, `${label} is required`);
     }
+  }
 
-    /*
-    --------------------------------------------------------
-    FIND USER
-    --------------------------------------------------------
-    */
+  const normalizedEmail = clean(email).toLowerCase();
 
-    const user = await User.findById(userId);
+  if (!EMAIL_REGEX.test(normalizedEmail)) {
+    return sendResponse(res, 400, "A valid email is required");
+  }
 
-    if (!user) {
-      return sendResponse(
-        res,
-        404,
-        "User account not found"
-      );
+  const normalizedExpertise = normalizeExpertise(expertise);
+
+  if (normalizedExpertise.length === 0) {
+    return sendResponse(res, 400, "At least one area of expertise is required");
+  }
+
+  const normalizedExperience = normalizeExperience(experience);
+
+  if (normalizedExperience === null || normalizedExperience < 0) {
+    return sendResponse(res, 400, "Valid years of experience are required");
+  }
+
+  /* ---------- Find or create User (existing users are never modified) ---------- */
+
+  let user = await User.findOne({ email: normalizedEmail });
+
+  if (!user) {
+    const [firstName, ...rest] = clean(name).split(/\s+/);
+
+    user = await User.create({
+      firstName,
+      lastName: rest.join(" "),
+      email: normalizedEmail,
+      phone: clean(phone),
+      password: crypto.randomBytes(24).toString("hex"),
+      role: "student",
+    });
+  }
+
+  /* ---------- Existing application checks ---------- */
+
+  const existingApplication = await Instructor.findOne({ user: user._id });
+
+  if (existingApplication?.applicationStatus === "pending") {
+    return sendResponse(
+      res,
+      409,
+      "An instructor application with this email is already pending"
+    );
+  }
+
+  if (existingApplication?.applicationStatus === "approved") {
+    return sendResponse(
+      res,
+      409,
+      "An instructor application with this email has already been approved"
+    );
+  }
+
+  /* ---------- Application data ---------- */
+
+  const applicationData = {
+    user: user._id,
+    applicationEmail: normalizedEmail,
+    applicationPhone: clean(phone),
+    expertise: normalizedExpertise,
+    experience: normalizedExperience,
+    portfolio: clean(portfolio) || null,
+    teachingExperience: clean(teachingExperience),
+    course: clean(course),
+    availability: clean(availability),
+    coverLetter: clean(coverLetter),
+    education: normalizeEducation(education),
+    certifications: normalizeCertifications(certifications),
+    applicationStatus: "pending",
+    applicationDate: new Date(),
+    approvedBy: null,
+    approvedAt: null,
+    rejectionReason: null,
+  };
+
+  if (req.file) {
+    applicationData.cv = buildCVData(req.file);
+  }
+
+  /* ---------- Create or resubmit (rejected) ---------- */
+
+  let application;
+
+  if (existingApplication) {
+    Object.assign(existingApplication, applicationData);
+    application = await existingApplication.save();
+  } else {
+    application = await Instructor.create(applicationData);
+  }
+
+  /* ---------- Response (minimal: endpoint is public) ---------- */
+
+  return sendResponse(
+    res,
+    201,
+    "Instructor application submitted successfully",
+    {
+      _id: application._id,
+      applicationStatus: application.applicationStatus,
     }
+  );
+});
 
-    /*
-    --------------------------------------------------------
-    GET FORM DATA
-    --------------------------------------------------------
-    */
+/*
+============================================================
+2. GET MY INSTRUCTOR APPLICATION
+GET /api/instructor/applications/me
+============================================================
+*/
 
-    const {
-      name,
-      email,
-      phone,
-      expertise,
-      experience,
-      portfolio,
-      teachingExperience,
-      course,
-      availability,
-      coverLetter,
-    } = req.body;
+export const getMyInstructorApplication = asyncHandler(async (req, res) => {
+  const userId = getUserId(req);
 
-    /*
-    --------------------------------------------------------
-    REQUIRED VALIDATION
-    --------------------------------------------------------
-    */
+  if (!userId) {
+    return sendResponse(res, 401, "Authentication required");
+  }
 
-    if (!name?.trim()) {
-      return sendResponse(
-        res,
-        400,
-        "Full name is required"
-      );
-    }
+  const application = await populateApplication(
+    Instructor.findOne({ user: userId })
+  );
 
-    if (!email?.trim()) {
-      return sendResponse(
-        res,
-        400,
-        "Email is required"
-      );
-    }
+  if (!application) {
+    return sendResponse(res, 404, "No instructor application found");
+  }
 
-    if (!phone?.trim()) {
-      return sendResponse(
-        res,
-        400,
-        "Phone number is required"
-      );
-    }
+  return sendResponse(
+    res,
+    200,
+    "Instructor application retrieved successfully",
+    application
+  );
+});
 
-    /*
-    --------------------------------------------------------
-    EXPERTISE
-    --------------------------------------------------------
-    */
+/*
+============================================================
+3. GET SPECIFIC APPLICATION (own only)
+GET /api/instructor/applications/:id
+============================================================
+*/
 
-    const normalizedExpertise =
-      normalizeExpertise(expertise);
+export const getInstructorApplication = asyncHandler(async (req, res) => {
+  const userId = getUserId(req);
+  const { id } = req.params;
+
+  if (!userId) {
+    return sendResponse(res, 401, "Authentication required");
+  }
+
+  if (!isValidObjectId(id)) {
+    return sendResponse(res, 400, "Invalid application ID");
+  }
+
+  const application = await populateApplication(
+    Instructor.findOne({ _id: id, user: userId })
+  );
+
+  if (!application) {
+    return sendResponse(res, 404, "Instructor application not found");
+  }
+
+  return sendResponse(
+    res,
+    200,
+    "Instructor application retrieved successfully",
+    application
+  );
+});
+
+/*
+============================================================
+4. UPDATE MY INSTRUCTOR APPLICATION
+PUT /api/instructor/applications/:id
+============================================================
+*/
+
+export const updateInstructorApplication = asyncHandler(async (req, res) => {
+  const userId = getUserId(req);
+  const { id } = req.params;
+
+  if (!userId) {
+    return sendResponse(res, 401, "Authentication required");
+  }
+
+  if (!isValidObjectId(id)) {
+    return sendResponse(res, 400, "Invalid application ID");
+  }
+
+  const application = await Instructor.findOne({ _id: id, user: userId });
+
+  if (!application) {
+    return sendResponse(res, 404, "Instructor application not found");
+  }
+
+  if (application.applicationStatus === "approved") {
+    return sendResponse(
+      res,
+      409,
+      "An approved instructor application cannot be edited"
+    );
+  }
+
+  const {
+    name,
+    email,
+    phone,
+    expertise,
+    experience,
+    portfolio,
+    teachingExperience,
+    course,
+    availability,
+    coverLetter,
+    education,
+    certifications,
+  } = req.body;
+
+  /* ---------- Expertise ---------- */
+
+  if (expertise !== undefined) {
+    const normalizedExpertise = normalizeExpertise(expertise);
 
     if (normalizedExpertise.length === 0) {
       return sendResponse(
@@ -220,973 +363,210 @@ export const submitInstructorApplication = asyncHandler(
       );
     }
 
-    /*
-    --------------------------------------------------------
-    EXPERIENCE
-    --------------------------------------------------------
-    */
-
-    const normalizedExperience =
-      normalizeExperience(experience);
-
-    if (
-      normalizedExperience === null ||
-      normalizedExperience < 0
-    ) {
-      return sendResponse(
-        res,
-        400,
-        "Valid years of experience are required"
-      );
-    }
-
-    /*
-    --------------------------------------------------------
-    TEACHING EXPERIENCE
-    --------------------------------------------------------
-    */
-
-    if (!teachingExperience?.trim()) {
-      return sendResponse(
-        res,
-        400,
-        "Teaching experience is required"
-      );
-    }
-
-    /*
-    --------------------------------------------------------
-    COURSE
-    --------------------------------------------------------
-    */
-
-    if (!course?.trim()) {
-      return sendResponse(
-        res,
-        400,
-        "Course selection is required"
-      );
-    }
-
-    /*
-    --------------------------------------------------------
-    AVAILABILITY
-    --------------------------------------------------------
-    */
-
-    if (!availability?.trim()) {
-      return sendResponse(
-        res,
-        400,
-        "Availability is required"
-      );
-    }
-
-    /*
-    --------------------------------------------------------
-    COVER LETTER
-    --------------------------------------------------------
-    */
-
-    if (!coverLetter?.trim()) {
-      return sendResponse(
-        res,
-        400,
-        "Cover letter is required"
-      );
-    }
-
-    /*
-    --------------------------------------------------------
-    CHECK EXISTING APPLICATION
-    --------------------------------------------------------
-    */
-
-    const existingApplication =
-      await Instructor.findOne({
-        user: userId,
-      });
-
-    /*
-    --------------------------------------------------------
-    PENDING APPLICATION
-    --------------------------------------------------------
-    */
-
-    if (
-      existingApplication?.applicationStatus ===
-      "pending"
-    ) {
-      return sendResponse(
-        res,
-        409,
-        "You already have a pending instructor application"
-      );
-    }
-
-    /*
-    --------------------------------------------------------
-    APPROVED APPLICATION
-    --------------------------------------------------------
-    */
-
-    if (
-      existingApplication?.applicationStatus ===
-      "approved"
-    ) {
-      return sendResponse(
-        res,
-        409,
-        "Your instructor application has already been approved"
-      );
-    }
-
-    /*
-    --------------------------------------------------------
-    UPDATE USER BASIC INFORMATION
-    --------------------------------------------------------
-    */
-
-    const nameParts = name
-      .trim()
-      .split(/\s+/);
-
-    const firstName = nameParts.shift();
-    const lastName = nameParts.join(" ");
-
-    user.firstName = firstName;
-
-    if (lastName) {
-      user.lastName = lastName;
-    }
-
-    user.phone = phone.trim();
-
-    await user.save();
-
-    /*
-    --------------------------------------------------------
-    APPLICATION DATA
-    --------------------------------------------------------
-    */
-
-    const applicationData = {
-      user: userId,
-
-      applicationEmail:
-        email.trim().toLowerCase(),
-
-      applicationPhone:
-        phone.trim(),
-
-      expertise:
-        normalizedExpertise,
-
-      experience:
-        normalizedExperience,
-
-      portfolio:
-        portfolio?.trim() || null,
-
-      teachingExperience:
-        teachingExperience.trim(),
-
-      course:
-        course.trim(),
-
-      availability:
-        availability.trim(),
-
-      coverLetter:
-        coverLetter.trim(),
-
-      applicationStatus:
-        "pending",
-
-      applicationDate:
-        new Date(),
-
-      approvedBy: null,
-
-      approvedAt: null,
-
-      rejectionReason: null,
-    };
-
-    /*
-    --------------------------------------------------------
-    CV
-    --------------------------------------------------------
-    */
-
-    if (req.file) {
-      applicationData.cv =
-        buildCVData(req.file);
-    }
-
-    /*
-    --------------------------------------------------------
-    CREATE OR RESUBMIT
-    --------------------------------------------------------
-    */
-
-    let application;
-
-    if (existingApplication) {
-      /*
-      ------------------------------------------------------
-      REJECTED APPLICATION RESUBMISSION
-      ------------------------------------------------------
-      */
-
-      Object.assign(
-        existingApplication,
-        applicationData
-      );
-
-      application =
-        await existingApplication.save();
-    } else {
-      /*
-      ------------------------------------------------------
-      NEW APPLICATION
-      ------------------------------------------------------
-      */
-
-      application =
-        await Instructor.create(
-          applicationData
-        );
-    }
-
-    /*
-    --------------------------------------------------------
-    POPULATE APPLICATION
-    --------------------------------------------------------
-    */
-
-    application =
-      await populateApplication(
-        Instructor.findById(
-          application._id
-        )
-      );
-
-    /*
-    --------------------------------------------------------
-    RESPONSE
-    --------------------------------------------------------
-    */
-
-    return sendResponse(
-      res,
-      201,
-      "Instructor application submitted successfully",
-      application
-    );
+    application.expertise = normalizedExpertise;
   }
-);
 
-/*
-============================================================
-2. GET MY INSTRUCTOR APPLICATION
-============================================================
+  /* ---------- Experience ---------- */
 
-GET /api/instructor/applications/me
-============================================================
-*/
+  if (experience !== undefined) {
+    const normalizedExperience = normalizeExperience(experience);
 
-export const getMyInstructorApplication =
-  asyncHandler(async (req, res) => {
-    const userId = getUserId(req);
-
-    /*
-    --------------------------------------------------------
-    AUTHENTICATION
-    --------------------------------------------------------
-    */
-
-    if (!userId) {
-      return sendResponse(
-        res,
-        401,
-        "Authentication required"
-      );
+    if (normalizedExperience === null || normalizedExperience < 0) {
+      return sendResponse(res, 400, "Valid years of experience are required");
     }
 
-    /*
-    --------------------------------------------------------
-    FIND APPLICATION
-    --------------------------------------------------------
-    */
+    application.experience = normalizedExperience;
+  }
 
-    const application =
-      await populateApplication(
-        Instructor.findOne({
-          user: userId,
-        })
-      );
+  /* ---------- Email ---------- */
 
-    /*
-    --------------------------------------------------------
-    NOT FOUND
-    --------------------------------------------------------
-    */
+  if (email !== undefined) {
+    const normalizedEmail = clean(email).toLowerCase();
 
-    if (!application) {
-      return sendResponse(
-        res,
-        404,
-        "No instructor application found"
-      );
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      return sendResponse(res, 400, "A valid email is required");
     }
 
-    /*
-    --------------------------------------------------------
-    RESPONSE
-    --------------------------------------------------------
-    */
+    application.applicationEmail = normalizedEmail;
+  }
 
-    return sendResponse(
-      res,
-      200,
-      "Instructor application retrieved successfully",
-      application
-    );
-  });
+  /* ---------- Phone ---------- */
 
-/*
-============================================================
-3. GET SPECIFIC APPLICATION
-============================================================
+  let normalizedPhone;
 
-GET /api/instructor/applications/:id
+  if (phone !== undefined) {
+    normalizedPhone = clean(phone);
 
-Applicant can only access their own application.
-============================================================
-*/
-
-export const getInstructorApplication =
-  asyncHandler(async (req, res) => {
-    const userId = getUserId(req);
-    const { id } = req.params;
-
-    /*
-    --------------------------------------------------------
-    AUTHENTICATION
-    --------------------------------------------------------
-    */
-
-    if (!userId) {
-      return sendResponse(
-        res,
-        401,
-        "Authentication required"
-      );
+    if (!normalizedPhone) {
+      return sendResponse(res, 400, "Phone number cannot be empty");
     }
 
-    /*
-    --------------------------------------------------------
-    VALIDATE ID
-    --------------------------------------------------------
-    */
+    application.applicationPhone = normalizedPhone;
+  }
 
-    if (!isValidObjectId(id)) {
-      return sendResponse(
-        res,
-        400,
-        "Invalid application ID"
-      );
+  /* ---------- Portfolio ---------- */
+
+  if (portfolio !== undefined) {
+    application.portfolio = clean(portfolio) || null;
+  }
+
+  /* ---------- Teaching experience ---------- */
+
+  if (teachingExperience !== undefined) {
+    const value = clean(teachingExperience);
+
+    if (!value) {
+      return sendResponse(res, 400, "Teaching experience cannot be empty");
     }
 
-    /*
-    --------------------------------------------------------
-    FIND OWN APPLICATION
-    --------------------------------------------------------
-    */
+    application.teachingExperience = value;
+  }
 
-    const application =
-      await populateApplication(
-        Instructor.findOne({
-          _id: id,
-          user: userId,
-        })
-      );
+  /* ---------- Course ---------- */
 
-    /*
-    --------------------------------------------------------
-    NOT FOUND
-    --------------------------------------------------------
-    */
+  if (course !== undefined) {
+    const value = clean(course);
 
-    if (!application) {
-      return sendResponse(
-        res,
-        404,
-        "Instructor application not found"
-      );
+    if (!value) {
+      return sendResponse(res, 400, "Course cannot be empty");
     }
 
-    /*
-    --------------------------------------------------------
-    RESPONSE
-    --------------------------------------------------------
-    */
+    application.course = value;
+  }
 
-    return sendResponse(
-      res,
-      200,
-      "Instructor application retrieved successfully",
-      application
-    );
-  });
+  /* ---------- Availability ---------- */
 
-/*
-============================================================
-4. UPDATE MY INSTRUCTOR APPLICATION
-============================================================
+  if (availability !== undefined) {
+    const value = clean(availability);
 
-PUT /api/instructor/applications/:id
-============================================================
-*/
-
-export const updateInstructorApplication =
-  asyncHandler(async (req, res) => {
-    const userId = getUserId(req);
-    const { id } = req.params;
-
-    /*
-    --------------------------------------------------------
-    AUTHENTICATION
-    --------------------------------------------------------
-    */
-
-    if (!userId) {
-      return sendResponse(
-        res,
-        401,
-        "Authentication required"
-      );
+    if (!value) {
+      return sendResponse(res, 400, "Availability cannot be empty");
     }
 
-    /*
-    --------------------------------------------------------
-    VALIDATE ID
-    --------------------------------------------------------
-    */
+    application.availability = value;
+  }
 
-    if (!isValidObjectId(id)) {
-      return sendResponse(
-        res,
-        400,
-        "Invalid application ID"
-      );
+  /* ---------- Cover letter ---------- */
+
+  if (coverLetter !== undefined) {
+    const value = clean(coverLetter);
+
+    if (!value) {
+      return sendResponse(res, 400, "Cover letter cannot be empty");
     }
 
-    /*
-    --------------------------------------------------------
-    FIND OWN APPLICATION
-    --------------------------------------------------------
-    */
+    application.coverLetter = value;
+  }
 
-    const application =
-      await Instructor.findOne({
-        _id: id,
-        user: userId,
-      });
+  /* ---------- Education / certifications ---------- */
 
-    if (!application) {
-      return sendResponse(
-        res,
-        404,
-        "Instructor application not found"
-      );
+  if (education !== undefined) {
+    application.education = normalizeEducation(education);
+  }
+
+  if (certifications !== undefined) {
+    application.certifications = normalizeCertifications(certifications);
+  }
+
+  /* ---------- Sync user profile (name / phone) ---------- */
+
+  let normalizedName;
+
+  if (name !== undefined) {
+    normalizedName = clean(name);
+
+    if (!normalizedName) {
+      return sendResponse(res, 400, "Name cannot be empty");
     }
+  }
 
-    /*
-    --------------------------------------------------------
-    APPROVED APPLICATION
-    --------------------------------------------------------
-    */
+  if (normalizedName || normalizedPhone) {
+    const user = await User.findById(userId);
 
-    if (
-      application.applicationStatus ===
-      "approved"
-    ) {
-      return sendResponse(
-        res,
-        409,
-        "An approved instructor application cannot be edited"
-      );
-    }
-
-    /*
-    --------------------------------------------------------
-    FORM DATA
-    --------------------------------------------------------
-    */
-
-    const {
-      name,
-      email,
-      phone,
-      expertise,
-      experience,
-      portfolio,
-      teachingExperience,
-      course,
-      availability,
-      coverLetter,
-    } = req.body;
-
-    /*
-    --------------------------------------------------------
-    EXPERTISE
-    --------------------------------------------------------
-    */
-
-    if (expertise !== undefined) {
-      const normalizedExpertise =
-        normalizeExpertise(expertise);
-
-      if (normalizedExpertise.length === 0) {
-        return sendResponse(
-          res,
-          400,
-          "At least one area of expertise is required"
-        );
+    if (user) {
+      if (normalizedName) {
+        const [firstName, ...rest] = normalizedName.split(/\s+/);
+        user.firstName = firstName;
+        user.lastName = rest.join(" ");
       }
 
-      application.expertise =
-        normalizedExpertise;
-    }
-
-    /*
-    --------------------------------------------------------
-    EXPERIENCE
-    --------------------------------------------------------
-    */
-
-    if (experience !== undefined) {
-      const normalizedExperience =
-        normalizeExperience(experience);
-
-      if (
-        normalizedExperience === null ||
-        normalizedExperience < 0
-      ) {
-        return sendResponse(
-          res,
-          400,
-          "Valid years of experience are required"
-        );
+      if (normalizedPhone) {
+        user.phone = normalizedPhone;
       }
 
-      application.experience =
-        normalizedExperience;
+      await user.save();
     }
+  }
 
-    /*
-    --------------------------------------------------------
-    EMAIL
-    --------------------------------------------------------
-    */
+  /* ---------- New CV ---------- */
 
-    if (email !== undefined) {
-      const normalizedEmail =
-        String(email).trim().toLowerCase();
+  if (req.file) {
+    application.cv = buildCVData(req.file);
+  }
 
-      if (!normalizedEmail) {
-        return sendResponse(
-          res,
-          400,
-          "Email cannot be empty"
-        );
-      }
+  /* ---------- Rejected -> pending ---------- */
 
-      application.applicationEmail =
-        normalizedEmail;
-    }
+  if (application.applicationStatus === "rejected") {
+    application.applicationStatus = "pending";
+    application.applicationDate = new Date();
+    application.rejectionReason = null;
+    application.approvedBy = null;
+    application.approvedAt = null;
+  }
 
-    /*
-    --------------------------------------------------------
-    PHONE
-    --------------------------------------------------------
-    */
+  await application.save();
 
-    if (phone !== undefined) {
-      const normalizedPhone =
-        String(phone).trim();
+  const updatedApplication = await populateApplication(
+    Instructor.findById(application._id)
+  );
 
-      if (!normalizedPhone) {
-        return sendResponse(
-          res,
-          400,
-          "Phone number cannot be empty"
-        );
-      }
-
-      application.applicationPhone =
-        normalizedPhone;
-    }
-
-    /*
-    --------------------------------------------------------
-    PORTFOLIO
-    --------------------------------------------------------
-    */
-
-    if (portfolio !== undefined) {
-      application.portfolio =
-        String(portfolio).trim() || null;
-    }
-
-    /*
-    --------------------------------------------------------
-    TEACHING EXPERIENCE
-    --------------------------------------------------------
-    */
-
-    if (
-      teachingExperience !== undefined
-    ) {
-      const normalizedTeachingExperience =
-        String(teachingExperience).trim();
-
-      if (!normalizedTeachingExperience) {
-        return sendResponse(
-          res,
-          400,
-          "Teaching experience cannot be empty"
-        );
-      }
-
-      application.teachingExperience =
-        normalizedTeachingExperience;
-    }
-
-    /*
-    --------------------------------------------------------
-    COURSE
-    --------------------------------------------------------
-    */
-
-    if (course !== undefined) {
-      const normalizedCourse =
-        String(course).trim();
-
-      if (!normalizedCourse) {
-        return sendResponse(
-          res,
-          400,
-          "Course cannot be empty"
-        );
-      }
-
-      application.course =
-        normalizedCourse;
-    }
-
-    /*
-    --------------------------------------------------------
-    AVAILABILITY
-    --------------------------------------------------------
-    */
-
-    if (availability !== undefined) {
-      const normalizedAvailability =
-        String(availability).trim();
-
-      if (!normalizedAvailability) {
-        return sendResponse(
-          res,
-          400,
-          "Availability cannot be empty"
-        );
-      }
-
-      application.availability =
-        normalizedAvailability;
-    }
-
-    /*
-    --------------------------------------------------------
-    COVER LETTER
-    --------------------------------------------------------
-    */
-
-    if (coverLetter !== undefined) {
-      const normalizedCoverLetter =
-        String(coverLetter).trim();
-
-      if (!normalizedCoverLetter) {
-        return sendResponse(
-          res,
-          400,
-          "Cover letter cannot be empty"
-        );
-      }
-
-      application.coverLetter =
-        normalizedCoverLetter;
-    }
-
-    /*
-    --------------------------------------------------------
-    NAME / USER PROFILE
-    --------------------------------------------------------
-    */
-
-    if (name !== undefined) {
-      const normalizedName =
-        String(name).trim();
-
-      if (!normalizedName) {
-        return sendResponse(
-          res,
-          400,
-          "Name cannot be empty"
-        );
-      }
-
-      const nameParts =
-        normalizedName.split(/\s+/);
-
-      const firstName =
-        nameParts.shift();
-
-      const lastName =
-        nameParts.join(" ");
-
-      const user =
-        await User.findById(userId);
-
-      if (user) {
-        user.firstName =
-          firstName;
-
-        user.lastName =
-          lastName || "";
-
-        await user.save();
-      }
-    }
-
-    /*
-    --------------------------------------------------------
-    UPDATE USER PHONE
-    --------------------------------------------------------
-    */
-
-    if (phone !== undefined) {
-      const normalizedPhone =
-        String(phone).trim();
-
-      const user =
-        await User.findById(userId);
-
-      if (user) {
-        user.phone =
-          normalizedPhone;
-
-        await user.save();
-      }
-    }
-
-    /*
-    --------------------------------------------------------
-    UPDATE USER EMAIL
-    --------------------------------------------------------
-    */
-
-    if (email !== undefined) {
-      const normalizedEmail =
-        String(email).trim().toLowerCase();
-
-      const user =
-        await User.findById(userId);
-
-      if (user) {
-        /*
-        Only update User.email if your application
-        allows users to change their email here.
-        Otherwise applicationEmail remains separate.
-        */
-      }
-    }
-
-    /*
-    --------------------------------------------------------
-    NEW CV
-    --------------------------------------------------------
-    */
-
-    if (req.file) {
-      application.cv =
-        buildCVData(req.file);
-    }
-
-    /*
-    --------------------------------------------------------
-    REJECTED → PENDING
-    --------------------------------------------------------
-    */
-
-    if (
-      application.applicationStatus ===
-      "rejected"
-    ) {
-      application.applicationStatus =
-        "pending";
-
-      application.applicationDate =
-        new Date();
-
-      application.rejectionReason =
-        null;
-
-      application.approvedBy =
-        null;
-
-      application.approvedAt =
-        null;
-    }
-
-    /*
-    --------------------------------------------------------
-    SAVE
-    --------------------------------------------------------
-    */
-
-    await application.save();
-
-    /*
-    --------------------------------------------------------
-    GET UPDATED APPLICATION
-    --------------------------------------------------------
-    */
-
-    const updatedApplication =
-      await populateApplication(
-        Instructor.findById(
-          application._id
-        )
-      );
-
-    /*
-    --------------------------------------------------------
-    RESPONSE
-    --------------------------------------------------------
-    */
-
-    return sendResponse(
-      res,
-      200,
-      "Instructor application updated successfully",
-      updatedApplication
-    );
-  });
+  return sendResponse(
+    res,
+    200,
+    "Instructor application updated successfully",
+    updatedApplication
+  );
+});
 
 /*
 ============================================================
 5. WITHDRAW INSTRUCTOR APPLICATION
-============================================================
-
 DELETE /api/instructor/applications/:id
 ============================================================
 */
 
-export const withdrawInstructorApplication =
-  asyncHandler(async (req, res) => {
-    const userId = getUserId(req);
-    const { id } = req.params;
+export const withdrawInstructorApplication = asyncHandler(async (req, res) => {
+  const userId = getUserId(req);
+  const { id } = req.params;
 
-    /*
-    --------------------------------------------------------
-    AUTHENTICATION
-    --------------------------------------------------------
-    */
+  if (!userId) {
+    return sendResponse(res, 401, "Authentication required");
+  }
 
-    if (!userId) {
-      return sendResponse(
-        res,
-        401,
-        "Authentication required"
-      );
-    }
+  if (!isValidObjectId(id)) {
+    return sendResponse(res, 400, "Invalid application ID");
+  }
 
-    /*
-    --------------------------------------------------------
-    VALIDATE ID
-    --------------------------------------------------------
-    */
+  const application = await Instructor.findOne({ _id: id, user: userId });
 
-    if (!isValidObjectId(id)) {
-      return sendResponse(
-        res,
-        400,
-        "Invalid application ID"
-      );
-    }
+  if (!application) {
+    return sendResponse(res, 404, "Instructor application not found");
+  }
 
-    /*
-    --------------------------------------------------------
-    FIND OWN APPLICATION
-    --------------------------------------------------------
-    */
-
-    const application =
-      await Instructor.findOne({
-        _id: id,
-        user: userId,
-      });
-
-    if (!application) {
-      return sendResponse(
-        res,
-        404,
-        "Instructor application not found"
-      );
-    }
-
-    /*
-    --------------------------------------------------------
-    APPROVED APPLICATION
-    --------------------------------------------------------
-    */
-
-    if (
-      application.applicationStatus ===
-      "approved"
-    ) {
-      return sendResponse(
-        res,
-        409,
-        "An approved instructor application cannot be withdrawn"
-      );
-    }
-
-    /*
-    --------------------------------------------------------
-    DELETE APPLICATION
-    --------------------------------------------------------
-    */
-
-    await Instructor.deleteOne({
-      _id: application._id,
-      user: userId,
-    });
-
-    /*
-    --------------------------------------------------------
-    RESPONSE
-    --------------------------------------------------------
-    */
-
+  if (application.applicationStatus === "approved") {
     return sendResponse(
       res,
-      200,
-      "Instructor application withdrawn successfully"
+      409,
+      "An approved instructor application cannot be withdrawn"
     );
-  });
-  
+  }
+
+  await Instructor.deleteOne({ _id: application._id, user: userId });
+
+  return sendResponse(
+    res,
+    200,
+    "Instructor application withdrawn successfully"
+  );
+});
+
