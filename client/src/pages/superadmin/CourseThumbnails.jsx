@@ -22,12 +22,12 @@ import {
   updateThumbnail,
   toggleThumbnailStatus,
   deleteThumbnail,
-} from "../../../services/superadmin/courseThumbnailService";
+} from "../../services/superadmin/courseThumbnailService";
 
-import { getCategories } from "../../../services/superadmin/categoryService";
+import { getCategories } from "../../services/superadmin/categoryService";
 
-import { SkeletonCard } from "../../../components/common/Skeleton";
-import Badge from "../../../components/common/Badge";
+import { SkeletonCard } from "../../components/common/Skeleton";
+import Badge from "../../components/common/Badge";
 
 const initialForm = {
   title: "",

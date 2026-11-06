@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Brain,
   FolderKanban,
+  Image,
   CreditCard,
   Wallet,
   BarChart3,
@@ -31,10 +32,7 @@ import {
 
 import useUIStore from "../../../store/uiStore";
 import useAuthStore from "../../../store/authStore";
-import {
-  getInitials,
-  getAvatarColor,
-} from "../../../utils/generateAvatar";
+import { getInitials, getAvatarColor } from "../../../utils/generateAvatar";
 
 const nav = [
   {
@@ -62,6 +60,11 @@ const nav = [
     icon: BookOpen,
     label: "Courses",
   },
+{
+  to: "/admin/course-thumbnails",
+  icon: Image,
+  label: "Course Thumbnails",
+},
   {
     to: "/admin/categories",
     icon: Tags,
@@ -170,11 +173,7 @@ const nav = [
 ];
 
 export default function SuperAdminSidebar() {
-  const {
-    sidebarCollapsed,
-    mobileDrawer,
-    closeMobileDrawer,
-  } = useUIStore();
+  const { sidebarCollapsed, mobileDrawer, closeMobileDrawer } = useUIStore();
 
   const { user, logout } = useAuthStore();
 
@@ -205,20 +204,14 @@ export default function SuperAdminSidebar() {
         `}
       >
         <div className="w-8 h-8 rounded-lg bg-purple/10 border border-purple/20 flex items-center justify-center shrink-0">
-          <span className="dsp text-sm font-bold text-purple">
-            A
-          </span>
+          <span className="dsp text-sm font-bold text-purple">A</span>
         </div>
 
         {!collapsed && (
           <div>
-            <p className="dsp text-sm font-bold text-text">
-              Super Admin
-            </p>
+            <p className="dsp text-sm font-bold text-text">Super Admin</p>
 
-            <p className="text-[10px] text-purple">
-              Full Access
-            </p>
+            <p className="text-[10px] text-purple">Full Access</p>
           </div>
         )}
       </div>
@@ -246,17 +239,9 @@ export default function SuperAdminSidebar() {
               `
             }
           >
-            <Icon
-              size={17}
-              strokeWidth={1.8}
-              className="shrink-0"
-            />
+            <Icon size={17} strokeWidth={1.8} className="shrink-0" />
 
-            {!collapsed && (
-              <span className="truncate">
-                {label}
-              </span>
-            )}
+            {!collapsed && <span className="truncate">{label}</span>}
           </NavLink>
         ))}
       </nav>
@@ -290,10 +275,7 @@ export default function SuperAdminSidebar() {
                 className="w-8 h-8 rounded-full object-cover"
               />
             ) : (
-              getInitials(
-                user?.firstName,
-                user?.lastName
-              )
+              getInitials(user?.firstName, user?.lastName)
             )}
           </div>
 
@@ -303,9 +285,7 @@ export default function SuperAdminSidebar() {
                 {user?.firstName} {user?.lastName}
               </p>
 
-              <p className="text-[10px] text-purple truncate">
-                Super Admin
-              </p>
+              <p className="text-[10px] text-purple truncate">Super Admin</p>
             </div>
           )}
         </div>

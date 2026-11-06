@@ -17,11 +17,9 @@ import courseThumbnailUpload from "../../middlewares/upload/courseThumbnailUploa
 const router = express.Router();
 
 // Admin-only thumbnail management
-
-
-router.get("/", getAllThumbnails);
 router.use(authenticate, isSuperAdmin);
 
+router.get("/", getAllThumbnails);
 router.post("/", courseThumbnailUpload.single("image"), createThumbnail);
 router.put("/:id", updateThumbnail);
 router.patch("/:id/status", toggleThumbnailStatus);
