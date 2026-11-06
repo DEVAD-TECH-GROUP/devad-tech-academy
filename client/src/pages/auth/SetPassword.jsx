@@ -1,522 +1,108 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import {
   ArrowLeft,
-  ArrowRight,
   CheckCircle2,
   Eye,
   EyeOff,
   LockKeyhole,
   ShieldCheck,
-  ShieldAlert,
-  GraduationCap,
-  Check,
-  X,
+  XCircle,
 } from "lucide-react";
 
-import api from "../../services/api";
+import { useAuthStore } from "../../store/authStore";
 
-// ============================================================
-// DEVAD TECH ACADEMY
-// INSTRUCTOR PASSWORD SETUP
-//
-// Flow:
-// Approval Email → Password Setup → Instructor Login
-//
-// Backend:
-// POST /auth/set-password
-//
-// Token:
-// /set-password/:token
-// ============================================================
+export default function SetPassword() {
+  const { token } = useParams();
+  const navigate = useNavigate();
 
-const log = (...args) => {
-  console.log("[DEVAD SET PASSWORD]", ...args);
-};
+  const { setPasswordWithToken, isLoading } = useAuthStore();
 
-// ============================================================
-// PARTICLES
-// ============================================================
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-const Particles = () => {
-  const canvasRef = useRef(null);
+  const [showPassword, setShowPassword] = useState(false);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-    if (!canvas) return;
+  const [success, setSuccess] = useState(false);
 
-    const ctx = canvas.getContext("2d");
+  const [errors, setErrors] = useState({});
 
-    let animationFrame;
+  // ------------------------------------------------------------
+  // PASSWORD REQUIREMENTS
+  // ------------------------------------------------------------
 
-    const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-
-    resize();
-
-    const particles = Array.from({ length: 80 }, () => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      radius: Math.random() * 1.5 + 0.4,
-      speedX: (Math.random() - 0.5) * 0.25,
-      speedY: (Math.random() - 0.5) * 0.25,
-      opacity: Math.random() * 0.5 + 0.2,
-    }));
-
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      particles.forEach((particle) => {
-        particle.x += particle.speedX;
-        particle.y += particle.speedY;
-
-        if (particle.x < 0) particle.x = canvas.width;
-        if (particle.x > canvas.width) particle.x = 0;
-
-        if (particle.y < 0) particle.y = canvas.height;
-        if (particle.y > canvas.height) particle.y = 0;
-
-        ctx.beginPath();
-
-        ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
-
-        ctx.fillStyle = `rgba(56, 189, 248, ${particle.opacity})`;
-
-        ctx.fill();
-      });
-
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-
-          const distance = Math.sqrt(dx * dx + dy * dy);
-
-          if (distance < 120) {
-            ctx.beginPath();
-
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-
-            ctx.strokeStyle = `rgba(0, 180, 255, ${
-              0.08 * (1 - distance / 120)
-            })`;
-
-            ctx.lineWidth = 0.5;
-            ctx.stroke();
-          }
-        }
-      }
-
-      animationFrame = requestAnimationFrame(animate);
-    };
-
-    animate();
-
-    window.addEventListener("resize", resize);
-
-    return () => {
-      cancelAnimationFrame(animationFrame);
-      window.removeEventListener("resize", resize);
-    };
-  }, []);
-
-  return (
-    <canvas className="fixed inset-0 pointer-events-none" ref={canvasRef} />
-  );
-};
-
-// ============================================================
-// CIRCUIT LINES
-// ============================================================
-
-const CircuitLines = () => {
-  return (
-    <>
-      <svg
-        className="fixed left-0 top-0 h-full w-1/3 pointer-events-none opacity-30"
-        viewBox="0 0 400 800"
-        preserveAspectRatio="none"
-      >
-        <path
-          d="M0 120 H100 V220 H180 V320 H280"
-          fill="none"
-          stroke="rgba(0,180,255,0.25)"
-          strokeWidth="1"
-        />
-
-        <path
-          d="M0 500 H80 V420 H160 V360 H240"
-          fill="none"
-          stroke="rgba(0,180,255,0.18)"
-          strokeWidth="1"
-        />
-
-        <circle cx="100" cy="120" r="3" fill="rgba(56,189,248,0.6)" />
-        <circle cx="180" cy="220" r="3" fill="rgba(56,189,248,0.5)" />
-        <circle cx="160" cy="420" r="3" fill="rgba(56,189,248,0.5)" />
-      </svg>
-
-      <svg
-        className="fixed right-0 top-0 h-full w-1/3 pointer-events-none opacity-30"
-        viewBox="0 0 400 800"
-        preserveAspectRatio="none"
-      >
-        <path
-          d="M400 180 H300 V280 H220 V380 H120"
-          fill="none"
-          stroke="rgba(0,180,255,0.25)"
-          strokeWidth="1"
-        />
-
-        <path
-          d="M400 560 H320 V480 H250 V400 H180"
-          fill="none"
-          stroke="rgba(0,180,255,0.18)"
-          strokeWidth="1"
-        />
-
-        <circle cx="300" cy="180" r="3" fill="rgba(56,189,248,0.6)" />
-        <circle cx="220" cy="280" r="3" fill="rgba(56,189,248,0.5)" />
-        <circle cx="250" cy="480" r="3" fill="rgba(56,189,248,0.5)" />
-      </svg>
-    </>
-  );
-};
-
-// ============================================================
-// INPUT FIELD
-// ============================================================
-
-const InputField = ({
-  value,
-  onChange,
-  placeholder,
-  name,
-  type = "password",
-  disabled = false,
-  autoComplete = "new-password",
-  rightElement,
-}) => {
-  return (
-    <div className="relative">
-      <LockKeyhole
-        size={18}
-        strokeWidth={1.7}
-        className="absolute left-4 top-1/2 -translate-y-1/2 text-sky-400/70 pointer-events-none"
-      />
-
-      <input
-        type={type}
-        name={name}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        disabled={disabled}
-        autoComplete={autoComplete}
-        required
-        minLength={8}
-        maxLength={50}
-        className={`w-full rounded-xl border border-cyan-400/20 bg-slate-950/50 py-3.5 ${
-          rightElement ? "pr-12" : "pr-4"
-        } pl-11 text-sm text-blue-100 placeholder:text-blue-200/30 outline-none transition-all duration-300 focus:border-cyan-400/60 focus:bg-slate-950/70 focus:ring-2 focus:ring-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-50`}
-        style={{
-          fontFamily: "'Rajdhani', sans-serif",
-          letterSpacing: "0.03em",
-        }}
-      />
-
-      {rightElement && (
-        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-          {rightElement}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ============================================================
-// PASSWORD REQUIREMENTS
-// ============================================================
-
-const PasswordRequirements = ({ password }) => {
   const requirements = [
     {
       label: "At least 8 characters",
       valid: password.length >= 8,
     },
     {
-      label: "Uppercase letter",
+      label: "At least one uppercase letter",
       valid: /[A-Z]/.test(password),
     },
     {
-      label: "Lowercase letter",
+      label: "At least one lowercase letter",
       valid: /[a-z]/.test(password),
     },
     {
-      label: "Number",
-      valid: /\d/.test(password),
+      label: "At least one number",
+      valid: /[0-9]/.test(password),
     },
   ];
 
-  const completed = requirements.filter(
-    (requirement) => requirement.valid,
-  ).length;
+  const allRequirementsMet = requirements.every((item) => item.valid);
 
-  return (
-    <div className="rounded-xl border border-cyan-400/10 bg-slate-950/30 p-4">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <p
-          className="text-xs uppercase tracking-[0.2em] text-blue-200/40"
-          style={{ fontFamily: "'Orbitron', sans-serif" }}
-        >
-          Password Requirements
-        </p>
+  const passwordsMatch =
+    password.length > 0 &&
+    confirmPassword.length > 0 &&
+    password === confirmPassword;
 
-        <span
-          className="text-xs text-sky-400"
-          style={{ fontFamily: "'Rajdhani', sans-serif" }}
-        >
-          {completed}/4
-        </span>
-      </div>
-
-      <div className="mb-4 grid grid-cols-4 gap-2">
-        {requirements.map((requirement, index) => (
-          <div
-            key={index}
-            className={`h-1 rounded-full transition-all duration-300 ${
-              requirement.valid
-                ? "bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.7)]"
-                : "bg-blue-200/10"
-            }`}
-          />
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        {requirements.map((requirement) => (
-          <div
-            key={requirement.label}
-            className={`flex items-center gap-2 text-xs transition-colors ${
-              requirement.valid ? "text-cyan-300" : "text-blue-200/35"
-            }`}
-            style={{ fontFamily: "'Rajdhani', sans-serif" }}
-          >
-            {requirement.valid ? (
-              <Check size={13} />
-            ) : (
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-200/20" />
-            )}
-
-            {requirement.label}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// ============================================================
-// HEADER
-// ============================================================
-
-const Header = ({ title, subtitle }) => {
-  return (
-    <div className="mb-8 text-center">
-      <div
-        className="mb-2 text-xs uppercase tracking-[0.3em] text-sky-400/70"
-        style={{ fontFamily: "'Orbitron', sans-serif" }}
-      >
-        DEVAD TECH ACADEMY
-      </div>
-
-      <h1
-        className="mb-3 text-2xl font-bold"
-        style={{
-          fontFamily: "'Orbitron', sans-serif",
-          background: "linear-gradient(90deg, #38bdf8, #60a5fa)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-        }}
-      >
-        {title}
-      </h1>
-
-      <p
-        className="text-sm leading-6 text-blue-100/50"
-        style={{
-          fontFamily: "'Rajdhani', sans-serif",
-          fontSize: "16px",
-        }}
-      >
-        {subtitle}
-      </p>
-    </div>
-  );
-};
-
-// ============================================================
-// PRIMARY BUTTON
-// ============================================================
-
-const PrimaryButton = ({
-  children,
-  type = "button",
-  loading = false,
-  disabled = false,
-  icon: Icon,
-}) => {
-  return (
-    <button
-      type={type}
-      disabled={loading || disabled}
-      className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl py-3.5 text-sm font-semibold uppercase tracking-widest text-white transition-all duration-300 hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-      style={{
-        fontFamily: "'Rajdhani', sans-serif",
-        background: "linear-gradient(135deg, #0284c7, #2563eb)",
-        boxShadow: "0 0 25px rgba(14,165,233,0.25)",
-      }}
-    >
-      {loading ? (
-        <>
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-          CREATING PASSWORD...
-        </>
-      ) : (
-        <>
-          {Icon && <Icon size={17} />}
-          {children}
-        </>
-      )}
-    </button>
-  );
-};
-
-// ============================================================
-// PAGE SHELL
-// ============================================================
-
-const PageShell = ({ children, mounted }) => {
-  return (
-    <div
-      className="relative min-h-screen overflow-hidden flex items-center justify-center px-4 py-10"
-      style={{
-        background:
-          "linear-gradient(135deg, #020b18 0%, #041428 40%, #061c35 70%, #030e1c 100%)",
-      }}
-    >
-      <Particles />
-      <CircuitLines />
-
-      <div
-        className="fixed inset-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(circle at 50% 50%, rgba(0,140,255,0.10), transparent 45%)",
-        }}
-      />
-
-      <div
-        className="fixed left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(0,100,255,0.08), transparent 65%)",
-          filter: "blur(30px)",
-        }}
-      />
-
-      <div
-        className={`relative z-10 w-full max-w-md transition-all duration-700 ${
-          mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-        }`}
-      >
-        <div
-          className="relative overflow-hidden rounded-2xl p-6 sm:p-8"
-          style={{
-            background:
-              "linear-gradient(160deg, rgba(6,20,45,0.95) 0%, rgba(4,14,32,0.98) 100%)",
-            border: "1px solid rgba(0,180,255,0.25)",
-            boxShadow:
-              "0 0 60px rgba(0,100,255,0.15), 0 25px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)",
-            backdropFilter: "blur(20px)",
-          }}
-        >
-          <div
-            className="absolute left-0 right-0 top-0 h-px"
-            style={{
-              background:
-                "linear-gradient(90deg, transparent, #38bdf8, transparent)",
-            }}
-          />
-
-          {children}
-        </div>
-
-        <div
-          className="mt-5 text-center text-xs text-blue-200/25"
-          style={{ fontFamily: "'Rajdhani', sans-serif" }}
-        >
-          SECURE ACCOUNT ACTIVATION • DEVAD TECH ACADEMY
-        </div>
-      </div>
-
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800&family=Rajdhani:wght@400;500;600;700&display=swap');
-      `}</style>
-    </div>
-  );
-};
-
-// ============================================================
-// MAIN
-// ============================================================
-
-export default function SetPassword() {
-  const { token } = useParams();
-  const navigate = useNavigate();
-
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  // ------------------------------------------------------------
+  // HANDLE INVALID LINK
+  // ------------------------------------------------------------
 
   useEffect(() => {
-    setMounted(true);
-    log("Password setup page mounted.");
-
     if (!token) {
-      log("Password setup token is missing.");
+      toast.error("Invalid password setup link.");
     }
-
-    return () => {
-      log("Password setup page unmounted.");
-    };
   }, [token]);
 
-  // ============================================================
-  // PASSWORD VALIDATION
-  // ============================================================
+  // ------------------------------------------------------------
+  // FORM VALIDATION
+  // ------------------------------------------------------------
 
-  const requirementsMet =
-    password.length >= 8 &&
-    password.length <= 50 &&
-    /[A-Z]/.test(password) &&
-    /[a-z]/.test(password) &&
-    /\d/.test(password);
+  const validateForm = () => {
+    const newErrors = {};
 
-  // ============================================================
-  // SET PASSWORD
-  // ============================================================
+    if (!password) {
+      newErrors.password = "Please enter your password.";
+    } else if (password.length < 8) {
+      newErrors.password = "Password must contain at least 8 characters.";
+    } else if (
+      !/[A-Z]/.test(password) ||
+      !/[a-z]/.test(password) ||
+      !/[0-9]/.test(password)
+    ) {
+      newErrors.password = "Your password does not meet all requirements.";
+    }
+
+    if (!confirmPassword) {
+      newErrors.confirmPassword = "Please confirm your password.";
+    } else if (password !== confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match.";
+    }
+
+    setErrors(newErrors);
+
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // ------------------------------------------------------------
+  // SUBMIT PASSWORD
+  // ------------------------------------------------------------
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -526,301 +112,725 @@ export default function SetPassword() {
       return;
     }
 
-    if (!requirementsMet) {
-      toast.error("Please meet all password requirements.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      toast.error("Your passwords do not match.");
+    if (!validateForm()) {
       return;
     }
 
     try {
-      setLoading(true);
-
-      log("Submitting instructor password setup.");
-
-      const response = await api.post("/auth/set-password", {
+      const response = await setPasswordWithToken(
         token,
         password,
         confirmPassword,
-      });
+      );
 
-      log("Password setup successful.");
+      console.log("[DEVAD SET PASSWORD] Response received:", {
+        success: response?.success,
+      });
 
       setSuccess(true);
 
-      setPassword("");
-      setConfirmPassword("");
-
-      toast.success(
-        response.data.message || "Your password has been created successfully.",
-      );
-    } catch (error) {
-      log("Password setup failed.", {
-        message: error?.message,
-        status: error?.response?.status,
-        responseMessage: error?.response?.data?.message,
-      });
-
+      toast.success("Your password has been set successfully!");
+    } catch (err) {
       toast.error(
-        error?.response?.data?.message ||
-          error?.message ||
-          "Unable to create your password. Please try again.",
+        err?.response?.data?.message ||
+          err?.message ||
+          "Unable to set your password.",
       );
-    } finally {
-      setLoading(false);
     }
   };
 
-  // ============================================================
-  // SUCCESS SCREEN
-  // ============================================================
-
-  if (success) {
-    return (
-      <PageShell mounted={mounted}>
-        <div className="text-center">
-          <div
-            className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full"
-            style={{
-              background:
-                "radial-gradient(circle, rgba(0,180,255,0.18), rgba(0,180,255,0.04))",
-              border: "1px solid rgba(56,189,248,0.35)",
-              boxShadow: "0 0 30px rgba(0,180,255,0.15)",
-            }}
-          >
-            <CheckCircle2
-              size={32}
-              strokeWidth={1.5}
-              className="text-sky-400"
-            />
-          </div>
-
-          <Header
-            title="Account Activated"
-            subtitle="Your password has been created successfully. You can now access your instructor account."
-          />
-
-          <div
-            className="mb-7 rounded-xl border border-cyan-400/15 bg-slate-950/30 p-4 text-left"
-            style={{ fontFamily: "'Rajdhani', sans-serif" }}
-          >
-            <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-cyan-300">
-              <ShieldCheck size={17} />
-              YOUR ACCOUNT IS READY
-            </div>
-
-            <p className="text-sm leading-6 text-blue-100/45">
-              Your instructor account is now ready for sign-in. Use your
-              registered email address and newly created password to continue.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => navigate("/login", { replace: true })}
-            className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold uppercase tracking-widest text-white transition-all duration-300 hover:scale-[1.01]"
-            style={{
-              fontFamily: "'Rajdhani', sans-serif",
-              background: "linear-gradient(135deg, #0284c7, #2563eb)",
-              boxShadow: "0 0 25px rgba(14,165,233,0.25)",
-            }}
-          >
-            CONTINUE TO SIGN IN
-            <ArrowRight size={17} />
-          </button>
-        </div>
-      </PageShell>
-    );
-  }
-
-  // ============================================================
-  // INVALID TOKEN NOTICE
-  // ============================================================
+  // ------------------------------------------------------------
+  // INVALID TOKEN VIEW
+  // ------------------------------------------------------------
 
   if (!token) {
     return (
-      <PageShell mounted={mounted}>
-        <div className="text-center">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full border border-rose-400/20 bg-rose-400/10">
-            <ShieldAlert size={30} className="text-rose-400" />
+      <PageShell>
+        <div className="set-password-card">
+          <div className="status-icon error-icon">
+            <XCircle size={38} />
           </div>
 
-          <Header
-            title="Invalid Setup Link"
-            subtitle="This password setup link is incomplete. Please use the link provided in your instructor approval email."
-          />
+          <h1>Invalid Setup Link</h1>
 
-          <Link
-            to="/login"
-            className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold uppercase tracking-widest text-white"
-            style={{
-              fontFamily: "'Rajdhani', sans-serif",
-              background: "linear-gradient(135deg, #0284c7, #2563eb)",
-            }}
-          >
-            <ArrowLeft size={17} />
-            BACK TO SIGN IN
+          <p className="description">
+            This password setup link is missing or invalid. Please contact the
+            administrator who approved your instructor application for
+            assistance.
+          </p>
+
+          <Link to="/login" className="primary-button">
+            <ArrowLeft size={18} />
+            Back to Login
           </Link>
         </div>
       </PageShell>
     );
   }
 
-  // ============================================================
-  // PASSWORD SETUP FORM
-  // ============================================================
+  // ------------------------------------------------------------
+  // SUCCESS VIEW
+  // ------------------------------------------------------------
+
+  if (success) {
+    return (
+      <PageShell>
+        <div className="set-password-card">
+          <div className="status-icon success-icon">
+            <CheckCircle2 size={40} />
+          </div>
+
+          <span className="eyebrow">PASSWORD SETUP COMPLETE</span>
+
+          <h1>You're All Set!</h1>
+
+          <p className="description">
+            Your instructor account password has been created successfully. You
+            can now sign in to your DEVAD Academy account.
+          </p>
+
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => navigate("/login")}
+          >
+            Continue to Login
+            <ArrowLeft size={18} className="button-arrow" />
+          </button>
+        </div>
+      </PageShell>
+    );
+  }
+
+  // ------------------------------------------------------------
+  // MAIN SET PASSWORD VIEW
+  // ------------------------------------------------------------
 
   return (
-    <PageShell mounted={mounted}>
-      {/* Brand Icon */}
-      <div className="mb-6 flex justify-center">
-        <div
-          className="flex h-14 w-14 items-center justify-center rounded-2xl"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(0,180,255,0.18), rgba(0,180,255,0.04))",
-            border: "1px solid rgba(56,189,248,0.3)",
-            boxShadow: "0 0 30px rgba(0,180,255,0.12)",
-          }}
-        >
-          <GraduationCap size={27} className="text-sky-400" />
+    <PageShell>
+      <div className="set-password-card">
+        <Link to="/login" className="back-link">
+          <ArrowLeft size={17} />
+          Back to Login
+        </Link>
+
+        <div className="brand-icon">
+          <ShieldCheck size={30} />
         </div>
-      </div>
 
-      <Header
-        title="Create Your Password"
-        subtitle="Your instructor application has been approved. Set up your password to activate your instructor account."
-      />
+        <span className="eyebrow">INSTRUCTOR ACCOUNT ACTIVATION</span>
 
-      {/* Approval Notice */}
-      <div
-        className="mb-6 flex items-start gap-3 rounded-xl border border-cyan-400/15 bg-cyan-400/[0.04] p-4"
-        style={{ fontFamily: "'Rajdhani', sans-serif" }}
-      >
-        <ShieldCheck size={19} className="mt-0.5 shrink-0 text-sky-400" />
+        <h1>Set Your Password</h1>
 
-        <div>
-          <p className="text-sm font-semibold text-sky-300">
-            APPLICATION APPROVED
-          </p>
+        <p className="description">
+          Congratulations on your approval! Create a secure password to activate
+          your DEVAD Academy instructor account.
+        </p>
 
-          <p className="mt-1 text-xs leading-5 text-blue-100/45">
-            Welcome to DEVAD TECH ACADEMY. Your instructor journey starts here.
-          </p>
-        </div>
-      </div>
+        <form onSubmit={handleSubmit}>
+          {/* PASSWORD */}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {/* New Password */}
-        <div>
-          <label
-            className="mb-2 block text-xs uppercase tracking-[0.2em] text-blue-200/50"
-            style={{ fontFamily: "'Orbitron', sans-serif" }}
-          >
-            New Password
-          </label>
+          <div className="form-group">
+            <label htmlFor="password">Create Password</label>
 
-          <InputField
-            name="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Create a strong password"
-            type={showPassword ? "text" : "password"}
-            disabled={loading}
-            rightElement={
+            <div className="input-wrapper">
+              <LockKeyhole size={19} className="input-icon" />
+
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your new password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+
+                  setErrors((prev) => ({
+                    ...prev,
+                    password: "",
+                  }));
+                }}
+                autoComplete="new-password"
+                disabled={isLoading}
+              />
+
               <button
                 type="button"
+                className="visibility-button"
                 onClick={() => setShowPassword((prev) => !prev)}
-                className="text-blue-200/40 transition-colors hover:text-sky-300"
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
               </button>
-            }
-          />
-        </div>
+            </div>
 
-        {/* Confirm Password */}
-        <div>
-          <label
-            className="mb-2 block text-xs uppercase tracking-[0.2em] text-blue-200/50"
-            style={{ fontFamily: "'Orbitron', sans-serif" }}
-          >
-            Confirm Password
-          </label>
+            {errors.password && (
+              <span className="error-message">{errors.password}</span>
+            )}
+          </div>
 
-          <InputField
-            name="confirmPassword"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Enter your password again"
-            type={showConfirmPassword ? "text" : "password"}
-            disabled={loading}
-            rightElement={
+          {/* PASSWORD REQUIREMENTS */}
+
+          <div className="requirements">
+            <p>Password requirements</p>
+
+            <div className="requirements-list">
+              {requirements.map((item, index) => (
+                <div className="requirement-item" key={index}>
+                  {item.valid ? (
+                    <CheckCircle2 size={15} className="valid-icon" />
+                  ) : (
+                    <span className="requirement-dot" />
+                  )}
+
+                  <span className={item.valid ? "valid-text" : ""}>
+                    {item.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* CONFIRM PASSWORD */}
+
+          <div className="form-group">
+            <label htmlFor="confirmPassword">Confirm Password</label>
+
+            <div className="input-wrapper">
+              <LockKeyhole size={19} className="input-icon" />
+
+              <input
+                id="confirmPassword"
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder="Re-enter your password"
+                value={confirmPassword}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+
+                  setErrors((prev) => ({
+                    ...prev,
+                    confirmPassword: "",
+                  }));
+                }}
+                autoComplete="new-password"
+                disabled={isLoading}
+              />
+
               <button
                 type="button"
+                className="visibility-button"
                 onClick={() => setShowConfirmPassword((prev) => !prev)}
-                className="text-blue-200/40 transition-colors hover:text-sky-300"
                 aria-label={
                   showConfirmPassword ? "Hide password" : "Show password"
                 }
               >
-                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                {showConfirmPassword ? <EyeOff size={19} /> : <Eye size={19} />}
               </button>
-            }
-          />
-        </div>
+            </div>
 
-        {/* Password Match */}
-        {confirmPassword && (
-          <div
-            className={`flex items-center gap-2 text-xs ${
-              password === confirmPassword ? "text-cyan-300" : "text-rose-400"
-            }`}
-            style={{ fontFamily: "'Rajdhani', sans-serif" }}
-          >
-            {password === confirmPassword ? (
-              <Check size={14} />
-            ) : (
-              <X size={14} />
+            {errors.confirmPassword && (
+              <span className="error-message">{errors.confirmPassword}</span>
             )}
 
-            {password === confirmPassword
-              ? "Passwords match"
-              : "Passwords do not match"}
+            {confirmPassword && !errors.confirmPassword && (
+              <span
+                className={passwordsMatch ? "match-message" : "error-message"}
+              >
+                {passwordsMatch ? "Passwords match" : "Passwords do not match"}
+              </span>
+            )}
           </div>
-        )}
 
-        {/* Requirements */}
-        <PasswordRequirements password={password} />
+          {/* SUBMIT */}
 
-        {/* Submit */}
-        <PrimaryButton
-          type="submit"
-          loading={loading}
-          disabled={
-            !requirementsMet || !confirmPassword || password !== confirmPassword
-          }
-          icon={ArrowRight}
-        >
-          CREATE MY PASSWORD
-        </PrimaryButton>
-      </form>
+          <button
+            type="submit"
+            className="primary-button"
+            disabled={isLoading || !allRequirementsMet || !passwordsMatch}
+          >
+            {isLoading ? (
+              <>
+                <span className="spinner" />
+                Setting Password...
+              </>
+            ) : (
+              <>
+                <ShieldCheck size={19} />
+                Set Password & Activate Account
+              </>
+            )}
+          </button>
+        </form>
 
-      {/* Footer Link */}
-      <div className="mt-7 text-center">
-        <Link
-          to="/login"
-          className="inline-flex items-center gap-2 text-sm text-blue-200/40 transition-colors hover:text-sky-300"
-          style={{ fontFamily: "'Rajdhani', sans-serif" }}
-        >
-          <ArrowLeft size={16} />
-          Back to Sign In
-        </Link>
+        <div className="security-note">
+          <ShieldCheck size={16} />
+          Your password is securely encrypted.
+        </div>
       </div>
     </PageShell>
   );
 }
+
+// ============================================================
+// PAGE BACKGROUND
+// ============================================================
+
+function PageShell({ children }) {
+  return (
+    <div className="set-password-page">
+      <style>{styles}</style>
+
+      <div className="background-glow glow-one" />
+      <div className="background-glow glow-two" />
+
+      <div className="grid-overlay" />
+
+      <div className="page-content">
+        <div className="page-brand">
+          <span className="brand-mark">D</span>
+
+          <span>
+            DEVAD <strong>ACADEMY</strong>
+          </span>
+        </div>
+
+        {children}
+
+        <p className="footer-text">
+          © {new Date().getFullYear()} DEVAD Academy. All rights reserved.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// STYLES
+// ============================================================
+
+const styles = `
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800&family=Rajdhani:wght@400;500;600;700&display=swap');
+
+* {
+  box-sizing: border-box;
+}
+
+.set-password-page {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 45px 20px;
+  background: linear-gradient(
+    135deg,
+    #020b18 0%,
+    #041428 40%,
+    #061c35 70%,
+    #030e1c 100%
+  );
+  color: #e2e8f0;
+  font-family: 'Rajdhani', sans-serif;
+}
+
+.background-glow {
+  position: absolute;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  filter: blur(100px);
+  pointer-events: none;
+  opacity: 0.2;
+}
+
+.glow-one {
+  background: #0284c7;
+  top: -180px;
+  left: -120px;
+}
+
+.glow-two {
+  background: #2563eb;
+  bottom: -180px;
+  right: -120px;
+}
+
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.12;
+  background-image:
+    linear-gradient(rgba(56,189,248,0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56,189,248,0.12) 1px, transparent 1px);
+  background-size: 45px 45px;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 20%,
+    black 80%,
+    transparent
+  );
+}
+
+.page-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 470px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.page-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 28px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 15px;
+  letter-spacing: 1.5px;
+  color: #e2e8f0;
+}
+
+.page-brand strong {
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: white;
+  font-size: 19px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #0284c7, #2563eb);
+  box-shadow: 0 0 20px rgba(56,189,248,0.3);
+}
+
+.set-password-card {
+  width: 100%;
+  padding: 38px;
+  border-radius: 20px;
+  border: 1px solid rgba(0,180,255,0.25);
+  background: linear-gradient(
+    160deg,
+    rgba(6,20,45,0.95) 0%,
+    rgba(4,14,32,0.98) 100%
+  );
+  box-shadow:
+    0 0 60px rgba(0,100,255,0.15),
+    0 25px 50px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+  backdrop-filter: blur(18px);
+  animation: cardEnter 0.6s ease;
+}
+
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #94a3b8;
+  font-size: 15px;
+  text-decoration: none;
+  margin-bottom: 28px;
+  transition: color 0.2s ease;
+}
+
+.back-link:hover {
+  color: #38bdf8;
+}
+
+.brand-icon {
+  width: 62px;
+  height: 62px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 22px;
+  color: #38bdf8;
+  border-radius: 17px;
+  border: 1px solid rgba(56,189,248,0.3);
+  background: rgba(14,165,233,0.1);
+  box-shadow: 0 0 30px rgba(14,165,233,0.12);
+}
+
+.eyebrow {
+  display: block;
+  margin-bottom: 10px;
+  color: #38bdf8;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.7px;
+}
+
+.set-password-card h1 {
+  margin: 0;
+  color: #f8fafc;
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(21px, 5vw, 27px);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.description {
+  margin: 13px 0 28px;
+  color: #94a3b8;
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.form-group {
+  margin-bottom: 21px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 9px;
+  color: #cbd5e1;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 54px;
+  padding: 0 14px;
+  border: 1px solid rgba(71,85,105,0.65);
+  border-radius: 10px;
+  background: rgba(15,23,42,0.65);
+  transition: all 0.2s ease;
+}
+
+.input-wrapper:focus-within {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56,189,248,0.1);
+}
+
+.input-icon {
+  flex-shrink: 0;
+  color: #64748b;
+}
+
+.input-wrapper input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #f8fafc;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.input-wrapper input::placeholder {
+  color: #64748b;
+}
+
+.visibility-button {
+  display: grid;
+  place-items: center;
+  padding: 5px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.visibility-button:hover {
+  color: #38bdf8;
+}
+
+.requirements {
+  padding: 15px;
+  margin: -4px 0 22px;
+  border: 1px solid rgba(56,189,248,0.12);
+  border-radius: 10px;
+  background: rgba(8,47,73,0.18);
+}
+
+.requirements > p {
+  margin: 0 0 12px;
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.requirements-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.requirement-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.requirement-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #475569;
+}
+
+.valid-icon,
+.valid-text {
+  color: #38bdf8;
+}
+
+.error-message {
+  display: block;
+  margin-top: 7px;
+  color: #f87171;
+  font-size: 13px;
+}
+
+.match-message {
+  display: block;
+  margin-top: 7px;
+  color: #38bdf8;
+  font-size: 13px;
+}
+
+.primary-button {
+  width: 100%;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 13px 18px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0284c7, #2563eb);
+  color: white;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(2,132,199,0.2);
+  transition: all 0.2s ease;
+}
+
+.primary-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(2,132,199,0.35);
+}
+
+.primary-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.button-arrow {
+  transform: rotate(180deg);
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.security-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 23px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.security-note svg {
+  color: #38bdf8;
+}
+
+.status-icon {
+  width: 75px;
+  height: 75px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 25px;
+  border-radius: 50%;
+}
+
+.success-icon {
+  color: #38bdf8;
+  background: rgba(56,189,248,0.1);
+  border: 1px solid rgba(56,189,248,0.3);
+}
+
+.error-icon {
+  color: #f87171;
+  background: rgba(248,113,113,0.1);
+  border: 1px solid rgba(248,113,113,0.3);
+}
+
+.set-password-card:has(.status-icon) {
+  text-align: center;
+}
+
+.set-password-card:has(.status-icon) .description {
+  margin-bottom: 28px;
+}
+
+.footer-text {
+  margin-top: 25px;
+  color: #475569;
+  font-size: 13px;
+  text-align: center;
+}
+
+@media (max-width: 520px) {
+  .set-password-page {
+    padding: 30px 15px;
+  }
+
+  .set-password-card {
+    padding: 27px 21px;
+  }
+
+  .requirements-list {
+    grid-template-columns: 1fr;
+  }
+
+  .page-brand {
+    font-size: 13px;
+  }
+}
+`;

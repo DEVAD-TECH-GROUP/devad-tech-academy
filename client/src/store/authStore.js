@@ -640,6 +640,94 @@ export const useAuthStore = create(
     throw err;
   }
 },
+
+
+// ============================================================
+// SET PASSWORD WITH INSTRUCTOR APPROVAL TOKEN
+// ============================================================
+
+setPasswordWithToken: async (
+  token,
+  password,
+  confirmPassword
+) => {
+  set({
+    isLoading: true,
+    error: null,
+  });
+
+  try {
+    if (!token) {
+      throw new Error(
+        "Password setup link is invalid or missing."
+      );
+    }
+
+    if (!password) {
+      throw new Error(
+        "Password is required."
+      );
+    }
+
+    if (!confirmPassword) {
+      throw new Error(
+        "Please confirm your password."
+      );
+    }
+
+    console.log(
+      "[DEVAD PASSWORD SETUP] Submitting instructor password setup:",
+      {
+        hasToken: Boolean(token),
+        hasPassword: Boolean(password),
+        hasConfirmPassword: Boolean(confirmPassword),
+      }
+    );
+
+    const { data } = await api.post(
+      "/auth/set-password",
+      {
+        token,
+        password,
+        confirmPassword,
+      }
+    );
+
+    set({
+      isLoading: false,
+      error: null,
+    });
+
+    console.log(
+      "[DEVAD PASSWORD SETUP] Instructor password set successfully."
+    );
+
+    return data;
+  } catch (err) {
+    const message =
+      err?.response?.data?.message ||
+      err?.message ||
+      "Unable to set your password.";
+
+    console.error(
+      "[DEVAD PASSWORD SETUP] Failed:",
+      {
+        message: err?.message,
+        status: err?.response?.status,
+        responseMessage:
+          err?.response?.data?.message,
+      }
+    );
+
+    set({
+      isLoading: false,
+      error: message,
+    });
+
+    throw err;
+  }
+},
+
       // ============================================================
       // UPDATE REGISTRATION PHONE
       // ============================================================
