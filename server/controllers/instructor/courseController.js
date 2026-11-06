@@ -50,7 +50,20 @@ export const getMyCourses = asyncHandler(async (req, res) => {
   const result = await paginate(Course, query, {
     page,
     limit,
-    populate: "category",
+    populate: [
+      {
+        path: "category",
+        select: "name slug description icon color",
+      },
+      {
+        path: "thumbnail",
+        select: "title description image category",
+        populate: {
+          path: "category",
+          select: "name",
+        },
+      },
+    ],
     sort: {
       createdAt: -1,
     },
