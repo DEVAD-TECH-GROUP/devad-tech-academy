@@ -31,8 +31,8 @@ import CourseDetailPage from "../pages/shared/courses/CourseDetail";
 import CareerPathsPage from "../pages/shared/careerPath/CareerPath";
 import Contact from "../pages/shared/contact/Contact";
 import PrivacyPolicy from "../pages/shared/termsAndPolicy/Policy";
-import TermsOfService from "../pages/shared/termsAndPolicy/Terms"
-
+import TermsOfService from "../pages/shared/termsAndPolicy/Terms";
+import InstructorApplication from "../pages/shared/contact/InstructorApplication";
 // ─────────────────────────────────────────────────────────────
 // Auth Pages
 // ─────────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ import InstructorCalendar from "../pages/instructor/Calendar";
 // ─────────────────────────────────────────────────────────────
 
 import AdminDashboard from "../pages/superadmin/Dashboard";
-import AdminProfile from "../pages/superadmin/Profile"
+import AdminProfile from "../pages/superadmin/Profile";
 
 import AdminUsers from "../pages/superadmin/users/Users";
 import AdminUserDetail from "../pages/superadmin/users/UserDetail";
@@ -153,10 +153,7 @@ const router = createBrowserRouter([
   // PUBLIC WEBSITE
   // ═══════════════════════════════════════════════════════════
 
-  
-
   {
-    
     path: "/",
     element: <MainLayout />,
     children: [
@@ -201,12 +198,18 @@ const router = createBrowserRouter([
         element: <Contact />,
       },
 
-       {
+      // /apply-instructor
+      {
+        path: "apply-instructor",
+        element: <InstructorApplication />,
+      },
+
+      {
         path: "privacy",
         element: <PrivacyPolicy />,
       },
 
-       {
+      {
         path: "terms",
         element: <TermsOfService />,
       },
@@ -556,7 +559,7 @@ const router = createBrowserRouter([
         path: "profile",
         element: <AdminProfile />,
       },
-      
+
       {
         path: "dashboard",
         element: <AdminDashboard />,
@@ -566,7 +569,6 @@ const router = createBrowserRouter([
         path: "categories",
         element: <Categories />,
       },
-
 
       {
         path: "users",
