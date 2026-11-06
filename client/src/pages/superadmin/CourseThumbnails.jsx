@@ -25,7 +25,6 @@ import {
 } from "../../services/superadmin/courseThumbnailService";
 
 import { getCategories } from "../../services/superadmin/categoryService";
-
 import { SkeletonCard } from "../../components/common/Skeleton";
 import Badge from "../../components/common/Badge";
 
@@ -36,16 +35,17 @@ const initialForm = {
   sortOrder: 0,
 };
 
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 export default function CourseThumbnails() {
   const [thumbnails, setThumbnails] = useState([]);
   const [categories, setCategories] = useState([]);
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [processing, setProcessing] = useState(null);
-
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
 
   const [showModal, setShowModal] = useState(false);
   const [editingThumbnail, setEditingThumbnail] = useState(null);
@@ -54,48 +54,62 @@ export default function CourseThumbnails() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [preview, setPreview] = useState("");
 
-  const loadData = async () => {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  // Fetch thumbnails and categories
+  const fetchData = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
 
       const [thumbnailResponse, categoryResponse] = await Promise.all([
         getAllThumbnails(),
         getCategories(),
       ]);
 
-      setThumbnails(thumbnailResponse.data?.data || []);
+      const thumbnailData = thumbnailResponse.data?.data;
+      const categoryData = categoryResponse.data?.data;
 
-      setCategories(categoryResponse.data?.data || []);
+      setThumbnails(Array.isArray(thumbnailData) ? thumbnailData : []);
+      setCategories(Array.isArray(categoryData) ? categoryData : []);
     } catch (error) {
+      console.error("Failed to fetch thumbnail data:", error);
       toast.error(
-        error?.response?.data?.message || "Failed to load thumbnail library",
+        error?.response?.data?.message || "Failed to load thumbnails",
       );
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    fetchData();
   }, []);
 
+  // Revoke temporary preview URLs when they are replaced
   useEffect(() => {
     return () => {
-      if (preview.startsWith("blob:")) {
+      if (preview?.startsWith("blob:")) {
         URL.revokeObjectURL(preview);
       }
     };
   }, [preview]);
 
+  // Filter thumbnails
   const filteredThumbnails = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
     return thumbnails.filter((thumbnail) => {
+      const searchValue = search.trim().toLowerCase();
+
       const matchesSearch =
-        !query ||
-        thumbnail.title?.toLowerCase().includes(query) ||
-        thumbnail.description?.toLowerCase().includes(query) ||
-        thumbnail.category?.name?.toLowerCase().includes(query);
+        !searchValue ||
+        thumbnail.title?.toLowerCase().includes(searchValue) ||
+        thumbnail.description?.toLowerCase().includes(searchValue) ||
+        thumbnail.category?.name?.toLowerCase().includes(searchValue);
 
       const matchesStatus =
         statusFilter === "all" ||
@@ -107,9 +121,45 @@ export default function CourseThumbnails() {
   }, [thumbnails, search, statusFilter]);
 
   const activeCount = thumbnails.filter((item) => item.isActive).length;
-
   const inactiveCount = thumbnails.length - activeCount;
 
+  // Update form fields
+  const handleFormChange = (event) => {
+    const { name, value } = event.target;
+
+    setForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+  };
+
+  // Handle image selection
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      toast.error("Only JPG, JPEG, PNG and WEBP images are allowed");
+      event.target.value = "";
+      setSelectedFile(null);
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      toast.error("Image must not exceed 5 MB");
+      event.target.value = "";
+      setSelectedFile(null);
+      return;
+    }
+
+    setSelectedFile(file);
+
+    const objectUrl = URL.createObjectURL(file);
+    setPreview(objectUrl);
+  };
+
+  // Open upload modal
   const openCreateModal = () => {
     setEditingThumbnail(null);
     setForm(initialForm);
@@ -118,13 +168,14 @@ export default function CourseThumbnails() {
     setShowModal(true);
   };
 
+  // Open edit modal
   const openEditModal = (thumbnail) => {
     setEditingThumbnail(thumbnail);
 
     setForm({
       title: thumbnail.title || "",
       description: thumbnail.description || "",
-      category: thumbnail.category?._id || "",
+      category: thumbnail.category?._id || thumbnail.category || "",
       sortOrder: thumbnail.sortOrder ?? 0,
     });
 
@@ -133,6 +184,7 @@ export default function CourseThumbnails() {
     setShowModal(true);
   };
 
+  // Close and reset modal
   const closeModal = () => {
     if (submitting) return;
 
@@ -143,38 +195,7 @@ export default function CourseThumbnails() {
     setPreview("");
   };
 
-  const handleChange = (event) => {
-    const { name, value } = event.target;
-
-    setForm((previous) => ({
-      ...previous,
-      [name]: value,
-    }));
-  };
-
-  const handleFileChange = (event) => {
-    const file = event.target.files?.[0];
-
-    if (!file) return;
-
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-
-    if (!allowedTypes.includes(file.type)) {
-      toast.error("Only JPG, PNG and WEBP images are allowed");
-      event.target.value = "";
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must not exceed 5 MB");
-      event.target.value = "";
-      return;
-    }
-
-    setSelectedFile(file);
-    setPreview(URL.createObjectURL(file));
-  };
-
+  // Submit upload or update
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -212,17 +233,20 @@ export default function CourseThumbnails() {
           sortOrder: Number(form.sortOrder) || 0,
         });
 
-        const updated = response.data?.data;
+        const updatedThumbnail =
+          response.data?.data || response.data?.thumbnail;
 
-        setThumbnails((previous) =>
-          previous.map((item) =>
-            item._id === editingThumbnail._id ? updated : item,
-          ),
-        );
+        if (updatedThumbnail) {
+          setThumbnails((previous) =>
+            previous.map((item) =>
+              item._id === editingThumbnail._id ? updatedThumbnail : item,
+            ),
+          );
+        } else {
+          await fetchData(true);
+        }
 
-        toast.success(
-          response.data?.message || "Thumbnail updated successfully",
-        );
+        toast.success("Thumbnail updated successfully");
       } else {
         const formData = new FormData();
 
@@ -234,242 +258,221 @@ export default function CourseThumbnails() {
 
         const response = await uploadThumbnail(formData);
 
-        const created = response.data?.data;
+        const newThumbnail = response.data?.data || response.data?.thumbnail;
 
-        setThumbnails((previous) => [created, ...previous]);
+        if (newThumbnail) {
+          setThumbnails((previous) => [newThumbnail, ...previous]);
+        } else {
+          await fetchData(true);
+        }
 
-        toast.success(
-          response.data?.message || "Thumbnail uploaded successfully",
-        );
+        toast.success("Thumbnail uploaded successfully");
       }
 
-      closeModal();
+      // Reset and close after successful request.
+      // Do not call closeModal() here because submitting is still true.
+      setShowModal(false);
+      setEditingThumbnail(null);
+      setForm(initialForm);
+      setSelectedFile(null);
+      setPreview("");
     } catch (error) {
+      console.error("Thumbnail submission error:", error);
+
       toast.error(error?.response?.data?.message || "Failed to save thumbnail");
     } finally {
       setSubmitting(false);
     }
   };
 
+  // Activate or deactivate thumbnail
   const handleToggleStatus = async (thumbnail) => {
     try {
-      setProcessing(thumbnail._id);
-
       const response = await toggleThumbnailStatus(thumbnail._id);
 
-      const updated = response.data?.data;
+      const updatedThumbnail = response.data?.data || response.data?.thumbnail;
 
-      setThumbnails((previous) =>
-        previous.map((item) => (item._id === thumbnail._id ? updated : item)),
+      if (updatedThumbnail) {
+        setThumbnails((previous) =>
+          previous.map((item) =>
+            item._id === thumbnail._id ? updatedThumbnail : item,
+          ),
+        );
+      } else {
+        await fetchData(true);
+      }
+
+      toast.success(
+        thumbnail.isActive ? "Thumbnail deactivated" : "Thumbnail activated",
       );
-
-      toast.success(response.data?.message || "Thumbnail status updated");
     } catch (error) {
+      console.error("Thumbnail status error:", error);
+
       toast.error(
         error?.response?.data?.message || "Failed to update thumbnail status",
       );
-    } finally {
-      setProcessing(null);
     }
   };
 
+  // Delete thumbnail
   const handleDelete = async (thumbnail) => {
     const confirmed = window.confirm(
-      `Permanently delete "${thumbnail.title}"? This cannot be undone.`,
+      `Are you sure you want to delete "${thumbnail.title}"? This action cannot be undone.`,
     );
 
     if (!confirmed) return;
 
     try {
-      setProcessing(thumbnail._id);
-
-      const response = await deleteThumbnail(thumbnail._id);
+      await deleteThumbnail(thumbnail._id);
 
       setThumbnails((previous) =>
         previous.filter((item) => item._id !== thumbnail._id),
       );
 
-      toast.success(response.data?.message || "Thumbnail deleted successfully");
+      toast.success("Thumbnail deleted successfully");
     } catch (error) {
+      console.error("Thumbnail deletion error:", error);
+
       toast.error(
         error?.response?.data?.message || "Failed to delete thumbnail",
       );
-    } finally {
-      setProcessing(null);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-5 fi">
-        <div>
-          <div className="h-6 w-52 bg-surfaceHigh rounded-lg animate-pulse" />
-          <div className="h-4 w-72 bg-surfaceHigh rounded-lg animate-pulse mt-2" />
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-          {[...Array(3)].map((_, index) => (
-            <SkeletonCard key={index} />
-          ))}
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, index) => (
-            <div
-              key={index}
-              className="h-64 bg-surface border border-border rounded-2xl animate-pulse"
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-5 fi">
+    <div className="space-y-6 pb-10">
       {/* Header */}
-      <div className="flex items-start justify-between flex-wrap gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Image size={21} className="text-purple" strokeWidth={1.8} />
-
-            <h1 className="dsp text-xl font-bold text-text">
+          <div className="flex items-center gap-2">
+            <Image size={23} className="text-sky-500" />
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               Course Thumbnails
             </h1>
           </div>
 
-          <p className="text-muted text-sm">
-            Manage the image library used across your courses
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Manage the images instructors can select for their courses.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openCreateModal}
-          className="
-            flex items-center gap-2
-            px-4 py-2.5
-            rounded-xl
-            bg-purple
-            text-white
-            text-sm font-medium
-            hover:opacity-90
-            transition
-          "
-        >
-          <Plus size={16} />
-          Upload Thumbnail
-        </button>
-      </div>
-
-      {/* Statistics */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-        <div className="bg-surface border border-border rounded-2xl p-4">
-          <div className="w-9 h-9 rounded-xl bg-purple/10 flex items-center justify-center mb-3">
-            <Image size={18} className="text-purple" />
-          </div>
-
-          <div className="dsp text-xl font-extrabold text-purple">
-            {thumbnails.length}
-          </div>
-
-          <div className="text-xs text-muted mt-1">Total Thumbnails</div>
-        </div>
-
-        <div className="bg-surface border border-border rounded-2xl p-4">
-          <div className="w-9 h-9 rounded-xl bg-green/10 flex items-center justify-center mb-3">
-            <Eye size={18} className="text-green" />
-          </div>
-
-          <div className="dsp text-xl font-extrabold text-green">
-            {activeCount}
-          </div>
-
-          <div className="text-xs text-muted mt-1">Active Thumbnails</div>
-        </div>
-
-        <div className="bg-surface border border-border rounded-2xl p-4">
-          <div className="w-9 h-9 rounded-xl bg-blue/10 flex items-center justify-center mb-3">
-            <EyeOff size={18} className="text-blue" />
-          </div>
-
-          <div className="dsp text-xl font-extrabold text-blue">
-            {inactiveCount}
-          </div>
-
-          <div className="text-xs text-muted mt-1">Inactive Thumbnails</div>
-        </div>
-      </div>
-
-      {/* Search and filters */}
-      <div className="bg-surface border border-border rounded-2xl p-3">
-        <div className="flex flex-col sm:flex-row items-stretch gap-2">
-          <div className="relative flex-1">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-            />
-
-            <input
-              type="text"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search thumbnails..."
-              className="
-                w-full bg-surfaceHigh border border-border
-                rounded-xl pl-9 pr-3 py-2.5
-                text-sm text-text placeholder:text-muted
-                outline-none focus:border-purple/50 transition
-              "
-            />
-          </div>
-
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className="
-              bg-surfaceHigh border border-border
-              rounded-xl px-3 py-2.5
-              text-sm text-text outline-none
-              focus:border-purple/50
-            "
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => fetchData(true)}
+            disabled={refreshing}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
           >
-            <option value="all">All thumbnails</option>
-            <option value="active">Active only</option>
-            <option value="inactive">Inactive only</option>
-          </select>
+            <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+            Refresh
+          </button>
 
           <button
             type="button"
-            onClick={loadData}
-            title="Refresh thumbnails"
-            className="
-              w-10 h-10 shrink-0
-              flex items-center justify-center
-              rounded-xl bg-surfaceHigh
-              border border-border text-muted
-              hover:text-text hover:border-purple/40 transition
-            "
+            onClick={openCreateModal}
+            className="flex items-center gap-2 rounded-lg bg-sky-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-600"
           >
-            <RefreshCw size={16} />
+            <Plus size={17} />
+            Add Thumbnail
           </button>
         </div>
       </div>
 
-      {/* Thumbnail gallery */}
-      {filteredThumbnails.length === 0 ? (
-        <div className="bg-surface border border-border rounded-2xl py-16 px-5 text-center">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-surfaceHigh flex items-center justify-center mb-3">
-            <Image size={24} className="text-muted" />
+      {/* Statistics */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Total Thumbnails
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">
+                {thumbnails.length}
+              </h2>
+            </div>
+            <div className="rounded-lg bg-sky-100 p-3 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">
+              <Layers size={22} />
+            </div>
           </div>
+        </div>
 
-          <h3 className="dsp text-sm font-bold text-text">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Active</p>
+              <h2 className="mt-2 text-2xl font-bold text-green-600">
+                {activeCount}
+              </h2>
+            </div>
+            <div className="rounded-lg bg-green-100 p-3 text-green-600 dark:bg-green-500/10">
+              <Eye size={22} />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Inactive
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-gray-500">
+                {inactiveCount}
+              </h2>
+            </div>
+            <div className="rounded-lg bg-gray-100 p-3 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+              <EyeOff size={22} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Search and filters */}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-1">
+          <Search
+            size={18}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          />
+
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search thumbnails..."
+            className="w-full rounded-lg border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm outline-none focus:border-sky-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+          />
+        </div>
+
+        <select
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-sky-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+        >
+          <option value="all">All thumbnails</option>
+          <option value="active">Active only</option>
+          <option value="inactive">Inactive only</option>
+        </select>
+      </div>
+
+      {/* Thumbnail gallery */}
+      {loading ? (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <SkeletonCard key={index} />
+          ))}
+        </div>
+      ) : filteredThumbnails.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
+          <Image size={42} className="mx-auto text-gray-400" />
+
+          <h3 className="mt-4 font-semibold text-gray-900 dark:text-white">
             {search || statusFilter !== "all"
-              ? "No thumbnails found"
-              : "Your thumbnail library is empty"}
+              ? "No matching thumbnails"
+              : "No thumbnails yet"}
           </h3>
 
-          <p className="text-xs text-muted mt-1">
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
             {search || statusFilter !== "all"
               ? "Try changing your search or filter."
               : "Upload your first course thumbnail to get started."}
@@ -479,137 +482,94 @@ export default function CourseThumbnails() {
             <button
               type="button"
               onClick={openCreateModal}
-              className="
-                inline-flex items-center gap-2
-                mt-4 px-3.5 py-2
-                rounded-xl bg-purple text-white
-                text-xs font-medium hover:opacity-90 transition
-              "
+              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-sky-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-600"
             >
-              <Plus size={14} />
-              Upload Thumbnail
+              <Plus size={16} />
+              Add Thumbnail
             </button>
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredThumbnails.map((thumbnail) => (
             <div
               key={thumbnail._id}
-              className="
-                bg-surface border border-border
-                rounded-2xl overflow-hidden
-                group hover:border-purple/40 transition
-              "
+              className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
             >
-              {/* Image */}
-              <div className="relative aspect-video bg-surfaceHigh overflow-hidden">
+              <div className="relative aspect-video bg-gray-100 dark:bg-gray-800">
                 {thumbnail.image?.url ? (
                   <img
                     src={thumbnail.image.url}
                     alt={thumbnail.title}
-                    className="w-full h-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                    className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Image size={32} className="text-muted" />
+                  <div className="flex h-full items-center justify-center text-gray-400">
+                    <Image size={35} />
                   </div>
                 )}
 
-                <div className="absolute top-3 left-3">
-                  <Badge variant={thumbnail.isActive ? "green" : "red"}>
+                <div className="absolute right-3 top-3">
+                  <Badge variant={thumbnail.isActive ? "success" : "secondary"}>
                     {thumbnail.isActive ? "Active" : "Inactive"}
                   </Badge>
                 </div>
-
-                <div className="absolute top-3 right-3">
-                  <span className="px-2 py-1 rounded-lg bg-black/65 text-white text-[10px] backdrop-blur-sm">
-                    Order: {thumbnail.sortOrder ?? 0}
-                  </span>
-                </div>
               </div>
 
-              {/* Details */}
-              <div className="p-4 space-y-3">
+              <div className="space-y-3 p-4">
                 <div>
-                  <h3 className="text-sm font-bold text-text truncate">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
                     {thumbnail.title}
                   </h3>
 
-                  <p className="text-xs text-muted mt-1 line-clamp-2 min-h-8">
-                    {thumbnail.description || "No description provided"}
+                  <p className="mt-1 line-clamp-2 text-sm text-gray-500 dark:text-gray-400">
+                    {thumbnail.description || "No description provided."}
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 text-[11px] text-muted">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <Layers size={13} />
-                    <span className="truncate">
-                      {thumbnail.category?.name || "General"}
-                    </span>
-                  </div>
-
-                  <span className="shrink-0">
-                    {thumbnail.createdAt
-                      ? new Date(thumbnail.createdAt).toLocaleDateString(
-                          "en-NG",
-                          {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          },
-                        )
-                      : "—"}
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span className="rounded-md bg-gray-100 px-2 py-1 dark:bg-gray-800">
+                    {thumbnail.category?.name || "Uncategorized"}
                   </span>
+
+                  <span>Order: {thumbnail.sortOrder ?? 0}</span>
                 </div>
 
-                <div className="flex items-center gap-2 pt-2 border-t border-border">
+                <div className="grid grid-cols-3 gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
                   <button
                     type="button"
                     onClick={() => openEditModal(thumbnail)}
-                    className="
-                      flex-1 flex items-center justify-center gap-1.5
-                      py-2 rounded-lg bg-surfaceHigh
-                      text-xs text-text hover:text-purple
-                      transition
-                    "
+                    className="flex items-center justify-center gap-1 rounded-lg border border-gray-200 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                   >
-                    <Pencil size={13} />
+                    <Pencil size={14} />
                     Edit
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleToggleStatus(thumbnail)}
-                    disabled={processing === thumbnail._id}
-                    title={thumbnail.isActive ? "Deactivate" : "Activate"}
-                    className="
-                      w-9 h-9 flex items-center justify-center
-                      rounded-lg bg-surfaceHigh text-muted
-                      hover:text-purple transition
-                      disabled:opacity-50
-                    "
+                    className="flex items-center justify-center gap-1 rounded-lg border border-gray-200 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                   >
                     {thumbnail.isActive ? (
-                      <EyeOff size={15} />
+                      <>
+                        <EyeOff size={14} />
+                        Disable
+                      </>
                     ) : (
-                      <Eye size={15} />
+                      <>
+                        <Eye size={14} />
+                        Activate
+                      </>
                     )}
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleDelete(thumbnail)}
-                    disabled={processing === thumbnail._id}
-                    title="Delete thumbnail"
-                    className="
-                      w-9 h-9 flex items-center justify-center
-                      rounded-lg bg-surfaceHigh text-muted
-                      hover:text-red transition
-                      disabled:opacity-50
-                    "
+                    className="flex items-center justify-center gap-1 rounded-lg border border-red-200 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-950/30"
                   >
-                    <Trash2 size={15} />
+                    <Trash2 size={14} />
+                    Delete
                   </button>
                 </div>
               </div>
@@ -618,39 +578,28 @@ export default function CourseThumbnails() {
         </div>
       )}
 
-      {/* Upload / Edit modal */}
+      {/* Create / Edit Modal */}
       {showModal && (
         <div
-          className="
-            fixed inset-0 z-[100]
-            flex items-center justify-center
-            p-4 bg-black/60 backdrop-blur-sm
-          "
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              closeModal();
-            }
-          }}
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4"
+          onClick={closeModal}
         >
           <div
-            className="
-            w-full max-w-xl max-h-[90vh]
-            overflow-y-auto
-            bg-surface border border-border
-            rounded-2xl shadow-2xl
-          "
+            className="my-auto w-full max-w-xl rounded-2xl bg-white shadow-2xl dark:bg-gray-900"
+            onClick={(event) => event.stopPropagation()}
           >
-            {/* Modal header */}
-            <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b border-border bg-surface">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
               <div>
-                <h2 className="dsp text-base font-bold text-text">
-                  {editingThumbnail ? "Edit Thumbnail" : "Upload Thumbnail"}
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                  {editingThumbnail
+                    ? "Edit Thumbnail"
+                    : "Upload Course Thumbnail"}
                 </h2>
 
-                <p className="text-xs text-muted mt-0.5">
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   {editingThumbnail
-                    ? "Update the thumbnail information."
-                    : "Add an image to your course thumbnail library."}
+                    ? "Update the thumbnail details."
+                    : "Add an image to the course thumbnail library."}
                 </p>
               </div>
 
@@ -658,203 +607,191 @@ export default function CourseThumbnails() {
                 type="button"
                 onClick={closeModal}
                 disabled={submitting}
-                className="
-                  w-8 h-8 flex items-center justify-center
-                  rounded-lg text-muted hover:text-text
-                  hover:bg-surfaceHigh transition
-                "
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-gray-800"
               >
-                <X size={17} />
+                <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5 p-6">
               {/* Image upload */}
               <div>
-                <label className="block text-xs font-medium text-text mb-2">
-                  Thumbnail Image
-                  {!editingThumbnail && (
-                    <span className="text-red ml-1">*</span>
-                  )}
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  Thumbnail Image {!editingThumbnail && "*"}
                 </label>
 
                 <label
-                  className="
-                    relative block w-full aspect-video
-                    rounded-xl overflow-hidden
-                    border-2 border-dashed border-border
-                    bg-surfaceHigh cursor-pointer
-                    hover:border-purple/50 transition
-                  "
+                  htmlFor="course-thumbnail-image"
+                  className="block cursor-pointer overflow-hidden rounded-xl border-2 border-dashed border-gray-300 transition hover:border-sky-500 dark:border-gray-700"
                 >
                   {preview ? (
-                    <>
+                    <div className="relative">
                       <img
                         src={preview}
                         alt="Thumbnail preview"
-                        className="w-full h-full object-cover"
+                        className="h-52 w-full object-cover"
                       />
 
-                      <div className="absolute inset-0 bg-black/45 opacity-0 hover:opacity-100 transition flex items-center justify-center">
-                        <span className="flex items-center gap-2 text-white text-sm font-medium">
-                          <Upload size={17} />
-                          Change Image
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition hover:opacity-100">
+                        <span className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900">
+                          <Upload size={16} />
+                          Change image
                         </span>
                       </div>
-                    </>
+                    </div>
                   ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted">
-                      <div className="w-11 h-11 rounded-xl bg-purple/10 flex items-center justify-center">
-                        <Upload size={20} className="text-purple" />
+                    <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+                      <div className="rounded-full bg-sky-100 p-4 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">
+                        <Upload size={25} />
                       </div>
 
-                      <span className="text-sm font-medium text-text">
-                        Click to upload image
-                      </span>
+                      <p className="mt-3 text-sm font-semibold text-gray-800 dark:text-white">
+                        Click to upload an image
+                      </p>
 
-                      <span className="text-[11px]">
-                        JPG, PNG or WEBP · Max 5 MB
-                      </span>
-
-                      <span className="text-[10px]">
-                        Recommended: 1280 × 720 pixels
-                      </span>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        JPG, JPEG, PNG or WEBP · Maximum 5 MB
+                      </p>
                     </div>
                   )}
-
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
                 </label>
 
-                {editingThumbnail && (
-                  <p className="text-[10px] text-muted mt-1.5">
-                    To change the image itself, we'll add image replacement
-                    support separately.
+                <input
+                  id="course-thumbnail-image"
+                  name="image"
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                  onChange={handleFileChange}
+                  disabled={submitting}
+                  className="hidden"
+                />
+
+                {selectedFile && (
+                  <p className="mt-2 break-all text-xs font-medium text-green-600">
+                    Selected: {selectedFile.name}
+                  </p>
+                )}
+
+                {editingThumbnail && !selectedFile && (
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    Current image will be retained. Image replacement is not
+                    included in this edit operation.
                   </p>
                 )}
               </div>
 
               {/* Title */}
               <div>
-                <label className="block text-xs font-medium text-text mb-1.5">
-                  Thumbnail Title
-                  <span className="text-red ml-1">*</span>
+                <label
+                  htmlFor="thumbnail-title"
+                  className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200"
+                >
+                  Thumbnail Title *
                 </label>
 
                 <input
+                  id="thumbnail-title"
                   type="text"
                   name="title"
                   value={form.title}
-                  onChange={handleChange}
-                  placeholder="e.g. Web Development"
+                  onChange={handleFormChange}
                   maxLength={100}
                   required
-                  className="
-                    w-full bg-surfaceHigh border border-border
-                    rounded-xl px-3 py-2.5
-                    text-sm text-text placeholder:text-muted
-                    outline-none focus:border-purple/50 transition
-                  "
+                  placeholder="e.g. Web Development"
+                  disabled={submitting}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-sky-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                 />
 
-                <p className="text-[10px] text-muted mt-1 text-right">
+                <p className="mt-1 text-right text-xs text-gray-400">
                   {form.title.length}/100
                 </p>
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-xs font-medium text-text mb-1.5">
+                <label
+                  htmlFor="thumbnail-description"
+                  className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200"
+                >
                   Description
                 </label>
 
                 <textarea
+                  id="thumbnail-description"
                   name="description"
                   value={form.description}
-                  onChange={handleChange}
-                  placeholder="Describe this thumbnail..."
+                  onChange={handleFormChange}
                   maxLength={300}
                   rows={3}
-                  className="
-                    w-full bg-surfaceHigh border border-border
-                    rounded-xl px-3 py-2.5
-                    text-sm text-text placeholder:text-muted
-                    outline-none resize-none
-                    focus:border-purple/50 transition
-                  "
+                  placeholder="Briefly describe this thumbnail..."
+                  disabled={submitting}
+                  className="w-full resize-none rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-sky-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                 />
 
-                <p className="text-[10px] text-muted mt-1 text-right">
+                <p className="mt-1 text-right text-xs text-gray-400">
                   {form.description.length}/300
                 </p>
               </div>
 
-              {/* Category + order */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-text mb-1.5">
-                    Category
-                  </label>
+              {/* Category */}
+              <div>
+                <label
+                  htmlFor="thumbnail-category"
+                  className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200"
+                >
+                  Category
+                </label>
 
-                  <select
-                    name="category"
-                    value={form.category}
-                    onChange={handleChange}
-                    className="
-                      w-full bg-surfaceHigh border border-border
-                      rounded-xl px-3 py-2.5
-                      text-sm text-text outline-none
-                      focus:border-purple/50 transition
-                    "
-                  >
-                    <option value="">General / No category</option>
+                <select
+                  id="thumbnail-category"
+                  name="category"
+                  value={form.category}
+                  onChange={handleFormChange}
+                  disabled={submitting}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-sky-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                >
+                  <option value="">No category</option>
 
-                    {categories
-                      .filter((category) => category.isActive)
-                      .map((category) => (
-                        <option key={category._id} value={category._id}>
-                          {category.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
+                  {categories.map((category) => (
+                    <option key={category._id} value={category._id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-text mb-1.5">
-                    Display Order
-                  </label>
+              {/* Sort order */}
+              <div>
+                <label
+                  htmlFor="thumbnail-sort-order"
+                  className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200"
+                >
+                  Display Order
+                </label>
 
-                  <input
-                    type="number"
-                    name="sortOrder"
-                    min="0"
-                    value={form.sortOrder}
-                    onChange={handleChange}
-                    className="
-                      w-full bg-surfaceHigh border border-border
-                      rounded-xl px-3 py-2.5
-                      text-sm text-text outline-none
-                      focus:border-purple/50 transition
-                    "
-                  />
-                </div>
+                <input
+                  id="thumbnail-sort-order"
+                  type="number"
+                  name="sortOrder"
+                  value={form.sortOrder}
+                  onChange={handleFormChange}
+                  min="0"
+                  disabled={submitting}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-sky-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                />
+
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Lower numbers can be displayed first.
+                </p>
               </div>
 
               {/* Actions */}
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-3 border-t border-gray-100 pt-5 dark:border-gray-800">
                 <button
                   type="button"
                   onClick={closeModal}
                   disabled={submitting}
-                  className="
-                    px-4 py-2.5 rounded-xl
-                    border border-border text-sm text-muted
-                    hover:text-text hover:bg-surfaceHigh transition
-                  "
+                  className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
                   Cancel
                 </button>
@@ -862,29 +799,22 @@ export default function CourseThumbnails() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="
-                    flex items-center gap-2
-                    px-4 py-2.5 rounded-xl
-                    bg-purple text-white
-                    text-sm font-medium
-                    hover:opacity-90 transition
-                    disabled:opacity-60 disabled:cursor-not-allowed
-                  "
+                  className="flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? (
                     <>
-                      <RefreshCw size={15} className="animate-spin" />
+                      <RefreshCw size={16} className="animate-spin" />
                       Saving...
+                    </>
+                  ) : editingThumbnail ? (
+                    <>
+                      <Save size={16} />
+                      Save Changes
                     </>
                   ) : (
                     <>
-                      {editingThumbnail ? (
-                        <Save size={15} />
-                      ) : (
-                        <Upload size={15} />
-                      )}
-
-                      {editingThumbnail ? "Save Changes" : "Upload Thumbnail"}
+                      <Upload size={16} />
+                      Upload Thumbnail
                     </>
                   )}
                 </button>
