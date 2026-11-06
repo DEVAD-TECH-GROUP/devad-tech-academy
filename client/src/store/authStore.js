@@ -685,7 +685,7 @@ setPasswordWithToken: async (
     );
 
     const { data } = await api.post(
-      "/auth/set-password",
+      "/authpassword/set-password",
       {
         token,
         password,
