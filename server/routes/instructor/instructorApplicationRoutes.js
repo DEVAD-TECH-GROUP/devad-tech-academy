@@ -10,6 +10,7 @@ import {
 
 import authenticate from "../../middlewares/auth/authenticate.js";
 import documentUpload from "../../middlewares/upload/documentUpload.js";
+import instructorDocumentUpload from "../../middlewares/upload/instructorDocumentUpload.js";
 
 const router = express.Router();
 
@@ -32,7 +33,7 @@ POST /api/instructor/applications
 router.post(
   "/applications",
   // authenticate,
-  documentUpload.single("cv"),
+  instructorDocumentUpload.single("cv"),
   submitInstructorApplication
 );
 
