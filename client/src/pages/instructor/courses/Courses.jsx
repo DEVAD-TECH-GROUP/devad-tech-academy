@@ -37,6 +37,10 @@ export default function Courses() {
   const [deleting, setDeleting] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
+  // ============================================================
+  // LOAD COURSES
+  // ============================================================
+
   useEffect(() => {
     let mounted = true;
 
@@ -52,10 +56,7 @@ export default function Courses() {
       } catch (error) {
         if (!mounted) return;
 
-        toast.error(
-          error.response?.data?.message ||
-            "Failed to load courses"
-        );
+        toast.error(error.response?.data?.message || "Failed to load courses");
 
         setCourses([]);
       } finally {
@@ -87,17 +88,12 @@ export default function Courses() {
       await deleteCourse(courseId);
 
       setCourses((currentCourses) =>
-        currentCourses.filter(
-          (course) => course._id !== courseId
-        )
+        currentCourses.filter((course) => course._id !== courseId),
       );
 
       toast.success("Course deleted");
     } catch (error) {
-      toast.error(
-        error.response?.data?.message ||
-          "Delete failed"
-      );
+      toast.error(error.response?.data?.message || "Delete failed");
     } finally {
       setDeleting(null);
       setConfirmDelete(null);
@@ -119,16 +115,13 @@ export default function Courses() {
                 ...course,
                 status: "pending_review",
               }
-            : course
-        )
+            : course,
+        ),
       );
 
       toast.success("Submitted for review!");
     } catch (error) {
-      toast.error(
-        error.response?.data?.message ||
-          "Submission failed"
-      );
+      toast.error(error.response?.data?.message || "Submission failed");
     }
   };
 
@@ -143,7 +136,7 @@ export default function Courses() {
       pending_review: "yellow",
       rejected: "red",
       archived: "default",
-    }[status] || "default");
+    })[status] || "default";
 
   // ============================================================
   // LOADING
@@ -175,15 +168,11 @@ export default function Courses() {
 
   return (
     <div className="space-y-5 fi">
-      {/* ========================================================
-          HEADER
-      ======================================================== */}
+      {/* HEADER */}
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="dsp text-xl font-bold text-text">
-            My Courses
-          </h1>
+          <h1 className="dsp text-xl font-bold text-text">My Courses</h1>
 
           <p className="text-xs text-muted mt-1">
             Create, manage and monitor your courses.
@@ -192,9 +181,7 @@ export default function Courses() {
 
         <button
           type="button"
-          onClick={() =>
-            navigate("/instructor/courses/create")
-          }
+          onClick={() => navigate("/instructor/courses/create")}
           className="
             bg-orange
             hover:bg-orange/90
@@ -210,51 +197,27 @@ export default function Courses() {
             gap-1.5
           "
         >
-          <Plus
-            size={15}
-            strokeWidth={2}
-          />
-
+          <Plus size={15} strokeWidth={2} />
           New Course
         </button>
       </div>
 
-      {/* ========================================================
-          SEARCH
-      ======================================================== */}
+      {/* SEARCH */}
 
-      <SearchBar
-        onSearch={setSearch}
-        placeholder="Search courses..."
-      />
+      <SearchBar onSearch={setSearch} placeholder="Search courses..." />
 
-      {/* ========================================================
-          EMPTY STATE
-      ======================================================== */}
+      {/* EMPTY STATE */}
 
       {courses.length === 0 ? (
         <EmptyState
-          icon={
-            <BookOpen
-              size={32}
-              strokeWidth={1.7}
-            />
-          }
+          icon={<BookOpen size={32} strokeWidth={1.7} />}
           title="No courses yet"
           message="Create your first course and start teaching!"
-          action={() =>
-            navigate("/instructor/courses/create")
-          }
+          action={() => navigate("/instructor/courses/create")}
           actionLabel="Create Course"
         />
       ) : (
-        /* ======================================================
-           COURSE GRID
-
-           IMPORTANT:
-           overflow-visible allows the Dropdown menu to escape
-           the course card instead of being clipped.
-           ====================================================== */
+        /* COURSE GRID */
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {courses.map((course) => (
@@ -269,35 +232,40 @@ export default function Courses() {
                 fi
               "
             >
-              {/* ==================================================
-                  COURSE COVER
-                  ================================================== */}
+              {/* COURSE COVER */}
 
               <div
                 className="
                   h-32
                   bg-accentDim
                   rounded-t-2xl
+                  overflow-hidden
                   flex
                   items-center
                   justify-center
+                  relative
                 "
               >
-                <BookOpen
-                  size={46}
-                  strokeWidth={1.5}
-                  className="text-orange/70"
-                />
+                {course.thumbnail?.image?.url ? (
+                  <img
+                    src={course.thumbnail.image.url}
+                    alt={course.thumbnail.title || course.title}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <BookOpen
+                    size={46}
+                    strokeWidth={1.5}
+                    className="text-orange/70"
+                  />
+                )}
               </div>
 
-              {/* ==================================================
-                  COURSE CONTENT
-                  ================================================== */}
+              {/* COURSE CONTENT */}
 
               <div className="p-4">
-                {/* ==================================================
-                    TITLE + MENU
-                    ================================================== */}
+                {/* TITLE + MENU */}
 
                 <div className="relative flex items-start justify-between gap-2 mb-2">
                   <p
@@ -333,84 +301,44 @@ export default function Courses() {
                           "
                           aria-label="Course actions"
                         >
-                          <MoreVertical
-                            size={17}
-                            strokeWidth={1.8}
-                          />
+                          <MoreVertical size={17} strokeWidth={1.8} />
                         </button>
                       }
                       items={[
                         {
                           label: "Edit",
-                          icon: (
-                            <Pencil
-                              size={15}
-                              strokeWidth={1.8}
-                            />
-                          ),
+                          icon: <Pencil size={15} strokeWidth={1.8} />,
                           onClick: () =>
-                            navigate(
-                              `/instructor/courses/${course._id}/edit`
-                            ),
+                            navigate(`/instructor/courses/${course._id}/edit`),
                         },
 
                         {
                           label: "Build Content",
-                          icon: (
-                            <Wrench
-                              size={15}
-                              strokeWidth={1.8}
-                            />
-                          ),
+                          icon: <Wrench size={15} strokeWidth={1.8} />,
                           onClick: () =>
-                            navigate(
-                              `/instructor/courses/${course._id}/build`
-                            ),
+                            navigate(`/instructor/courses/${course._id}/build`),
                         },
 
                         {
                           label: "View Analytics",
-                          icon: (
-                            <BarChart3
-                              size={15}
-                              strokeWidth={1.8}
-                            />
-                          ),
-                          onClick: () =>
-                            navigate(
-                              "/instructor/analytics"
-                            ),
+                          icon: <BarChart3 size={15} strokeWidth={1.8} />,
+                          onClick: () => navigate("/instructor/analytics"),
                         },
 
                         ...(course.status === "draft"
                           ? [
                               {
-                                label:
-                                  "Submit for Review",
-                                icon: (
-                                  <Rocket
-                                    size={15}
-                                    strokeWidth={1.8}
-                                  />
-                                ),
-                                onClick: () =>
-                                  handlePublish(
-                                    course._id
-                                  ),
+                                label: "Submit for Review",
+                                icon: <Rocket size={15} strokeWidth={1.8} />,
+                                onClick: () => handlePublish(course._id),
                               },
                             ]
                           : []),
 
                         {
                           label: "Delete",
-                          icon: (
-                            <Trash2
-                              size={15}
-                              strokeWidth={1.8}
-                            />
-                          ),
-                          onClick: () =>
-                            setConfirmDelete(course),
+                          icon: <Trash2 size={15} strokeWidth={1.8} />,
+                          onClick: () => setConfirmDelete(course),
                           danger: true,
                         },
                       ]}
@@ -418,21 +346,13 @@ export default function Courses() {
                   </div>
                 </div>
 
-                {/* ==================================================
-                    STATUS
-                    ================================================== */}
+                {/* STATUS */}
 
                 <div className="flex items-center gap-2 flex-wrap mb-3">
-                  <Badge
-                    variant={statusVariant(
-                      course.status
-                    )}
-                  >
+                  <Badge variant={statusVariant(course.status)}>
                     {course.status
                       ?.replace(/_/g, " ")
-                      ?.replace(/\b\w/g, (letter) =>
-                        letter.toUpperCase()
-                      )}
+                      ?.replace(/\b\w/g, (letter) => letter.toUpperCase())}
                   </Badge>
 
                   {course.category?.name && (
@@ -442,37 +362,21 @@ export default function Courses() {
                   )}
                 </div>
 
-                {/* ==================================================
-                    COURSE STATS
-                    ================================================== */}
+                {/* COURSE STATS */}
 
                 <div className="flex items-center gap-3 text-xs text-muted flex-wrap">
                   <span className="flex items-center gap-1">
-                    <Users
-                      size={13}
-                      strokeWidth={1.8}
-                    />
-
+                    <Users size={13} strokeWidth={1.8} />
                     {course.totalStudents || 0}
                   </span>
 
                   <span className="flex items-center gap-1">
-                    <Star
-                      size={13}
-                      strokeWidth={1.8}
-                    />
-
-                    {course.averageRating > 0
-                      ? course.averageRating
-                      : "New"}
+                    <Star size={13} strokeWidth={1.8} />
+                    {course.averageRating > 0 ? course.averageRating : "New"}
                   </span>
 
                   <span className="flex items-center gap-1">
-                    <FileText
-                      size={13}
-                      strokeWidth={1.8}
-                    />
-
+                    <FileText size={13} strokeWidth={1.8} />
                     {course.totalLessons || 0} lessons
                   </span>
                 </div>
@@ -482,15 +386,11 @@ export default function Courses() {
         </div>
       )}
 
-      {/* ==========================================================
-          DELETE CONFIRMATION
-          ========================================================== */}
+      {/* DELETE CONFIRMATION */}
 
       <ConfirmDialog
         isOpen={!!confirmDelete}
-        onClose={() =>
-          setConfirmDelete(null)
-        }
+        onClose={() => setConfirmDelete(null)}
         onConfirm={handleDelete}
         title="Delete Course"
         message={

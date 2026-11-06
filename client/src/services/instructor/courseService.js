@@ -10,6 +10,10 @@ export const getMyCourses = (params) =>
 export const createCourse = (payload) =>
   api.post("/instructor/courses", payload);
 
+// COURSE THUMBNAILS
+export const getAvailableCourseThumbnails = () =>
+  api.get("/instructor/courses/thumbnails");
+
 export const getCourse = (id) =>
   api.get(`/instructor/courses/${id}`);
 
