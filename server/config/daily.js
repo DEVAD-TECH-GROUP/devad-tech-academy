@@ -1,6 +1,6 @@
 
 import axios from "axios";
-import env from "./config/env.js";
+import env from "./env.js";
 
 const baseURL = "https://api.daily.co/v1";
 
