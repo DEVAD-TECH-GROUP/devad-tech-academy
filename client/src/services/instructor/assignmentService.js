@@ -21,6 +21,10 @@ export const getSubmissions = (id) =>
 export const gradeSubmission = (id, payload) =>
   api.put(`/instructor/assignments/submissions/${id}/grade`, payload);
 
-// Upload assignment attachments from the instructor's computer
+// Upload assignment attachments from the instructor's computer.
+// The Content-Type override replaces the instance default
+// ("application/json"); axios/browser adds the multipart boundary.
 export const uploadAssignmentAttachments = (formData) =>
-  api.post("/instructor/assignments/attachments/upload", formData);
+  api.post("/instructor/assignments/attachments/upload", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });

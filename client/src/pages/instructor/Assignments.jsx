@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   BookOpen,
   CalendarDays,
@@ -18,6 +19,7 @@ import {
   Trash2,
   Users,
   X,
+  UploadCloud,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
@@ -28,6 +30,7 @@ import {
   deleteAssignment,
   getSubmissions,
   gradeSubmission,
+  uploadAssignmentAttachments,
 } from "../../services/instructor/assignmentService";
 
 import { getMyCourses } from "../../services/instructor/courseService";
@@ -58,6 +61,8 @@ const INITIAL_GRADE_FORM = {
   feedback: "",
 };
 
+const ALLOWED_ATTACHMENT_EXTENSIONS = ["pdf", "doc", "docx", "ppt", "pptx"];
+
 const inputClass =
   "w-full rounded-xl border border-border bg-surfaceHigh px-3.5 py-3 text-sm text-text outline-none transition placeholder:text-muted/70 focus:border-orange focus:ring-2 focus:ring-orange/15 disabled:cursor-not-allowed disabled:opacity-60";
 
@@ -78,7 +83,6 @@ const getResponseList = (response) => {
   const payload = response?.data?.data;
 
   if (Array.isArray(payload)) return payload;
-
   if (Array.isArray(payload?.docs)) return payload.docs;
   if (Array.isArray(payload?.data)) return payload.data;
   if (Array.isArray(payload?.results)) return payload.results;
@@ -100,7 +104,6 @@ const getResponseObject = (response) => {
 
 const getCourseId = (course) => {
   if (!course) return "";
-
   if (typeof course === "string") return course;
 
   return course._id || course.id || "";
@@ -108,7 +111,6 @@ const getCourseId = (course) => {
 
 const getCourseTitle = (course) => {
   if (!course) return "Unknown course";
-
   if (typeof course === "string") return "Course";
 
   return course.title || course.name || "Untitled course";
@@ -179,6 +181,14 @@ const getErrorMessage = (error, fallback) => {
   );
 };
 
+const getFileSize = (size) => {
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+};
+
 /* =========================================================
    REUSABLE UI
 ========================================================= */
@@ -200,7 +210,11 @@ function Field({ label, children, hint, required = false }) {
 
 function Toggle({ checked, onChange, label, description, disabled = false }) {
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-border bg-surfaceHigh p-4">
+    <label
+      className={`flex items-start justify-between gap-4 rounded-xl border border-border bg-surfaceHigh p-4 ${
+        disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+      }`}
+    >
       <span className="min-w-0">
         <span className="block text-sm font-semibold text-text">{label}</span>
 
@@ -242,26 +256,42 @@ function StatusBadge({ published }) {
   );
 }
 
+/* =========================================================
+   MODAL SHELL (PORTAL)
+
+   - Rendered on document.body so a transformed ancestor
+     (the "fi" animation wrapper) cannot trap position: fixed.
+   - Header stays fixed; only the body scrolls.
+   - Backdrop click does not close the modal.
+   - Body scroll lock is handled by the parent component.
+   - zIndex prop lets the grading modal sit above submissions.
+========================================================= */
+
 function ModalShell({
   title,
   subtitle,
   onClose,
   children,
   size = "max-w-3xl",
+  zIndex = "z-[1000]",
 }) {
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/70 p-3 backdrop-blur-sm sm:p-5"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose?.();
-        }
-      }}
+      className={`fixed inset-0 ${zIndex} flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm sm:p-5`}
+      role="presentation"
     >
       <div
-        className={`my-auto flex max-h-[94vh] w-full ${size} flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl`}
+        className={`flex w-full ${size} min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl`}
+        style={{ maxHeight: "calc(100dvh - 1.5rem)" }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-6">
+        {/* FIXED MODAL HEADER */}
+
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border bg-surface px-5 py-4 sm:px-6">
           <div className="min-w-0">
             <h2 className="text-lg font-bold text-text">{title}</h2>
 
@@ -273,18 +303,21 @@ function ModalShell({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-2 text-muted transition hover:bg-surfaceHigh hover:text-text"
+            className="shrink-0 rounded-lg p-2 text-muted transition hover:bg-surfaceHigh hover:text-text"
             aria-label="Close modal"
           >
             <X size={19} />
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+        {/* ONLY THIS AREA SCROLLS */}
+
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-5 pb-8 sm:px-6">
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -308,6 +341,9 @@ export default function Assignments() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
 
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+
   const [showSubmissions, setShowSubmissions] = useState(null);
   const [submissions, setSubmissions] = useState([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
@@ -318,6 +354,37 @@ export default function Assignments() {
 
   const [deletingId, setDeletingId] = useState(null);
   const [updatingPublishId, setUpdatingPublishId] = useState(null);
+
+  /* -------------------------------------------------------
+     LOCK BACKGROUND SCROLLING WHEN A MODAL IS OPEN
+
+     Handled here rather than inside ModalShell because the
+     grading modal can sit on top of the submissions modal.
+  ------------------------------------------------------- */
+
+  const isAnyModalOpen =
+    showCreate || Boolean(showSubmissions) || Boolean(gradingSubmission);
+
+  useEffect(() => {
+    if (!isAnyModalOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+
+    const scrollbarWidth =
+      window.innerWidth - document.documentElement.clientWidth;
+
+    document.body.style.overflow = "hidden";
+
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+    };
+  }, [isAnyModalOpen]);
 
   /* -------------------------------------------------------
      ACTIVE ASSIGNMENT AND GRADE LIMIT
@@ -334,9 +401,6 @@ export default function Assignments() {
 
   /* -------------------------------------------------------
      FORM UPDATE
-
-     All text inputs use this state updater.
-     Native inputs call it directly through onChange.
   ------------------------------------------------------- */
 
   const setFormField = (field, value) => {
@@ -395,6 +459,8 @@ export default function Assignments() {
       ...INITIAL_FORM,
       course: courses[0]?._id || "",
     });
+
+    setSelectedFiles([]);
   };
 
   /* -------------------------------------------------------
@@ -403,6 +469,7 @@ export default function Assignments() {
 
   const handleOpenCreate = () => {
     setEditingAssignment(null);
+    setSelectedFiles([]);
 
     setForm({
       ...INITIAL_FORM,
@@ -418,6 +485,7 @@ export default function Assignments() {
 
   const handleOpenEdit = (assignment) => {
     setEditingAssignment(assignment);
+    setSelectedFiles([]);
 
     setForm({
       course: getCourseId(assignment.course),
@@ -455,7 +523,7 @@ export default function Assignments() {
   };
 
   const handleCloseForm = () => {
-    if (saving) return;
+    if (saving || uploadingFiles) return;
 
     setShowCreate(false);
     setEditingAssignment(null);
@@ -502,10 +570,7 @@ export default function Assignments() {
   );
 
   /* -------------------------------------------------------
-     ATTACHMENT METADATA MANAGEMENT
-
-     This saves existing/external URLs and metadata.
-     A real file upload requires a backend upload endpoint.
+     URL ATTACHMENT MANAGEMENT
   ------------------------------------------------------- */
 
   const addAttachment = () => {
@@ -539,6 +604,87 @@ export default function Assignments() {
         (_, itemIndex) => itemIndex !== index,
       ),
     }));
+  };
+
+  /* -------------------------------------------------------
+     COMPUTER FILE UPLOAD MANAGEMENT
+  ------------------------------------------------------- */
+
+  const handleSelectFiles = (event) => {
+    const files = Array.from(event.target.files || []);
+
+    if (!files.length) return;
+
+    const validFiles = [];
+    const invalidFiles = [];
+
+    files.forEach((file) => {
+      const extension = file.name.split(".").pop()?.toLowerCase();
+
+      if (!ALLOWED_ATTACHMENT_EXTENSIONS.includes(extension)) {
+        invalidFiles.push(file.name);
+        return;
+      }
+
+      validFiles.push(file);
+    });
+
+    if (invalidFiles.length) {
+      toast.error(`Unsupported file format: ${invalidFiles.join(", ")}`);
+    }
+
+    setSelectedFiles((current) => {
+      const existingKeys = new Set(
+        current.map((file) => `${file.name}-${file.size}-${file.lastModified}`),
+      );
+
+      const newFiles = validFiles.filter(
+        (file) =>
+          !existingKeys.has(`${file.name}-${file.size}-${file.lastModified}`),
+      );
+
+      return [...current, ...newFiles];
+    });
+
+    event.target.value = "";
+  };
+
+  const removeSelectedFile = (index) => {
+    setSelectedFiles((current) =>
+      current.filter((_, fileIndex) => fileIndex !== index),
+    );
+  };
+
+  const uploadSelectedFiles = async () => {
+    if (!selectedFiles.length) return [];
+
+    const formData = new FormData();
+
+    selectedFiles.forEach((file) => {
+      formData.append("files", file);
+    });
+
+    try {
+      setUploadingFiles(true);
+
+      const response = await uploadAssignmentAttachments(formData);
+      const uploadedAttachments = getResponseList(response);
+
+      if (uploadedAttachments.length !== selectedFiles.length) {
+        throw new Error(
+          "The server did not return all uploaded attachment details.",
+        );
+      }
+
+      return uploadedAttachments.map((file) => ({
+        name: file.name || file.originalname || "Attachment",
+        url: file.url || file.path || "",
+        public_id: file.public_id || file.filename || "",
+        type: file.type || file.mimetype || "",
+      }));
+    } finally {
+      setUploadingFiles(false);
+    }
   };
 
   /* -------------------------------------------------------
@@ -576,13 +722,8 @@ export default function Assignments() {
       return false;
     }
 
-    if (!editingAssignment && !isFutureDate(form.dueDate)) {
+    if (!form.dueDate || !isFutureDate(form.dueDate)) {
       toast.error("Choose a future due date");
-      return false;
-    }
-
-    if (editingAssignment && form.dueDate && !isFutureDate(form.dueDate)) {
-      toast.error("The due date must be in the future");
       return false;
     }
 
@@ -665,47 +806,66 @@ export default function Assignments() {
   const handleSaveAssignment = async (event) => {
     event.preventDefault();
 
-    if (saving) return;
+    if (saving || uploadingFiles) return;
     if (!validateForm()) return;
-
-    const payload = {
-      course: form.course,
-      title: form.title.trim(),
-      description: form.description.trim(),
-      instructions: form.instructions.trim() || null,
-
-      dueDate: new Date(form.dueDate).toISOString(),
-
-      totalPoints: Number(form.totalPoints),
-      passingPoints: Number(form.passingPoints),
-
-      allowLateSubmission: Boolean(form.allowLateSubmission),
-      latePenaltyPercent: Number(form.latePenaltyPercent),
-      maxFileSize: Number(form.maxFileSize),
-
-      allowedFileTypes: form.allowedFileTypes
-        .split(",")
-        .map((item) => item.trim().toLowerCase())
-        .filter(Boolean),
-
-      isPublished: Boolean(form.isPublished),
-
-      rubric: form.rubric.map((item) => ({
-        criterion: item.criterion.trim(),
-        description: item.description.trim(),
-        points: Number(item.points),
-      })),
-
-      attachments: form.attachments.map((item) => ({
-        name: item.name.trim(),
-        url: item.url.trim(),
-        public_id: item.public_id.trim(),
-        type: item.type.trim(),
-      })),
-    };
 
     try {
       setSaving(true);
+
+      let uploadedAttachments = [];
+
+      if (selectedFiles.length > 0) {
+        toast.loading("Uploading attachment files...", {
+          id: "assignment-upload",
+        });
+
+        uploadedAttachments = await uploadSelectedFiles();
+
+        toast.success("Files uploaded successfully", {
+          id: "assignment-upload",
+        });
+      }
+
+      const allAttachments = [
+        ...form.attachments.map((item) => ({
+          name: item.name.trim(),
+          url: item.url.trim(),
+          public_id: item.public_id.trim(),
+          type: item.type.trim(),
+        })),
+        ...uploadedAttachments,
+      ];
+
+      const payload = {
+        course: form.course,
+        title: form.title.trim(),
+        description: form.description.trim(),
+        instructions: form.instructions.trim() || null,
+
+        dueDate: new Date(form.dueDate).toISOString(),
+
+        totalPoints: Number(form.totalPoints),
+        passingPoints: Number(form.passingPoints),
+
+        allowLateSubmission: Boolean(form.allowLateSubmission),
+        latePenaltyPercent: Number(form.latePenaltyPercent),
+        maxFileSize: Number(form.maxFileSize),
+
+        allowedFileTypes: form.allowedFileTypes
+          .split(",")
+          .map((item) => item.trim().toLowerCase())
+          .filter(Boolean),
+
+        isPublished: Boolean(form.isPublished),
+
+        rubric: form.rubric.map((item) => ({
+          criterion: item.criterion.trim(),
+          description: item.description.trim(),
+          points: Number(item.points),
+        })),
+
+        attachments: allAttachments,
+      };
 
       if (editingAssignment?._id) {
         const response = await updateAssignment(editingAssignment._id, payload);
@@ -730,7 +890,6 @@ export default function Assignments() {
         toast.success("Assignment updated successfully");
       } else {
         const response = await createAssignment(payload);
-
         const newAssignment = getResponseObject(response);
 
         if (!newAssignment?._id) {
@@ -752,15 +911,20 @@ export default function Assignments() {
         toast.success("Assignment created successfully");
       }
 
+      toast.dismiss("assignment-upload");
+
       setShowCreate(false);
       setEditingAssignment(null);
       resetForm();
     } catch (error) {
       console.error("SAVE ASSIGNMENT ERROR:", error);
 
+      toast.dismiss("assignment-upload");
+
       toast.error(getErrorMessage(error, "Failed to save assignment"));
     } finally {
       setSaving(false);
+      setUploadingFiles(false);
     }
   };
 
@@ -975,7 +1139,8 @@ export default function Assignments() {
   const draftCount = assignments.length - publishedCount;
 
   const submissionCount = assignments.reduce(
-    (sum, item) => sum + Number(item.stats?.totalSubmissions || 0),
+    (sum, item) =>
+      sum + Number(item.stats?.totalSubmissions ?? item.totalSubmissions ?? 0),
     0,
   );
 
@@ -1194,10 +1359,14 @@ export default function Assignments() {
             const courseTitle = getCourseTitle(assignment.course);
 
             const totalSubmissions = Number(
-              assignment.stats?.totalSubmissions || 0,
+              assignment.stats?.totalSubmissions ??
+                assignment.totalSubmissions ??
+                0,
             );
 
-            const totalGraded = Number(assignment.stats?.totalGraded || 0);
+            const totalGraded = Number(
+              assignment.stats?.totalGraded ?? assignment.totalGraded ?? 0,
+            );
 
             const isDeleting = deletingId === assignment._id;
 
@@ -1341,7 +1510,7 @@ export default function Assignments() {
 
                   {courses.map((course) => (
                     <option key={course._id} value={course._id}>
-                      {course.title}
+                      {course.title || course.name || "Untitled course"}
                     </option>
                   ))}
                 </select>
@@ -1396,7 +1565,9 @@ export default function Assignments() {
                   onChange={(event) =>
                     setFormField("instructions", event.target.value)
                   }
-                  placeholder="1. Read the project requirements...&#10;2. Complete the tasks...&#10;3. Submit your work..."
+                  placeholder={
+                    "1. Read the project requirements...\n2. Complete the tasks...\n3. Submit your work..."
+                  }
                   rows={5}
                   maxLength={5000}
                   className={textareaClass}
@@ -1699,39 +1870,145 @@ export default function Assignments() {
 
             {/* ATTACHMENTS */}
 
-            <section className="space-y-4">
+            <section className="space-y-5">
+              <div>
+                <h3 className="text-sm font-bold text-text">
+                  Assignment attachments
+                </h3>
+
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  Provide reference materials to help students complete their
+                  assignments. Upload files from your computer or add existing
+                  hosted URLs.
+                </p>
+              </div>
+
+              {/* COMPUTER UPLOAD */}
+
+              <div className="space-y-3 rounded-xl border border-border bg-surfaceHigh p-4">
+                <div className="flex items-center gap-2">
+                  <UploadCloud size={19} className="text-orange" />
+
+                  <div>
+                    <h4 className="text-sm font-semibold text-text">
+                      Upload from computer
+                    </h4>
+
+                    <p className="mt-1 text-xs text-muted">
+                      PDF, DOC, DOCX, PPT and PPTX files.
+                    </p>
+                  </div>
+                </div>
+
+                <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface p-6 text-center transition hover:border-orange/60">
+                  <UploadCloud size={27} className="text-orange" />
+
+                  <span className="mt-2 text-sm font-semibold text-text">
+                    Choose files
+                  </span>
+
+                  <span className="mt-1 text-xs text-muted">
+                    Select one or multiple files from your device
+                  </span>
+
+                  <input
+                    type="file"
+                    multiple
+                    accept=".pdf,.doc,.docx,.ppt,.pptx"
+                    onChange={handleSelectFiles}
+                    disabled={saving || uploadingFiles}
+                    className="hidden"
+                  />
+                </label>
+
+                {selectedFiles.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-text">
+                        Selected files ({selectedFiles.length})
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFiles([])}
+                        disabled={saving || uploadingFiles}
+                        className="text-xs font-medium text-red-400 hover:underline disabled:opacity-50"
+                      >
+                        Remove all
+                      </button>
+                    </div>
+
+                    {selectedFiles.map((file, index) => (
+                      <div
+                        key={`${file.name}-${file.size}-${file.lastModified}`}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <FileText
+                            size={17}
+                            className="shrink-0 text-orange"
+                          />
+
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-text">
+                              {file.name}
+                            </p>
+
+                            <p className="mt-1 text-[11px] text-muted">
+                              {getFileSize(file.size)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeSelectedFile(index)}
+                          disabled={saving || uploadingFiles}
+                          className="shrink-0 rounded-lg p-2 text-red-400 transition hover:bg-red-500/10 disabled:opacity-50"
+                          aria-label={`Remove ${file.name}`}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* URL ATTACHMENTS */}
+
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-bold text-text">
-                    Assignment attachments
-                  </h3>
+                  <h4 className="text-sm font-semibold text-text">
+                    Add attachment using URL
+                  </h4>
 
-                  <p className="mt-1 text-xs leading-5 text-muted">
-                    Add reference documents or resources using their existing
-                    hosted URLs.
+                  <p className="mt-1 text-xs text-muted">
+                    You can still use existing hosted document URLs.
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={addAttachment}
+                  disabled={saving || uploadingFiles}
                   className={buttonSecondary}
                 >
                   <Plus size={15} />
-                  Add attachment
+                  Add URL
                 </button>
               </div>
 
               {form.attachments.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border p-5 text-center">
-                  <FileText size={22} className="mx-auto text-muted" />
+                  <ExternalLink size={22} className="mx-auto text-muted" />
 
                   <p className="mt-2 text-sm font-medium text-text">
-                    No attachments added
+                    No URL attachments
                   </p>
 
                   <p className="mt-1 text-xs text-muted">
-                    Attachments are optional.
+                    You can add an existing hosted URL or upload files above.
                   </p>
                 </div>
               ) : (
@@ -1743,13 +2020,14 @@ export default function Assignments() {
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-muted">
-                          ATTACHMENT {index + 1}
+                          URL ATTACHMENT {index + 1}
                         </span>
 
                         <button
                           type="button"
                           onClick={() => removeAttachment(index)}
-                          className="rounded-lg p-2 text-red-400 hover:bg-red-500/10"
+                          disabled={saving || uploadingFiles}
+                          className="rounded-lg p-2 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
                         >
                           <Trash2 size={15} />
                         </button>
@@ -1830,6 +2108,7 @@ export default function Assignments() {
                 onChange={(value) => setFormField("isPublished", value)}
                 label="Publish assignment immediately"
                 description="When enabled, the assignment is created or updated as published. Otherwise, it remains a draft."
+                disabled={saving || uploadingFiles}
               />
             </section>
 
@@ -1839,24 +2118,30 @@ export default function Assignments() {
               <button
                 type="button"
                 onClick={handleCloseForm}
-                disabled={saving}
+                disabled={saving || uploadingFiles}
                 className={buttonSecondary}
               >
                 Cancel
               </button>
 
-              <button type="submit" disabled={saving} className={buttonPrimary}>
-                {saving ? (
+              <button
+                type="submit"
+                disabled={saving || uploadingFiles}
+                className={buttonPrimary}
+              >
+                {saving || uploadingFiles ? (
                   <Loader2 size={16} className="animate-spin" />
                 ) : (
                   <Check size={16} />
                 )}
 
-                {saving
-                  ? "Saving..."
-                  : editingAssignment
-                    ? "Save changes"
-                    : "Create assignment"}
+                {uploadingFiles
+                  ? "Uploading files..."
+                  : saving
+                    ? "Saving..."
+                    : editingAssignment
+                      ? "Save changes"
+                      : "Create assignment"}
               </button>
             </div>
           </form>
@@ -1903,6 +2188,7 @@ export default function Assignments() {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <div className="rounded-xl border border-border bg-surfaceHigh p-3">
                   <p className="text-xs text-muted">Total submissions</p>
+
                   <p className="mt-1 text-xl font-bold text-text">
                     {submissions.length}
                   </p>
@@ -1910,6 +2196,7 @@ export default function Assignments() {
 
                 <div className="rounded-xl border border-border bg-surfaceHigh p-3">
                   <p className="text-xs text-muted">Graded</p>
+
                   <p className="mt-1 text-xl font-bold text-text">
                     {
                       submissions.filter((item) => item.status === "graded")
@@ -1920,6 +2207,7 @@ export default function Assignments() {
 
                 <div className="col-span-2 rounded-xl border border-border bg-surfaceHigh p-3 sm:col-span-1">
                   <p className="text-xs text-muted">Awaiting grading</p>
+
                   <p className="mt-1 text-xl font-bold text-text">
                     {
                       submissions.filter((item) => item.status !== "graded")
@@ -1933,7 +2221,6 @@ export default function Assignments() {
 
               {submissions.map((submission) => {
                 const studentName = getStudentName(submission.student);
-
                 const isGraded = submission.status === "graded";
 
                 return (
@@ -2131,6 +2418,7 @@ export default function Assignments() {
         <ModalShell
           title="Grade submission"
           subtitle={`Maximum score: ${maxGrade} points`}
+          zIndex="z-[1100]"
           onClose={() => {
             if (!savingGrade) {
               setGradingSubmission(null);
@@ -2202,8 +2490,10 @@ export default function Assignments() {
               <button
                 type="button"
                 onClick={() => {
-                  setGradingSubmission(null);
-                  setGradeForm(INITIAL_GRADE_FORM);
+                  if (!savingGrade) {
+                    setGradingSubmission(null);
+                    setGradeForm(INITIAL_GRADE_FORM);
+                  }
                 }}
                 disabled={savingGrade}
                 className={buttonSecondary}
