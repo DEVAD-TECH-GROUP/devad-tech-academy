@@ -58,12 +58,13 @@ const liveClassesSchema = Joi.object({
 
   platform: Joi.string()
     .valid(
+      "devad-live",
       "google-meet",
       "zoom",
       "microsoft-teams",
       "other"
     )
-    .default("google-meet"),
+    .default("devad-live"),
 
   description: Joi.string()
     .max(500)

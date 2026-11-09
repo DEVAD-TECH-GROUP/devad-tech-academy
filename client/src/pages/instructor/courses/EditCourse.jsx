@@ -123,7 +123,7 @@ const INITIAL_FORM = {
     enabled: false,
     frequency: "weekly",
     duration: 60,
-    platform: "google-meet",
+    platform: "devad-live",
     description: "",
   },
 };
@@ -1297,10 +1297,10 @@ export default function EditCourse() {
                   setNested("liveClasses", "platform", e.target.value)
                 }
                 options={[
-{
-  value: "devad-live",
-  label: "DEVAD Live",
-},
+                  {
+                    value: "devad-live",
+                    label: "DEVAD Live",
+                  },
                   {
                     value: "google-meet",
                     label: "Google Meet",
