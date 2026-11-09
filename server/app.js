@@ -16,6 +16,7 @@ import passwordRoutes from "./routes/auth/passwordRoutes.js";
 
 // Public routes
 import publicCourseRoutes from "./routes/public/courseRoute.js";
+import liveKitWebhookRoutes from "./routes/webhooks/liveKitWebhookRoutes.js";
 
 // Super Admin routes
 import dashboardRoutes from "./routes/superadmin/dashboardRoutes.js";
@@ -162,6 +163,8 @@ app.use(
     ],
   })
 );
+
+app.use("/api/webhooks/livekit", liveKitWebhookRoutes);
 
 // ── Body parsers ──────────────────────────────────────────
 

@@ -1,7 +1,9 @@
 
 import mongoose from "mongoose";
+
 import LiveClass from "../../models/live/LiveClass.js";
 import Attendance from "../../models/live/Attendance.js";
+
 import paginate from "../../utils/pagination.js";
 import sendResponse from "../../utils/sendResponse.js";
 import asyncHandler from "../../middlewares/error/asyncHandler.js";
@@ -9,14 +11,14 @@ import asyncHandler from "../../middlewares/error/asyncHandler.js";
 import {
   createLiveClassRoom,
   getInstructorToken,
-  getLiveClassRecordings,
-  startLiveClassRecording,
-  stopLiveClassRecording,
   deleteLiveClassRoom,
-  getLiveClassRecordingAccessLink,
-} from "../../services/meeting/dailyService.js";
+} from "../../services/meeting/liveKitService.js";
 
 import { LIVE_CLASS_STATUS } from "../../utils/constants.js";
+
+// ─────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────
 
 const findOwnedClass = (id, instructorId) => {
   if (!mongoose.isValidObjectId(id)) return null;
@@ -39,99 +41,21 @@ const safeClass = (liveClass) => {
   return data;
 };
 
-const extractRecordings = (response) => {
-  if (Array.isArray(response)) return response;
-  if (Array.isArray(response?.data)) return response.data;
-  if (Array.isArray(response?.recordings)) return response.recordings;
-  if (Array.isArray(response?.data?.recordings)) {
-    return response.data.recordings;
-  }
-  return [];
+const getInstructorName = (user) => {
+  return [
+    user?.firstName,
+    user?.lastName,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim() || "DEVAD Instructor";
 };
 
-const syncRecordingForClass = async (liveClass) => {
-  const roomName = liveClass.meetingRoom?.roomName;
-
-  if (!roomName) {
-    throw new Error("Daily room is missing for this class");
-  }
-
-  const result = await getLiveClassRecordings(roomName);
-  const recordings = extractRecordings(result);
-
-  const finished = recordings
-    .filter((item) => {
-      const status = String(item.status || "").toLowerCase();
-
-      return (
-        status === "finished" ||
-        status === "completed" ||
-        Boolean(item.download_link || item.downloadLink || item.url)
-      );
-    })
-    .sort((a, b) => {
-      const aDate = new Date(a.created_at || a.createdAt || 0).getTime();
-      const bDate = new Date(b.created_at || b.createdAt || 0).getTime();
-      return bDate - aDate;
-    });
-
-  const recording = finished[0];
-
-  if (!recording) {
-    liveClass.recording.status = "processing";
-    liveClass.recording.lastSyncAt = new Date();
-    await liveClass.save();
-
-    return null;
-  }
-
-  const recordingId =
-    recording.id ||
-    recording.recording_id ||
-    recording.recordingId ||
-    null;
-
-  let url =
-    recording.download_link ||
-    recording.downloadLink ||
-    recording.url ||
-    null;
-
-  // Some Daily recording responses need a separate access-link request.
-  if (!url && recordingId) {
-    const linkResult = await getLiveClassRecordingAccessLink(recordingId);
-
-    url =
-      linkResult?.download_link ||
-      linkResult?.downloadLink ||
-      linkResult?.url ||
-      linkResult?.data?.download_link ||
-      linkResult?.data?.url ||
-      null;
-  }
-
-  if (!url) {
-    liveClass.recording.status = "processing";
-    liveClass.recording.lastSyncAt = new Date();
-    await liveClass.save();
-
-    return null;
-  }
-
-  liveClass.recording = {
-    url,
-    recordingId,
-    duration: Number(recording.duration || 0),
-    status: "available",
-    lastSyncAt: new Date(),
-  };
-
-  await liveClass.save();
-
-  return liveClass.recording;
-};
-
+// ─────────────────────────────────────────────────────────────
+// GET MY LIVE CLASSES
 // GET /instructor/live-classes
+// ─────────────────────────────────────────────────────────────
+
 export const getMyLiveClasses = asyncHandler(async (req, res) => {
   const result = await paginate(
     LiveClass,
@@ -144,10 +68,19 @@ export const getMyLiveClasses = asyncHandler(async (req, res) => {
     }
   );
 
-  sendResponse(res, 200, "Live classes retrieved", result);
+  return sendResponse(
+    res,
+    200,
+    "Live classes retrieved",
+    result
+  );
 });
 
+// ─────────────────────────────────────────────────────────────
+// CREATE LIVE CLASS
 // POST /instructor/live-classes
+// ─────────────────────────────────────────────────────────────
+
 export const createLiveClass = asyncHandler(async (req, res) => {
   const {
     title,
@@ -156,8 +89,8 @@ export const createLiveClass = asyncHandler(async (req, res) => {
     scheduledAt,
     duration = 120,
     timezone = "Africa/Lagos",
-    maxParticipants = 100,
-    isRecorded = true,
+    maxParticipants = 2,
+    isRecorded = false,
     materials = [],
     classNotes = null,
   } = req.body;
@@ -180,22 +113,40 @@ export const createLiveClass = asyncHandler(async (req, res) => {
     return sendResponse(res, 400, "Invalid scheduled date");
   }
 
-  if (!Number.isFinite(Number(duration)) || Number(duration) < 1) {
-    return sendResponse(res, 400, "Duration must be at least one minute");
+  if (
+    !Number.isFinite(Number(duration)) ||
+    Number(duration) < 1
+  ) {
+    return sendResponse(
+      res,
+      400,
+      "Duration must be at least one minute"
+    );
   }
 
   if (
-    !Number.isFinite(Number(maxParticipants)) ||
+    !Number.isInteger(Number(maxParticipants)) ||
     Number(maxParticipants) < 2
   ) {
-    return sendResponse(res, 400, "Maximum participants must be at least 2");
+    return sendResponse(
+      res,
+      400,
+      "Maximum participants must be at least 2"
+    );
+  }
+
+  // LiveKit Egress recording has not yet been configured.
+  if (Boolean(isRecorded)) {
+    return sendResponse(
+      res,
+      400,
+      "Live class recording is not available yet. Disable recording to schedule this class."
+    );
   }
 
   const room = await createLiveClassRoom({
     className: title,
     maxParticipants: Number(maxParticipants),
-    durationMinutes: Number(duration),
-    enableRecording: Boolean(isRecorded),
   });
 
   try {
@@ -207,40 +158,53 @@ export const createLiveClass = asyncHandler(async (req, res) => {
       duration: Number(duration),
       timezone,
       maxParticipants: Number(maxParticipants),
-      isRecorded: Boolean(isRecorded),
+      isRecorded: false,
       materials,
       classNotes,
       instructor: req.user._id,
+
       meetingRoom: {
         roomName: room.name,
         roomUrl: room.url,
+  maxParticipants: room.maxParticipants,
       },
+
       recording: {
         status: "not_started",
       },
     });
 
-    sendResponse(
+    return sendResponse(
       res,
       201,
-      "Live class created",
+      "Live class created successfully",
       safeClass(liveClass)
     );
   } catch (error) {
-    // Avoid leaving an orphaned Daily room if database creation fails.
+    // Remove the LiveKit room if database creation fails.
     try {
       await deleteLiveClassRoom(room.name);
     } catch (cleanupError) {
-      console.error("Failed to clean up Daily room:", cleanupError.message);
+      console.error(
+        "LiveKit room cleanup failed:",
+        cleanupError.message
+      );
     }
 
     throw error;
   }
 });
 
+// ─────────────────────────────────────────────────────────────
+// GET SINGLE LIVE CLASS
 // GET /instructor/live-classes/:id
+// ─────────────────────────────────────────────────────────────
+
 export const getLiveClass = asyncHandler(async (req, res) => {
-  const liveClass = await findOwnedClass(req.params.id, req.user._id);
+  const liveClass = await findOwnedClass(
+    req.params.id,
+    req.user._id
+  );
 
   if (!liveClass) {
     return sendResponse(res, 404, "Live class not found");
@@ -248,12 +212,24 @@ export const getLiveClass = asyncHandler(async (req, res) => {
 
   await liveClass.populate("course", "title");
 
-  sendResponse(res, 200, "Live class retrieved", safeClass(liveClass));
+  return sendResponse(
+    res,
+    200,
+    "Live class retrieved",
+    safeClass(liveClass)
+  );
 });
 
+// ─────────────────────────────────────────────────────────────
+// UPDATE LIVE CLASS
 // PUT /instructor/live-classes/:id
+// ─────────────────────────────────────────────────────────────
+
 export const updateLiveClass = asyncHandler(async (req, res) => {
-  const liveClass = await findOwnedClass(req.params.id, req.user._id);
+  const liveClass = await findOwnedClass(
+    req.params.id,
+    req.user._id
+  );
 
   if (!liveClass) {
     return sendResponse(res, 404, "Live class not found");
@@ -263,7 +239,11 @@ export const updateLiveClass = asyncHandler(async (req, res) => {
     liveClass.status === LIVE_CLASS_STATUS.LIVE ||
     liveClass.status === LIVE_CLASS_STATUS.ENDED
   ) {
-    return sendResponse(res, 400, "Only scheduled classes can be edited");
+    return sendResponse(
+      res,
+      400,
+      "Only scheduled classes can be edited"
+    );
   }
 
   const allowedFields = [
@@ -274,7 +254,6 @@ export const updateLiveClass = asyncHandler(async (req, res) => {
     "duration",
     "timezone",
     "maxParticipants",
-    "isRecorded",
     "materials",
     "classNotes",
   ];
@@ -285,122 +264,242 @@ export const updateLiveClass = asyncHandler(async (req, res) => {
     }
   }
 
+  // Recording is not available until Egress is configured.
+  if (req.body.isRecorded === true) {
+    return sendResponse(
+      res,
+      400,
+      "Live class recording is not available yet"
+    );
+  }
+
+  liveClass.isRecorded = false;
+
   if (
     !liveClass.title?.trim() ||
     !liveClass.course ||
     !liveClass.scheduledAt
   ) {
-    return sendResponse(res, 400, "Title, course and date are required");
+    return sendResponse(
+      res,
+      400,
+      "Title, course and date are required"
+    );
+  }
+
+  if (!mongoose.isValidObjectId(liveClass.course)) {
+    return sendResponse(res, 400, "Invalid course ID");
+  }
+
+  if (
+    !Number.isFinite(Number(liveClass.duration)) ||
+    Number(liveClass.duration) < 1
+  ) {
+    return sendResponse(
+      res,
+      400,
+      "Duration must be at least one minute"
+    );
+  }
+
+  if (
+    !Number.isInteger(Number(liveClass.maxParticipants)) ||
+    Number(liveClass.maxParticipants) < 2
+  ) {
+    return sendResponse(
+      res,
+      400,
+      "Maximum participants must be at least 2"
+    );
+  }
+
+  const scheduledDate = new Date(liveClass.scheduledAt);
+
+  if (Number.isNaN(scheduledDate.getTime())) {
+    return sendResponse(res, 400, "Invalid scheduled date");
+  }
+
+  liveClass.scheduledAt = scheduledDate;
+
+  // The existing LiveKit room's capacity is fixed at creation.
+  // Prevent the database from showing a capacity that differs
+  // from the actual room configuration.
+  if (
+    Number(liveClass.maxParticipants) !==
+    Number(liveClass.meetingRoom?.maxParticipants || liveClass.maxParticipants)
+  ) {
+    return sendResponse(
+      res,
+      400,
+      "Participant capacity cannot be changed after creating the classroom. Delete and recreate the scheduled class."
+    );
   }
 
   await liveClass.save();
 
-  sendResponse(res, 200, "Live class updated", safeClass(liveClass));
+  return sendResponse(
+    res,
+    200,
+    "Live class updated",
+    safeClass(liveClass)
+  );
 });
 
+// ─────────────────────────────────────────────────────────────
+// DELETE LIVE CLASS
 // DELETE /instructor/live-classes/:id
+// ─────────────────────────────────────────────────────────────
+
 export const deleteLiveClass = asyncHandler(async (req, res) => {
-  const liveClass = await findOwnedClass(req.params.id, req.user._id);
+  const liveClass = await findOwnedClass(
+    req.params.id,
+    req.user._id
+  );
 
   if (!liveClass) {
     return sendResponse(res, 404, "Live class not found");
   }
 
   if (liveClass.status === LIVE_CLASS_STATUS.LIVE) {
-    return sendResponse(res, 400, "End the live class before deleting it");
+    return sendResponse(
+      res,
+      400,
+      "End the live class before deleting it"
+    );
   }
 
   await LiveClass.findByIdAndDelete(liveClass._id);
 
   if (liveClass.meetingRoom?.roomName) {
     try {
-      await deleteLiveClassRoom(liveClass.meetingRoom.roomName);
+      await deleteLiveClassRoom(
+        liveClass.meetingRoom.roomName
+      );
     } catch (error) {
-      // Database deletion succeeded; room cleanup can be retried separately.
-      console.error("Daily room cleanup failed:", error.message);
+      console.error(
+        "LiveKit room cleanup failed:",
+        error.message
+      );
     }
   }
 
-  sendResponse(res, 200, "Live class deleted");
+  return sendResponse(
+    res,
+    200,
+    "Live class deleted"
+  );
 });
 
+// ─────────────────────────────────────────────────────────────
+// START LIVE CLASS
 // POST /instructor/live-classes/:id/start
+// ─────────────────────────────────────────────────────────────
+
 export const startLiveClass = asyncHandler(async (req, res) => {
-  const liveClass = await findOwnedClass(req.params.id, req.user._id);
+  const liveClass = await findOwnedClass(
+    req.params.id,
+    req.user._id
+  );
 
   if (!liveClass) {
     return sendResponse(res, 404, "Live class not found");
   }
 
   if (liveClass.status === LIVE_CLASS_STATUS.ENDED) {
-    return sendResponse(res, 400, "This class has already ended");
+    return sendResponse(
+      res,
+      400,
+      "This class has already ended"
+    );
   }
 
   if (liveClass.status === LIVE_CLASS_STATUS.LIVE) {
-    return sendResponse(res, 400, "This class is already live");
+    return sendResponse(
+      res,
+      400,
+      "This class is already live"
+    );
   }
 
   const roomName = liveClass.meetingRoom?.roomName;
-  const roomUrl = liveClass.meetingRoom?.roomUrl;
+  const serverUrl = liveClass.meetingRoom?.roomUrl;
 
-  if (!roomName || !roomUrl) {
-    return sendResponse(res, 400, "Daily meeting room is not configured");
+  if (!roomName || !serverUrl) {
+    return sendResponse(
+      res,
+      400,
+      "LiveKit classroom is not configured correctly"
+    );
   }
 
-  // Issue a fresh, short-lived host token instead of returning a stored token.
-  const token = await getInstructorToken(roomName);
-
-  if (liveClass.isRecorded) {
-    liveClass.recording.status = "processing";
-  }
-
+  const instructorToken = await getInstructorToken({
+    roomName,
+    instructorId: req.user._id.toString(),
+    instructorName: getInstructorName(req.user),
+  });
 
   liveClass.status = LIVE_CLASS_STATUS.LIVE;
   liveClass.startedAt = new Date();
   liveClass.endedAt = null;
+  liveClass.actualDuration = 0;
 
   await liveClass.save();
 
   const io = req.app.get("io");
 
   if (io) {
-    io.to(`live_class_${liveClass._id}`).emit("live_class_started", {
-      liveClassId: liveClass._id,
-      startedAt: liveClass.startedAt,
-    });
+    io.to(`live_class_${liveClass._id}`).emit(
+      "live_class_started",
+      {
+        liveClassId: liveClass._id,
+        startedAt: liveClass.startedAt,
+      }
+    );
   }
 
-  sendResponse(res, 200, "Live class started", {
-    ...safeClass(liveClass),
-    joinUrl: roomUrl,
-    instructorToken: token.token,
-  });
+  return sendResponse(
+    res,
+    200,
+    "Live class started",
+    {
+      liveClass: safeClass(liveClass),
+      serverUrl,
+      roomName,
+      token: instructorToken,
+    }
+  );
 });
 
+// ─────────────────────────────────────────────────────────────
+// END LIVE CLASS
 // POST /instructor/live-classes/:id/end
+// ─────────────────────────────────────────────────────────────
+
 export const endLiveClass = asyncHandler(async (req, res) => {
-  const liveClass = await findOwnedClass(req.params.id, req.user._id);
+  const liveClass = await findOwnedClass(
+    req.params.id,
+    req.user._id
+  );
 
   if (!liveClass) {
     return sendResponse(res, 404, "Live class not found");
   }
 
   if (liveClass.status === LIVE_CLASS_STATUS.ENDED) {
-    return sendResponse(res, 200, "Live class has already ended", safeClass(liveClass));
+    return sendResponse(
+      res,
+      200,
+      "Live class has already ended",
+      safeClass(liveClass)
+    );
   }
 
-  if (liveClass.isRecorded && liveClass.meetingRoom?.roomName) {
-    try {
-      await stopLiveClassRecording(liveClass.meetingRoom.roomName);
-    } catch (error) {
-      // Don't mark the class ended if the recording stop failed.
-      console.error("Daily recording stop failed:", error.message);
-      return sendResponse(
-        res,
-        502,
-        "Could not stop the Daily recording. Please retry."
-      );
-    }
+  if (liveClass.status !== LIVE_CLASS_STATUS.LIVE) {
+    return sendResponse(
+      res,
+      400,
+      "This class has not started yet"
+    );
   }
 
   liveClass.status = LIVE_CLASS_STATUS.ENDED;
@@ -410,123 +509,178 @@ export const endLiveClass = asyncHandler(async (req, res) => {
     liveClass.actualDuration = Math.max(
       0,
       Math.round(
-        (liveClass.endedAt.getTime() - liveClass.startedAt.getTime()) / 60000
+        (liveClass.endedAt.getTime() -
+          liveClass.startedAt.getTime()) / 60000
       )
     );
   }
 
-  if (liveClass.isRecorded) {
-    liveClass.recording.status = "processing";
-  }
-
   await liveClass.save();
 
-  // Attempt to fetch the recording now. It may still be processing.
-  let recording = null;
+  // Deleting a LiveKit room disconnects the participants.
+  // Their participant_left webhooks update attendance.
+  let roomClosed = true;
 
-  if (liveClass.isRecorded) {
+  if (liveClass.meetingRoom?.roomName) {
     try {
-      recording = await syncRecordingForClass(liveClass);
+      await deleteLiveClassRoom(
+        liveClass.meetingRoom.roomName
+      );
     } catch (error) {
-      console.error("Initial recording sync failed:", error.message);
+      roomClosed = false;
+
+      console.error(
+        "LiveKit room closure failed:",
+        error.message
+      );
     }
   }
 
   const io = req.app.get("io");
 
   if (io) {
-    io.to(`live_class_${liveClass._id}`).emit("live_class_ended", {
-      liveClassId: liveClass._id,
-      endedAt: liveClass.endedAt,
-    });
-  }
-
-  sendResponse(res, 200, recording
-    ? "Class ended and recording saved"
-    : "Class ended. Recording may still be processing; sync again shortly", {
-    ...safeClass(liveClass),
-    recording: liveClass.recording,
-  });
-});
-
-// GET /instructor/live-classes/:id/attendance
-export const getLiveClassAttendance = asyncHandler(async (req, res) => {
-  const liveClass = await findOwnedClass(req.params.id, req.user._id).select("_id");
-
-  if (!liveClass) {
-    return sendResponse(res, 404, "Live class not found");
-  }
-
-  const attendance = await Attendance.find({ liveClass: liveClass._id })
-    .populate("student", "firstName lastName email avatar")
-    .sort({ createdAt: -1 });
-
-  sendResponse(res, 200, "Attendance retrieved", attendance);
-});
-
-// POST /instructor/live-classes/:id/sync-recording
-export const syncLiveClassRecording = asyncHandler(async (req, res) => {
-  const liveClass = await findOwnedClass(req.params.id, req.user._id);
-
-  if (!liveClass) {
-    return sendResponse(res, 404, "Live class not found");
-  }
-
-  if (!liveClass.isRecorded) {
-    return sendResponse(res, 400, "Recording is disabled for this class");
-  }
-
-  if (liveClass.status !== LIVE_CLASS_STATUS.ENDED) {
-    return sendResponse(res, 400, "End the class before syncing its recording");
-  }
-
-  const recording = await syncRecordingForClass(liveClass);
-
-  if (!recording) {
-    return sendResponse(
-      res,
-      202,
-      "Recording is still processing. Please try again shortly",
-      { status: "processing" }
+    io.to(`live_class_${liveClass._id}`).emit(
+      "live_class_ended",
+      {
+        liveClassId: liveClass._id,
+        endedAt: liveClass.endedAt,
+      }
     );
-  }
-
-  sendResponse(res, 200, "Recording synchronized", recording);
-});
-
-// GET /instructor/live-classes/:id/recording
-export const getLiveClassRecording = asyncHandler(async (req, res) => {
-  const liveClass = await findOwnedClass(req.params.id, req.user._id)
-    .select("title status recording isRecorded");
-
-  if (!liveClass) {
-    return sendResponse(res, 404, "Live class not found");
-  }
-
-  if (!liveClass.recording?.url) {
-    return sendResponse(
-      res,
-      404,
-      "No recording is available yet",
-      { status: liveClass.recording?.status || "not_started" }
-    );
-  }
-
-  sendResponse(res, 200, "Recording retrieved", liveClass.recording);
-});
-
-// POST /instructor/live-classes/:id/recording
-// Retained for compatibility with existing clients.
-export const saveLiveClassRecording = asyncHandler(async (req, res) => {
-  const liveClass = await findOwnedClass(req.params.id, req.user._id);
-
-  if (!liveClass) {
-    return sendResponse(res, 404, "Live class not found");
   }
 
   return sendResponse(
     res,
-    400,
-    "Use the Daily recording sync endpoint instead of manually submitting recording URLs"
+    200,
+    roomClosed
+      ? "Live class ended successfully"
+      : "Class marked as ended, but the LiveKit room could not be closed",
+    {
+      ...safeClass(liveClass),
+      roomClosed,
+    }
   );
 });
+
+// ─────────────────────────────────────────────────────────────
+// GET CLASS ATTENDANCE
+// GET /instructor/live-classes/:id/attendance
+// ─────────────────────────────────────────────────────────────
+
+export const getLiveClassAttendance = asyncHandler(
+  async (req, res) => {
+    const liveClass = await findOwnedClass(
+      req.params.id,
+      req.user._id
+    );
+
+    if (!liveClass) {
+      return sendResponse(
+        res,
+        404,
+        "Live class not found"
+      );
+    }
+
+    const attendance = await Attendance.find({
+      liveClass: liveClass._id,
+    })
+      .populate(
+        "student",
+        "firstName lastName email avatar"
+      )
+      .sort({ createdAt: -1 });
+
+    return sendResponse(
+      res,
+      200,
+      "Attendance retrieved",
+      attendance
+    );
+  }
+);
+
+// ─────────────────────────────────────────────────────────────
+// RECORDING ENDPOINTS — EGRESS NOT CONFIGURED YET
+// ─────────────────────────────────────────────────────────────
+
+export const syncLiveClassRecording = asyncHandler(
+  async (req, res) => {
+    const liveClass = await findOwnedClass(
+      req.params.id,
+      req.user._id
+    );
+
+    if (!liveClass) {
+      return sendResponse(
+        res,
+        404,
+        "Live class not found"
+      );
+    }
+
+    return sendResponse(
+      res,
+      501,
+      "Recording is not configured yet. LiveKit Egress and recording storage must be connected first."
+    );
+  }
+);
+
+export const getLiveClassRecording = asyncHandler(
+  async (req, res) => {
+    const liveClass = await findOwnedClass(
+      req.params.id,
+      req.user._id
+    );
+
+    if (!liveClass) {
+      return sendResponse(
+        res,
+        404,
+        "Live class not found"
+      );
+    }
+
+    if (!liveClass.recording?.url) {
+      return sendResponse(
+        res,
+        404,
+        "No recording is available yet",
+        {
+          status: "not_started",
+        }
+      );
+    }
+
+    return sendResponse(
+      res,
+      200,
+      "Recording retrieved",
+      liveClass.recording
+    );
+  }
+);
+
+// Retained for compatibility with existing routes.
+export const saveLiveClassRecording = asyncHandler(
+  async (req, res) => {
+    const liveClass = await findOwnedClass(
+      req.params.id,
+      req.user._id
+    );
+
+    if (!liveClass) {
+      return sendResponse(
+        res,
+        404,
+        "Live class not found"
+      );
+    }
+
+    return sendResponse(
+      res,
+      501,
+      "Manual recording URLs are disabled. Configure LiveKit Egress to enable recordings."
+    );
+  }
+);

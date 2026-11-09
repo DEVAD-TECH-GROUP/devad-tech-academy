@@ -28,6 +28,11 @@ const attendanceSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+currentSessionStartedAt: {
+  type: Date,
+  default: null,
+},
     duration: {
       type: Number,
       default: 0, // in minutes

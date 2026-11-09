@@ -49,6 +49,11 @@ const env = {
   DAILY_API_KEY: process.env.DAILY_API_KEY,
   DAILY_DOMAIN: process.env.DAILY_DOMAIN,
 
+
+  LIVEKIT_URL: process.env.LIVEKIT_URL,
+  LIVEKIT_API_KEY: process.env.LIVEKIT_API_KEY,
+  LIVEKIT_API_SECRET: process.env.LIVEKIT_API_SECRET,
+
   // Anthropic AI
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
 

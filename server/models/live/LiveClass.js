@@ -47,6 +47,7 @@ const liveClassSchema = new mongoose.Schema(
     meetingRoom: {
       roomName: { type: String, default: null },
       roomUrl: { type: String, default: null },
+ maxParticipants: { type: Number, default: 2 },
       hostToken: { type: String, default: null, select: false },
     },
 

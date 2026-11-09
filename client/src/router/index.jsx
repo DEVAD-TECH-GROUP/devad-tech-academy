@@ -33,6 +33,7 @@ import Contact from "../pages/shared/contact/Contact";
 import PrivacyPolicy from "../pages/shared/termsAndPolicy/Policy";
 import TermsOfService from "../pages/shared/termsAndPolicy/Terms";
 import InstructorApplication from "../pages/shared/contact/InstructorApplication";
+import DEVADClassroom from "../pages/shared/liveClass/Classroom";
 // ─────────────────────────────────────────────────────────────
 // Auth Pages
 // ─────────────────────────────────────────────────────────────
@@ -546,6 +547,27 @@ const router = createBrowserRouter([
     ],
   },
 
+  // ═══════════════════════════════════════════════════════════
+  // LIVE CLASSROOM — STANDALONE FULL-SCREEN ROUTES
+  // ═══════════════════════════════════════════════════════════
+
+  {
+    path: "/instructor/live-classes/:id/classroom",
+    element: (
+      <ProtectedRoute role="instructor">
+        <DEVADClassroom role="instructor" />
+      </ProtectedRoute>
+    ),
+  },
+
+  {
+    path: "/student/live-classes/:id/classroom",
+    element: (
+      <ProtectedRoute role="student">
+        <DEVADClassroom role="student" />
+      </ProtectedRoute>
+    ),
+  },
   // ═══════════════════════════════════════════════════════════
   // SUPER ADMIN
   // ═══════════════════════════════════════════════════════════
