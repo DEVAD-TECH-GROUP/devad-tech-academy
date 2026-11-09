@@ -30,15 +30,28 @@ export const getAllCourses = asyncHandler(async (req, res) => {
   sendResponse(res, 200, "Courses retrieved", result);
 });
 
+
 // ── Get single course ─────────────────────────────────────
 export const getCourse = asyncHandler(async (req, res) => {
   const course = await Course.findById(req.params.id)
     .populate("instructor", "firstName lastName email")
-    .populate("category", "name");
+    .populate("category", "name")
+    .populate({
+      path: "thumbnail",
+      populate: {
+        path: "category",
+        select: "name",
+      },
+    })
+    .populate("approvedBy", "firstName lastName email");
 
-  if (!course) return sendResponse(res, 404, "Course not found");
+  if (!course) {
+    return sendResponse(res, 404, "Course not found");
+  }
+
   sendResponse(res, 200, "Course retrieved", course);
 });
+
 
 // ── Create course (super admin) ───────────────────────────
 export const createCourse = asyncHandler(async (req, res) => {

@@ -297,11 +297,12 @@ export default function Courses() {
                             transition
                             flex
                             items-center
-                            justify-center
+                            justify-right
+                            mt-28
                           "
                           aria-label="Course actions"
                         >
-                          <MoreVertical size={17} strokeWidth={1.8} />
+                          <MoreVertical size={20} strokeWidth={1.8} />
                         </button>
                       }
                       items={[
