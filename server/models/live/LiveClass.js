@@ -76,11 +76,19 @@ const liveClassSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-    recording: {
-      url: { type: String, default: null },
-      duration: { type: Number, default: 0 },
-      recordingId: { type: String, default: null },
-    },
+
+recording: {
+  url: { type: String, default: null },
+  duration: { type: Number, default: 0 },
+  recordingId: { type: String, default: null },
+  status: {
+    type: String,
+    enum: ["not_started", "recording", "processing", "available", "failed"],
+    default: "not_started",
+  },
+  lastSyncAt: { type: Date, default: null },
+},
+
 
     // ── Materials ─────────────────────────────────────
     materials: [

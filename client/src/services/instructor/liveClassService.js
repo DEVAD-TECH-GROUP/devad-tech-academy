@@ -1,61 +1,42 @@
 
 import api from "../../api/Api";
 
-// ─────────────────────────────────────────────
-// LIVE CLASSES
-// ─────────────────────────────────────────────
+const base = "/instructor/live-classes";
 
-// Get all live classes belonging to the instructor
+// Classes
 export const getMyLiveClasses = (params = {}) =>
-  api.get("/instructor/live-classes", { params });
+  api.get(base, { params });
 
-// Create a new live class
 export const createLiveClass = (payload) =>
-  api.post("/instructor/live-classes", payload);
+  api.post(base, payload);
 
-// Get a single live class
 export const getLiveClass = (id) =>
-  api.get(`/instructor/live-classes/${id}`);
+  api.get(`${base}/${id}`);
 
-// Update a scheduled live class
 export const updateLiveClass = (id, payload) =>
-  api.put(`/instructor/live-classes/${id}`, payload);
+  api.put(`${base}/${id}`, payload);
 
-// Delete a live class
 export const deleteLiveClass = (id) =>
-  api.delete(`/instructor/live-classes/${id}`);
+  api.delete(`${base}/${id}`);
 
-
-// ─────────────────────────────────────────────
-// LIVE CLASS MEETING
-// ─────────────────────────────────────────────
-
-// Start a live class
+// Meeting lifecycle
 export const startLiveClass = (id) =>
-  api.post(`/instructor/live-classes/${id}/start`);
+  api.post(`${base}/${id}/start`);
 
+export const endLiveClass = (id) =>
+  api.post(`${base}/${id}/end`);
 
-// ─────────────────────────────────────────────
-// ATTENDANCE
-// ─────────────────────────────────────────────
-
-// Get attendance records for a live class
+// Attendance
 export const getLiveClassAttendance = (id) =>
-  api.get(`/instructor/live-classes/${id}/attendance`);
+  api.get(`${base}/${id}/attendance`);
 
-
-// ─────────────────────────────────────────────
-// RECORDINGS
-// ─────────────────────────────────────────────
-
-// Synchronize/fetch recordings directly from Daily.co
-export const syncLiveClassRecording = (id) =>
-  api.post(`/instructor/live-classes/${id}/sync-recording`);
-
-// Get the saved recording for a live class
+// Recording lifecycle
 export const getLiveClassRecording = (id) =>
-  api.get(`/instructor/live-classes/${id}/recording`);
+  api.get(`${base}/${id}/recording`);
 
-// Manually save recording information (backward compatibility)
+export const syncLiveClassRecording = (id) =>
+  api.post(`${base}/${id}/sync-recording`);
+
+// Legacy endpoint: retained for compatibility only.
 export const saveLiveClassRecording = (id, payload) =>
-  api.post(`/instructor/live-classes/${id}/recording`, payload);
+  api.post(`${base}/${id}/recording`, payload);

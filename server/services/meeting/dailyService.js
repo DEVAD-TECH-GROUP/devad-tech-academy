@@ -1,73 +1,54 @@
+
 import dailyClient from "../../config/daily.js";
 
-// ── Create live class room ────────────────────────────────
 export const createLiveClassRoom = async ({
   className,
   maxParticipants = 100,
   durationMinutes = 120,
+  enableRecording = true,
 }) => {
-  try {
-    const roomName = `devad-${className
-      .toLowerCase()
-      .replace(/\s+/g, "-")}-${Date.now()}`;
+  const slug = String(className || "live-class")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 45) || "live-class";
 
-    const exp = Math.floor(Date.now() / 1000) + durationMinutes * 60;
+  const roomName = `devad-${slug}-${Date.now()}`;
+  const exp = Math.floor(Date.now() / 1000) + durationMinutes * 60 + 3600;
 
-    const room = await dailyClient.createRoom({
-      name: roomName,
-      privacy: "private",
-      maxParticipants,
-      enableRecording: true,
-      exp,
-    });
-
-    return room;
-  } catch (error) {
-    console.error(`❌ Daily create room error: ${error.message}`);
-    throw error;
-  }
+  return dailyClient.createRoom({
+    name: roomName,
+    privacy: "private",
+    maxParticipants,
+    enableRecording,
+    exp,
+  });
 };
 
-// ── Get instructor token ──────────────────────────────────
-export const getInstructorToken = async (roomName) => {
-  try {
-    const token = await dailyClient.getMeetingToken(roomName, true);
-    return token;
-  } catch (error) {
-    console.error(`❌ Daily instructor token error: ${error.message}`);
-    throw error;
-  }
-};
 
-// ── Get student token ─────────────────────────────────────
-export const getStudentToken = async (roomName) => {
-  try {
-    const token = await dailyClient.getMeetingToken(roomName, false);
-    return token;
-  } catch (error) {
-    console.error(`❌ Daily student token error: ${error.message}`);
-    throw error;
-  }
-};
+export const getInstructorToken = (roomName) =>
+  dailyClient.getMeetingToken(roomName, true, {
+    userName: "DEVAD Instructor",
+    startCloudRecording: true,
+  });
 
-// ── Delete room ───────────────────────────────────────────
-export const deleteLiveClassRoom = async (roomName) => {
-  try {
-    const result = await dailyClient.deleteRoom(roomName);
-    return result;
-  } catch (error) {
-    console.error(`❌ Daily delete room error: ${error.message}`);
-    throw error;
-  }
-};
 
-// ── Get recordings ────────────────────────────────────────
-export const getLiveClassRecordings = async (roomName) => {
-  try {
-    const recordings = await dailyClient.getRecordings(roomName);
-    return recordings;
-  } catch (error) {
-    console.error(`❌ Daily get recordings error: ${error.message}`);
-    throw error;
-  }
-};
+export const getStudentToken = (roomName, userName = "DEVAD Student") =>
+  dailyClient.getMeetingToken(roomName, false, { userName });
+
+export const deleteLiveClassRoom = (roomName) =>
+  dailyClient.deleteRoom(roomName);
+
+export const startLiveClassRecording = (roomName) =>
+  dailyClient.startRecording(roomName);
+
+export const stopLiveClassRecording = (roomName) =>
+  dailyClient.stopRecording(roomName);
+
+export const getLiveClassRecordings = (roomName) =>
+  dailyClient.getRecordings(roomName);
+
+export const getLiveClassRecordingAccessLink = (recordingId) =>
+  dailyClient.getRecordingAccessLink(recordingId);
+
