@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   getMyLiveClasses,
   createLiveClass,
@@ -7,8 +8,6 @@ import {
   startLiveClass,
   endLiveClass,
   getLiveClassAttendance,
-  getLiveClassRecording,
-  syncLiveClassRecording,
 } from "../../services/instructor/liveClassService";
 import { getMyCourses } from "../../services/instructor/courseService";
 import Badge from "../../components/common/Badge";
@@ -19,10 +18,9 @@ import { SkeletonCard } from "../../components/common/Skeleton";
 import { formatDate, formatTime } from "../../utils/formatDate";
 import { toast } from "react-hot-toast";
 
-// DEVAD DAILY.CO CONFIGURATION
-// Update this value when your Daily.co plan allows more participants.
-const DAILY_MAX_PARTICIPANTS = 2;
-const MIN_PARTICIPANTS = 2;
+// Initial DEVAD LiveKit prototype capacity.
+// This includes the instructor and students.
+const LIVEKIT_MAX_PARTICIPANTS = 2;
 
 const unwrap = (response) =>
   response?.data?.data?.data ?? response?.data?.data ?? response?.data ?? [];
@@ -33,11 +31,13 @@ const emptyForm = {
   course: "",
   scheduledAt: "",
   duration: 120,
-  maxParticipants: DAILY_MAX_PARTICIPANTS,
-  isRecorded: true,
+  maxParticipants: LIVEKIT_MAX_PARTICIPANTS,
+  isRecorded: false,
 };
 
 export default function LiveClasses() {
+  const navigate = useNavigate();
+
   const [classes, setClasses] = useState([]);
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -51,8 +51,6 @@ export default function LiveClasses() {
   const [selected, setSelected] = useState(null);
   const [attendance, setAttendance] = useState([]);
   const [showAttendance, setShowAttendance] = useState(false);
-  const [showRecording, setShowRecording] = useState(false);
-  const [recording, setRecording] = useState(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -99,7 +97,7 @@ export default function LiveClasses() {
   const setField = (key, value) => {
     setForm((current) => ({
       ...current,
-      [key]: key === "maxParticipants" ? DAILY_MAX_PARTICIPANTS : value,
+      [key]: value,
     }));
   };
 
@@ -109,7 +107,6 @@ export default function LiveClasses() {
     setForm({
       ...emptyForm,
       course: courses[0]?._id || "",
-      maxParticipants: DAILY_MAX_PARTICIPANTS,
     });
 
     setShowForm(true);
@@ -126,11 +123,8 @@ export default function LiveClasses() {
         ? new Date(liveClass.scheduledAt).toISOString().slice(0, 16)
         : "",
       duration: liveClass.duration || 120,
-
-      // Never allow an existing class to exceed the current frontend limit.
-      maxParticipants: DAILY_MAX_PARTICIPANTS,
-
-      isRecorded: liveClass.isRecorded !== false,
+      maxParticipants: LIVEKIT_MAX_PARTICIPANTS,
+      isRecorded: false,
     });
 
     setShowForm(true);
@@ -139,14 +133,6 @@ export default function LiveClasses() {
   const handleSave = async () => {
     if (!form.title.trim() || !form.course || !form.scheduledAt) {
       toast.error("Title, course and date are required");
-      return;
-    }
-
-    if (
-      DAILY_MAX_PARTICIPANTS < MIN_PARTICIPANTS ||
-      DAILY_MAX_PARTICIPANTS !== 2
-    ) {
-      toast.error("Invalid Daily.co participant configuration");
       return;
     }
 
@@ -170,8 +156,8 @@ export default function LiveClasses() {
         description: form.description,
         course: form.course,
         duration,
-        maxParticipants: DAILY_MAX_PARTICIPANTS,
-        isRecorded: Boolean(form.isRecorded),
+        maxParticipants: LIVEKIT_MAX_PARTICIPANTS,
+        isRecorded: false,
         scheduledAt: new Date(form.scheduledAt).toISOString(),
       };
 
@@ -199,43 +185,40 @@ export default function LiveClasses() {
     }
   };
 
+  // Start the class and enter the DEVAD LiveKit classroom.
   const handleStart = async (liveClass) => {
-    const meetingTab = window.open("about:blank", "_blank");
-
     setBusyId(liveClass._id);
 
     try {
       const response = await startLiveClass(liveClass._id);
       const result = unwrap(response);
 
-      const joinUrl = result?.joinUrl || result?.meetingRoom?.roomUrl;
+      const serverUrl = result?.serverUrl;
+      const roomName = result?.roomName;
+      const token = result?.token;
 
-      const token = result?.instructorToken;
+      if (!serverUrl || !roomName || !token) {
+        console.error("Unexpected LiveKit start response:", result);
 
-      if (!joinUrl || !token) {
-        meetingTab?.close();
-
-        toast.error("The server did not return the instructor meeting link");
+        toast.error(
+          "The server did not return all the LiveKit classroom credentials.",
+        );
 
         return;
       }
 
-      const url = new URL(joinUrl);
-      url.searchParams.set("t", token);
+      toast.success("Class started. Opening DEVAD Classroom...");
 
-      if (meetingTab) {
-        meetingTab.location.href = url.toString();
-      } else {
-        window.location.href = url.toString();
-      }
-
-      toast.success("Class started and recording requested");
-
-      await loadData();
+      navigate(`/instructor/live-classes/${liveClass._id}/classroom`, {
+        state: {
+          serverUrl,
+          roomName,
+          token,
+          liveClass: result?.liveClass || liveClass,
+        },
+      });
     } catch (error) {
-      meetingTab?.close();
-
-      console.error("Start live class error:", error);
+      console.error("Start LiveKit class error:", error);
 
       toast.error(
         error?.response?.data?.message || "Could not start live class",
@@ -246,24 +229,25 @@ export default function LiveClasses() {
   };
 
   const handleEnd = async (liveClass) => {
-    if (!window.confirm(`End "${liveClass.title}" and stop its recording?`)) {
+    if (
+      !window.confirm(
+        `End "${liveClass.title}" and disconnect everyone from the classroom?`,
+      )
+    ) {
       return;
     }
 
     setBusyId(liveClass._id);
 
     try {
-      const response = await endLiveClass(liveClass._id);
-      const result = unwrap(response);
+      await endLiveClass(liveClass._id);
 
-      toast.success(
-        result?.recording?.url
-          ? "Class ended and recording saved"
-          : "Class ended. The recording may still be processing.",
-      );
+      toast.success("Live class ended");
 
       await loadData();
     } catch (error) {
+      console.error("End live class error:", error);
+
       toast.error(error?.response?.data?.message || "Could not end the class");
     } finally {
       setBusyId(null);
@@ -284,6 +268,8 @@ export default function LiveClasses() {
 
       toast.success("Live class deleted");
     } catch (error) {
+      console.error("Delete live class error:", error);
+
       toast.error(error?.response?.data?.message || "Could not delete class");
     } finally {
       setBusyId(null);
@@ -301,47 +287,11 @@ export default function LiveClasses() {
       setAttendance(Array.isArray(data) ? data : []);
       setShowAttendance(true);
     } catch (error) {
+      console.error("Attendance loading error:", error);
+
       toast.error(
         error?.response?.data?.message || "Could not load attendance",
       );
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const handleRecording = async (liveClass, sync = false) => {
-    setBusyId(liveClass._id);
-    setSelected(liveClass);
-
-    try {
-      const response = sync
-        ? await syncLiveClassRecording(liveClass._id)
-        : await getLiveClassRecording(liveClass._id);
-
-      const data = unwrap(response);
-
-      setRecording(data?.url ? data : null);
-      setShowRecording(true);
-
-      if (sync) {
-        toast.success(
-          data?.url
-            ? "Recording synchronized"
-            : "Recording is still processing",
-        );
-      }
-
-      await loadData();
-    } catch (error) {
-      const message =
-        error?.response?.data?.message || "Recording is not available yet";
-
-      if (sync && error?.response?.status === 202) {
-        setRecording(null);
-        setShowRecording(true);
-      } else {
-        toast.error(message);
-      }
     } finally {
       setBusyId(null);
     }
@@ -380,7 +330,8 @@ export default function LiveClasses() {
           <h1 className="dsp text-xl font-bold text-text">Live Classes</h1>
 
           <p className="text-xs text-muted mt-1">
-            Schedule classes, manage meetings and access recordings.
+            Schedule classes, manage your DEVAD classrooms and monitor
+            attendance.
           </p>
         </div>
 
@@ -456,19 +407,32 @@ export default function LiveClasses() {
 
                       <span>⏱ {liveClass.duration} min</span>
 
-                      <span>👥 {liveClass.maxParticipants} max</span>
-
                       <span>
-                        🎥{" "}
-                        {liveClass.recording?.status ||
-                          (liveClass.isRecorded ? "recording enabled" : "off")}
+                        👥{" "}
+                        {liveClass.meetingRoom?.maxParticipants ||
+                          liveClass.maxParticipants ||
+                          LIVEKIT_MAX_PARTICIPANTS}{" "}
+                        max
                       </span>
+
+                      <span>🎥 Recording unavailable</span>
                     </div>
 
                     {liveClass.description && (
                       <p className="text-xs text-muted mt-2">
                         {liveClass.description}
                       </p>
+                    )}
+
+                    {liveClass.recording?.url && (
+                      <a
+                        href={liveClass.recording.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-block text-xs text-orange underline mt-2"
+                      >
+                        View existing recording
+                      </a>
                     )}
                   </div>
 
@@ -478,7 +442,7 @@ export default function LiveClasses() {
                         <button
                           onClick={() => openEdit(liveClass)}
                           disabled={isBusy}
-                          className="text-xs border border-border text-text px-3 py-2 rounded-xl"
+                          className="text-xs border border-border text-text px-3 py-2 rounded-xl disabled:opacity-50"
                         >
                           Edit
                         </button>
@@ -494,7 +458,7 @@ export default function LiveClasses() {
                         <button
                           onClick={() => handleDelete(liveClass)}
                           disabled={isBusy}
-                          className="text-xs border border-red-500/30 text-red-500 px-3 py-2 rounded-xl"
+                          className="text-xs border border-red-500/30 text-red-500 px-3 py-2 rounded-xl disabled:opacity-50"
                         >
                           Delete
                         </button>
@@ -514,31 +478,10 @@ export default function LiveClasses() {
                     <button
                       onClick={() => handleAttendance(liveClass)}
                       disabled={isBusy}
-                      className="text-xs border border-border text-text px-3 py-2 rounded-xl"
+                      className="text-xs border border-border text-text px-3 py-2 rounded-xl disabled:opacity-50"
                     >
                       Attendance
                     </button>
-
-                    {liveClass.status === "ended" &&
-                      liveClass.isRecorded !== false && (
-                        <>
-                          <button
-                            onClick={() => handleRecording(liveClass)}
-                            disabled={isBusy}
-                            className="text-xs border border-border text-text px-3 py-2 rounded-xl"
-                          >
-                            View Recording
-                          </button>
-
-                          <button
-                            onClick={() => handleRecording(liveClass, true)}
-                            disabled={isBusy}
-                            className="text-xs bg-orange/10 text-orange border border-orange/20 px-3 py-2 rounded-xl"
-                          >
-                            {isBusy ? "Checking..." : "Sync Recording"}
-                          </button>
-                        </>
-                      )}
                   </div>
                 </div>
               </div>
@@ -550,7 +493,7 @@ export default function LiveClasses() {
       {/* CREATE / EDIT MODAL */}
       <Modal
         isOpen={showForm}
-        onClose={() => setShowForm(false)}
+        onClose={() => !saving && setShowForm(false)}
         title={editing ? "Edit Live Class" : "Schedule Live Class"}
         size="sm"
       >
@@ -618,41 +561,48 @@ export default function LiveClasses() {
               <Input
                 label="Maximum participants"
                 type="number"
-                value={DAILY_MAX_PARTICIPANTS}
+                value={LIVEKIT_MAX_PARTICIPANTS}
                 disabled
                 readOnly
               />
 
               <p className="text-[11px] text-muted mt-1">
-                Fixed by the current DEVAD Daily.co configuration.
+                Initial prototype capacity.
               </p>
             </div>
           </div>
 
-          {/* CAPACITY NOTICE */}
+          {/* LIVEKIT CAPACITY NOTICE */}
           <div className="flex items-start gap-3 p-3 rounded-xl bg-orange/10 border border-orange/20">
             <span className="text-lg">👥</span>
 
             <div>
               <p className="text-xs font-semibold text-text">
-                Meeting capacity: {DAILY_MAX_PARTICIPANTS} participants
+                DEVAD classroom capacity: {LIVEKIT_MAX_PARTICIPANTS}
               </p>
 
               <p className="text-xs text-muted mt-1">
-                This is the total meeting capacity, including the instructor and
-                students. The limit is fixed for the current Daily.co plan.
+                This initial testing limit includes the instructor and students.
+                We can increase it when we move beyond the prototype stage.
               </p>
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-text">
-            <input
-              type="checkbox"
-              checked={form.isRecorded}
-              onChange={(event) => setField("isRecorded", event.target.checked)}
-            />
-            Record this class
-          </label>
+          {/* RECORDING NOTICE */}
+          <div className="p-3 rounded-xl bg-surfaceHigh border border-border">
+            <div className="flex items-center gap-2">
+              <span>🎥</span>
+
+              <p className="text-xs font-semibold text-text">
+                Class recording is not enabled yet
+              </p>
+            </div>
+
+            <p className="text-xs text-muted mt-1">
+              LiveKit recording requires a separate Egress configuration. Your
+              live classroom can work without it.
+            </p>
+          </div>
 
           <div className="flex gap-3 pt-2">
             <button
@@ -723,63 +673,6 @@ export default function LiveClasses() {
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
-        </div>
-      </Modal>
-
-      {/* RECORDING MODAL */}
-      <Modal
-        isOpen={showRecording}
-        onClose={() => setShowRecording(false)}
-        title={`Recording${selected ? ` — ${selected.title}` : ""}`}
-        size="lg"
-      >
-        <div className="space-y-3">
-          {recording?.url ? (
-            <>
-              <video
-                controls
-                playsInline
-                className="w-full rounded-xl bg-black"
-                src={recording.url}
-              >
-                Your browser does not support video playback.
-              </video>
-
-              <div className="text-xs text-muted space-y-1">
-                <p>Duration: {recording.duration || 0} seconds</p>
-
-                {recording.recordingId && (
-                  <p>Recording ID: {recording.recordingId}</p>
-                )}
-              </div>
-
-              <a
-                href={recording.url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-block text-sm text-orange underline"
-              >
-                Open recording in a new tab
-              </a>
-            </>
-          ) : (
-            <div className="py-5 text-center space-y-3">
-              <p className="text-sm text-muted">
-                The recording is not available yet. Daily.co may still be
-                processing the video.
-              </p>
-
-              {selected && (
-                <button
-                  onClick={() => handleRecording(selected, true)}
-                  disabled={busyId === selected._id}
-                  className="bg-orange text-white text-sm px-4 py-2 rounded-xl disabled:opacity-50"
-                >
-                  {busyId === selected._id ? "Checking..." : "Check Again"}
-                </button>
-              )}
             </div>
           )}
         </div>

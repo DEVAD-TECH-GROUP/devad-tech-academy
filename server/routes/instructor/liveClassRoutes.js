@@ -5,6 +5,7 @@ import {
   getMyLiveClasses,
   createLiveClass,
   getLiveClass,
+  getInstructorJoinToken,
   updateLiveClass,
   deleteLiveClass,
   startLiveClass,
@@ -24,6 +25,8 @@ router.use(authenticate, isInstructor);
 
 router.get("/", getMyLiveClasses);
 router.post("/", createLiveClass);
+
+router.post("/:id/join-token", getInstructorJoinToken);
 
 router.get("/:id", getLiveClass);
 router.put("/:id", updateLiveClass);

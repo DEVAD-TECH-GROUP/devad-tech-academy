@@ -1,5 +1,6 @@
 
 import mongoose from "mongoose";
+import { LIVEKIT_URL } from "../../config/livekit.js";
 
 import LiveClass from "../../models/live/LiveClass.js";
 import Attendance from "../../models/live/Attendance.js";
@@ -74,6 +75,40 @@ export const getMyLiveClasses = asyncHandler(async (req, res) => {
     "Live classes retrieved",
     result
   );
+});
+
+
+export const getInstructorJoinToken = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const liveClass = await findOwnedClass(id, req.user._id);
+
+  if (!liveClass) {
+    return sendResponse(res, 404, "Live class not found");
+  }
+
+  if (liveClass.status !== LIVE_CLASS_STATUS.LIVE) {
+    return sendResponse(res, 400, "This class is not currently live");
+  }
+
+  const roomName = liveClass.meetingRoom?.roomName;
+
+  if (!roomName) {
+    return sendResponse(res, 400, "Live classroom room is not configured");
+  }
+
+  const token = await getInstructorToken({
+    roomName,
+    instructorId: req.user._id.toString(),
+    instructorName: getInstructorName(req.user),
+  });
+
+  return sendResponse(res, 200, "Classroom access token generated", {
+    liveClass: safeClass(liveClass),
+    serverUrl: LIVEKIT_URL,
+    roomName,
+    token,
+  });
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -235,6 +270,11 @@ export const updateLiveClass = asyncHandler(async (req, res) => {
     return sendResponse(res, 404, "Live class not found");
   }
 
+const existingRoomCapacity = Number(
+  liveClass.meetingRoom?.maxParticipants ??
+  liveClass.maxParticipants
+);
+
   if (
     liveClass.status === LIVE_CLASS_STATUS.LIVE ||
     liveClass.status === LIVE_CLASS_STATUS.ENDED
@@ -303,15 +343,14 @@ export const updateLiveClass = asyncHandler(async (req, res) => {
   }
 
   if (
-    !Number.isInteger(Number(liveClass.maxParticipants)) ||
-    Number(liveClass.maxParticipants) < 2
-  ) {
-    return sendResponse(
-      res,
-      400,
-      "Maximum participants must be at least 2"
-    );
-  }
+  Number(liveClass.maxParticipants) !== existingRoomCapacity
+) {
+  return sendResponse(
+    res,
+    400,
+    "Participant capacity cannot be changed after creating the classroom. Delete and recreate the scheduled class."
+  );
+}
 
   const scheduledDate = new Date(liveClass.scheduledAt);
 

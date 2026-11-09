@@ -40,3 +40,7 @@ export const syncLiveClassRecording = (id) =>
 // Legacy endpoint: retained for compatibility only.
 export const saveLiveClassRecording = (id, payload) =>
   api.post(`${base}/${id}/recording`, payload);
+
+
+export const getInstructorJoinToken = (id) =>
+  api.post(`${base}/${id}/join-token`);
