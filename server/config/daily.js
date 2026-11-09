@@ -18,25 +18,41 @@ const headers = () => {
 const dailyClient = {
   baseURL,
 
-  async createRoom(options = {}) {
+
+async createRoom(options = {}) {
+  const payload = {
+    name: options.name || `devad-${Date.now()}`,
+    privacy: options.privacy || "private",
+    properties: {
+      max_participants: options.maxParticipants ?? 100,
+      enable_chat: true,
+      enable_knocking: true,
+      exp: options.exp || Math.floor(Date.now() / 1000) + 7200,
+      ...(options.enableRecording ? { enable_recording: "cloud" } : {}),
+    },
+  };
+
+  try {
     const response = await axios.post(
       `${baseURL}/rooms`,
-      {
-        name: options.name || `devad-${Date.now()}`,
-        privacy: options.privacy || "private",
-        properties: {
-          max_participants: options.maxParticipants ?? 100,
-          enable_recording: options.enableRecording ? "cloud" : false,
-          enable_chat: true,
-          enable_knocking: true,
-          exp: options.exp || Math.floor(Date.now() / 1000) + 7200,
-        },
-      },
+      payload,
       { headers: headers() }
     );
 
     return response.data;
-  },
+  } catch (error) {
+    console.error("========== DAILY CREATE ROOM ERROR ==========");
+    console.error("HTTP status:", error.response?.status);
+    console.error(
+      "Response body:",
+      JSON.stringify(error.response?.data, null, 2)
+    );
+    console.error("Request payload:", JSON.stringify(payload, null, 2));
+    console.error("==============================================");
+
+    throw error;
+  }
+},
 
   async deleteRoom(roomName) {
     const response = await axios.delete(
