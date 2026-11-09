@@ -19,6 +19,11 @@ import { SkeletonCard } from "../../components/common/Skeleton";
 import { formatDate, formatTime } from "../../utils/formatDate";
 import { toast } from "react-hot-toast";
 
+// DEVAD DAILY.CO CONFIGURATION
+// Update this value when your Daily.co plan allows more participants.
+const DAILY_MAX_PARTICIPANTS = 2;
+const MIN_PARTICIPANTS = 2;
+
 const unwrap = (response) =>
   response?.data?.data?.data ?? response?.data?.data ?? response?.data ?? [];
 
@@ -28,7 +33,7 @@ const emptyForm = {
   course: "",
   scheduledAt: "",
   duration: 120,
-  maxParticipants: 100,
+  maxParticipants: DAILY_MAX_PARTICIPANTS,
   isRecorded: true,
 };
 
@@ -77,6 +82,8 @@ export default function LiveClasses() {
             : [],
       );
     } catch (error) {
+      console.error("Live classes loading error:", error);
+
       toast.error(
         error?.response?.data?.message || "Failed to load live classes",
       );
@@ -89,20 +96,28 @@ export default function LiveClasses() {
     loadData();
   }, [loadData]);
 
-  const setField = (key, value) =>
-    setForm((current) => ({ ...current, [key]: value }));
+  const setField = (key, value) => {
+    setForm((current) => ({
+      ...current,
+      [key]: key === "maxParticipants" ? DAILY_MAX_PARTICIPANTS : value,
+    }));
+  };
 
   const openCreate = () => {
     setEditing(null);
+
     setForm({
       ...emptyForm,
       course: courses[0]?._id || "",
+      maxParticipants: DAILY_MAX_PARTICIPANTS,
     });
+
     setShowForm(true);
   };
 
   const openEdit = (liveClass) => {
     setEditing(liveClass);
+
     setForm({
       title: liveClass.title || "",
       description: liveClass.description || "",
@@ -111,9 +126,13 @@ export default function LiveClasses() {
         ? new Date(liveClass.scheduledAt).toISOString().slice(0, 16)
         : "",
       duration: liveClass.duration || 120,
-      maxParticipants: liveClass.maxParticipants || 100,
+
+      // Never allow an existing class to exceed the current frontend limit.
+      maxParticipants: DAILY_MAX_PARTICIPANTS,
+
       isRecorded: liveClass.isRecorded !== false,
     });
+
     setShowForm(true);
   };
 
@@ -123,13 +142,36 @@ export default function LiveClasses() {
       return;
     }
 
+    if (
+      DAILY_MAX_PARTICIPANTS < MIN_PARTICIPANTS ||
+      DAILY_MAX_PARTICIPANTS !== 2
+    ) {
+      toast.error("Invalid Daily.co participant configuration");
+      return;
+    }
+
+    const duration = Number(form.duration);
+
+    if (!Number.isFinite(duration) || duration < 1) {
+      toast.error("Duration must be at least one minute");
+      return;
+    }
+
+    if (new Date(form.scheduledAt).getTime() <= Date.now()) {
+      toast.error("Please select a future date and time");
+      return;
+    }
+
     setSaving(true);
 
     try {
       const payload = {
-        ...form,
-        duration: Number(form.duration),
-        maxParticipants: Number(form.maxParticipants),
+        title: form.title.trim(),
+        description: form.description,
+        course: form.course,
+        duration,
+        maxParticipants: DAILY_MAX_PARTICIPANTS,
+        isRecorded: Boolean(form.isRecorded),
         scheduledAt: new Date(form.scheduledAt).toISOString(),
       };
 
@@ -143,8 +185,12 @@ export default function LiveClasses() {
 
       setShowForm(false);
       setEditing(null);
+      setForm(emptyForm);
+
       await loadData();
     } catch (error) {
+      console.error("Save live class error:", error);
+
       toast.error(
         error?.response?.data?.message || "Could not save live class",
       );
@@ -154,8 +200,6 @@ export default function LiveClasses() {
   };
 
   const handleStart = async (liveClass) => {
-    // Open the tab immediately so browser popup blockers are less likely
-    // to block the meeting after the API request completes.
     const meetingTab = window.open("about:blank", "_blank");
 
     setBusyId(liveClass._id);
@@ -163,12 +207,16 @@ export default function LiveClasses() {
     try {
       const response = await startLiveClass(liveClass._id);
       const result = unwrap(response);
+
       const joinUrl = result?.joinUrl || result?.meetingRoom?.roomUrl;
+
       const token = result?.instructorToken;
 
       if (!joinUrl || !token) {
         meetingTab?.close();
+
         toast.error("The server did not return the instructor meeting link");
+
         return;
       }
 
@@ -182,9 +230,13 @@ export default function LiveClasses() {
       }
 
       toast.success("Class started and recording requested");
+
       await loadData();
     } catch (error) {
       meetingTab?.close();
+
+      console.error("Start live class error:", error);
+
       toast.error(
         error?.response?.data?.message || "Could not start live class",
       );
@@ -225,9 +277,11 @@ export default function LiveClasses() {
 
     try {
       await deleteLiveClass(liveClass._id);
+
       setClasses((current) =>
         current.filter((item) => item._id !== liveClass._id),
       );
+
       toast.success("Live class deleted");
     } catch (error) {
       toast.error(error?.response?.data?.message || "Could not delete class");
@@ -266,7 +320,7 @@ export default function LiveClasses() {
 
       const data = unwrap(response);
 
-      setRecording(data);
+      setRecording(data?.url ? data : null);
       setShowRecording(true);
 
       if (sync) {
@@ -311,16 +365,20 @@ export default function LiveClasses() {
   }
 
   const liveCount = classes.filter((item) => item.status === "live").length;
+
   const upcomingCount = classes.filter(
     (item) => item.status === "scheduled",
   ).length;
+
   const endedCount = classes.filter((item) => item.status === "ended").length;
 
   return (
     <div className="space-y-5 fi">
+      {/* HEADER */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="dsp text-xl font-bold text-text">Live Classes</h1>
+
           <p className="text-xs text-muted mt-1">
             Schedule classes, manage meetings and access recordings.
           </p>
@@ -334,6 +392,7 @@ export default function LiveClasses() {
         </button>
       </div>
 
+      {/* STATISTICS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           ["Total classes", classes.length],
@@ -346,11 +405,13 @@ export default function LiveClasses() {
             className="bg-surface border border-border rounded-2xl p-4"
           >
             <p className="text-xs text-muted">{label}</p>
+
             <p className="text-2xl font-bold text-text mt-1">{value}</p>
           </div>
         ))}
       </div>
 
+      {/* CLASS LIST */}
       {classes.length === 0 ? (
         <EmptyState
           icon="📡"
@@ -375,6 +436,7 @@ export default function LiveClasses() {
                       <p className="text-sm font-semibold text-text">
                         {liveClass.title}
                       </p>
+
                       <Badge variant={statusVariant(liveClass.status)}>
                         {liveClass.status}
                       </Badge>
@@ -391,8 +453,11 @@ export default function LiveClasses() {
                           {formatTime(liveClass.scheduledAt)}
                         </span>
                       )}
+
                       <span>⏱ {liveClass.duration} min</span>
+
                       <span>👥 {liveClass.maxParticipants} max</span>
+
                       <span>
                         🎥{" "}
                         {liveClass.recording?.status ||
@@ -482,6 +547,7 @@ export default function LiveClasses() {
         </div>
       )}
 
+      {/* CREATE / EDIT MODAL */}
       <Modal
         isOpen={showForm}
         onClose={() => setShowForm(false)}
@@ -506,6 +572,7 @@ export default function LiveClasses() {
 
           <div>
             <label className="block text-xs text-muted mb-1">Course *</label>
+
             <select
               value={form.course}
               onChange={(event) => setField("course", event.target.value)}
@@ -513,6 +580,7 @@ export default function LiveClasses() {
               required
             >
               <option value="">Select course</option>
+
               {courses.map((course) => (
                 <option key={course._id} value={course._id}>
                   {course.title || course.name || "Untitled course"}
@@ -540,20 +608,41 @@ export default function LiveClasses() {
             <Input
               label="Duration (minutes)"
               type="number"
+              min={1}
               value={form.duration}
               onChange={(event) => setField("duration", event.target.value)}
               required
             />
 
-            <Input
-              label="Maximum participants"
-              type="number"
-              value={form.maxParticipants}
-              onChange={(event) =>
-                setField("maxParticipants", event.target.value)
-              }
-              required
-            />
+            <div>
+              <Input
+                label="Maximum participants"
+                type="number"
+                value={DAILY_MAX_PARTICIPANTS}
+                disabled
+                readOnly
+              />
+
+              <p className="text-[11px] text-muted mt-1">
+                Fixed by the current DEVAD Daily.co configuration.
+              </p>
+            </div>
+          </div>
+
+          {/* CAPACITY NOTICE */}
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-orange/10 border border-orange/20">
+            <span className="text-lg">👥</span>
+
+            <div>
+              <p className="text-xs font-semibold text-text">
+                Meeting capacity: {DAILY_MAX_PARTICIPANTS} participants
+              </p>
+
+              <p className="text-xs text-muted mt-1">
+                This is the total meeting capacity, including the instructor and
+                students. The limit is fixed for the current Daily.co plan.
+              </p>
+            </div>
           </div>
 
           <label className="flex items-center gap-2 text-sm text-text">
@@ -568,7 +657,8 @@ export default function LiveClasses() {
           <div className="flex gap-3 pt-2">
             <button
               onClick={() => setShowForm(false)}
-              className="flex-1 bg-surfaceHigh border border-border text-text text-sm py-2.5 rounded-xl"
+              disabled={saving}
+              className="flex-1 bg-surfaceHigh border border-border text-text text-sm py-2.5 rounded-xl disabled:opacity-50"
             >
               Cancel
             </button>
@@ -584,6 +674,7 @@ export default function LiveClasses() {
         </div>
       </Modal>
 
+      {/* ATTENDANCE MODAL */}
       <Modal
         isOpen={showAttendance}
         onClose={() => setShowAttendance(false)}
@@ -606,6 +697,7 @@ export default function LiveClasses() {
                     <th className="py-2">Duration</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {attendance.map((item) => (
                     <tr
@@ -617,12 +709,15 @@ export default function LiveClasses() {
                           .filter(Boolean)
                           .join(" ") || "Student"}
                       </td>
+
                       <td className="py-3 pr-3">
                         {item.student?.email || "—"}
                       </td>
+
                       <td className="py-3 pr-3">
                         {item.status || "registered"}
                       </td>
+
                       <td className="py-3">{item.duration || 0} min</td>
                     </tr>
                   ))}
@@ -633,6 +728,7 @@ export default function LiveClasses() {
         </div>
       </Modal>
 
+      {/* RECORDING MODAL */}
       <Modal
         isOpen={showRecording}
         onClose={() => setShowRecording(false)}
@@ -653,6 +749,7 @@ export default function LiveClasses() {
 
               <div className="text-xs text-muted space-y-1">
                 <p>Duration: {recording.duration || 0} seconds</p>
+
                 {recording.recordingId && (
                   <p>Recording ID: {recording.recordingId}</p>
                 )}
