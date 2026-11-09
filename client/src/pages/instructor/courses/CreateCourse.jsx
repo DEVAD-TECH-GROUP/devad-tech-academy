@@ -1354,6 +1354,10 @@ export default function CreateCourse() {
                 }
                 options={[
                   {
+                    value: "devad-live",
+                    label: "DEVAD Live",
+                  },
+                  {
                     value: "google-meet",
                     label: "Google Meet",
                   },
@@ -1364,10 +1368,6 @@ export default function CreateCourse() {
                   {
                     value: "microsoft-teams",
                     label: "Microsoft Teams",
-                  },
-                  {
-                    value: "other",
-                    label: "Other",
                   },
                 ]}
               />

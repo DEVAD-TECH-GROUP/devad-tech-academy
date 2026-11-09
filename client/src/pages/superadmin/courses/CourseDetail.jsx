@@ -1,44 +1,44 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+
 import {
   getCourse,
   approveCourse,
   rejectCourse,
 } from "../../../services/superadmin/courseService";
+
 import Badge from "../../../components/common/Badge";
 import { SkeletonCard } from "../../../components/common/Skeleton";
 import { toast } from "react-hot-toast";
 
-// Helpers
+// ============================================================
+// HELPERS
+// ============================================================
+
 const formatNaira = (amount) => {
-  if (amount === undefined || amount === null) return "Not specified";
-  if (Number(amount) === 0) return "Free";
-  return `₦${Number(amount).toLocaleString()}`;
+  if (amount === undefined || amount === null) {
+    return "Not specified";
+  }
+
+  if (Number(amount) === 0) return 0;
+
+  return `₦${Number(amount).toLocaleString("en-NG")}`;
 };
 
 const formatDate = (date) => {
   if (!date) return "Not available";
 
   const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return "Not available";
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "Not available";
+  }
 
   return parsed.toLocaleDateString("en-NG", {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
-};
-
-const displayValue = (value) => {
-  if (value === undefined || value === null || value === "") {
-    return "Not specified";
-  }
-
-  if (typeof value === "boolean") {
-    return value ? "Yes" : "No";
-  }
-
-  return value;
 };
 
 const getName = (person) => {
@@ -54,27 +54,53 @@ const getName = (person) => {
   );
 };
 
+const getStatusVariant = (status) => {
+  const variants = {
+    published: "green",
+    pending_review: "yellow",
+    rejected: "red",
+    draft: "default",
+  };
+
+  return variants[status] || "default";
+};
+
+// ============================================================
+// REUSABLE COMPONENTS
+// ============================================================
+
 function Section({ title, description, children }) {
   return (
-    <section className="bg-surface border border-border rounded-2xl p-5 space-y-4">
+    <section className="bg-surface border border-border rounded-2xl p-5 md:p-6 space-y-5">
       <div>
         <h2 className="text-sm font-bold text-text">{title}</h2>
+
         {description && (
           <p className="text-xs text-muted mt-1">{description}</p>
         )}
       </div>
+
       {children}
     </section>
   );
 }
 
 function InfoItem({ label, value }) {
-  if (value === undefined || value === null || value === "") return null;
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  let display = value;
+
+  if (typeof value === "boolean") {
+    display = value ? "Yes" : "No";
+  }
 
   return (
-    <div className="py-3 border-b border-border/50 last:border-0">
+    <div className="py-3 border-b border-border/50 last:border-0 min-w-0">
       <p className="text-xs text-muted mb-1">{label}</p>
-      <p className="text-sm text-text break-words">{displayValue(value)}</p>
+
+      <p className="text-sm text-text break-words">{display}</p>
     </div>
   );
 }
@@ -86,23 +112,14 @@ function TagList({ items, emptyText = "None added" }) {
 
   return (
     <div className="flex flex-wrap gap-2">
-      {items.map((item, index) => {
-        const value =
-          typeof item === "string"
-            ? item
-            : item?.name || item?.title || item?.label;
-
-        if (!value) return null;
-
-        return (
-          <span
-            key={`${value}-${index}`}
-            className="px-3 py-1.5 rounded-lg bg-accentDim text-accent text-xs font-medium"
-          >
-            {value}
-          </span>
-        );
-      })}
+      {items.map((item, index) => (
+        <span
+          key={`${item}-${index}`}
+          className="px-3 py-1.5 rounded-lg bg-accentDim text-accent text-xs font-medium"
+        >
+          {item}
+        </span>
+      ))}
     </div>
   );
 }
@@ -113,25 +130,32 @@ function BulletList({ items, emptyText = "None added" }) {
   }
 
   return (
-    <ul className="space-y-2">
-      {items.map((item, index) => {
-        const value =
-          typeof item === "string"
-            ? item
-            : item?.text || item?.title || item?.description || item?.name;
-
-        if (!value) return null;
-
-        return (
-          <li key={index} className="flex gap-2 text-sm text-text">
-            <span className="text-accent">•</span>
-            <span>{value}</span>
-          </li>
-        );
-      })}
+    <ul className="space-y-3">
+      {items.map((item, index) => (
+        <li key={index} className="flex items-start gap-3 text-sm text-text">
+          <span className="text-accent mt-0.5">✓</span>
+          <span>{item}</span>
+        </li>
+      ))}
     </ul>
   );
 }
+
+function StatCard({ label, value, icon }) {
+  return (
+    <div className="bg-surface border border-border rounded-xl p-4">
+      <div className="text-xl mb-3">{icon}</div>
+
+      <p className="text-xl font-bold text-text">{value ?? 0}</p>
+
+      <p className="text-xs text-muted mt-1">{label}</p>
+    </div>
+  );
+}
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 
 export default function AdminCourseDetail() {
   const { id } = useParams();
@@ -141,10 +165,15 @@ export default function AdminCourseDetail() {
   const [loading, setLoading] = useState(true);
   const [actioning, setActioning] = useState(null);
 
+  // ==========================================================
+  // FETCH COURSE
+  // ==========================================================
+
   useEffect(() => {
     let active = true;
 
     setLoading(true);
+    setCourse(null);
 
     getCourse(id)
       .then((response) => {
@@ -154,16 +183,25 @@ export default function AdminCourseDetail() {
       })
       .catch((error) => {
         console.error("Failed to fetch course:", error);
-        if (active) toast.error("Failed to load course details");
+
+        if (active) {
+          toast.error("Failed to load course details");
+        }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       });
 
     return () => {
       active = false;
     };
   }, [id]);
+
+  // ==========================================================
+  // APPROVE COURSE
+  // ==========================================================
 
   const handleApprove = async () => {
     setActioning("approve");
@@ -185,6 +223,10 @@ export default function AdminCourseDetail() {
     }
   };
 
+  // ==========================================================
+  // REJECT COURSE
+  // ==========================================================
+
   const handleReject = async () => {
     setActioning("reject");
 
@@ -205,6 +247,10 @@ export default function AdminCourseDetail() {
     }
   };
 
+  // ==========================================================
+  // LOADING
+  // ==========================================================
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -215,14 +261,21 @@ export default function AdminCourseDetail() {
     );
   }
 
+  // ==========================================================
+  // NOT FOUND
+  // ==========================================================
+
   if (!course) {
     return (
       <div className="bg-surface border border-border rounded-2xl p-10 text-center">
         <div className="text-4xl mb-3">📚</div>
+
         <h2 className="text-text font-semibold">Course not found</h2>
+
         <p className="text-sm text-muted mt-2">
           This course may have been removed or is unavailable.
         </p>
+
         <button
           onClick={() => navigate("/admin/courses")}
           className="mt-5 px-4 py-2 rounded-xl bg-accent text-white text-sm"
@@ -233,48 +286,33 @@ export default function AdminCourseDetail() {
     );
   }
 
-  const statusVariant =
-    {
-      published: "green",
-      pending_review: "yellow",
-      rejected: "red",
-      draft: "default",
-    }[course.status] || "default";
+  // ==========================================================
+  // COURSE DATA
+  // ==========================================================
 
-  // Course thumbnail relationship
-  const thumbnail =
-    course.thumbnail?.image?.url ||
-    course.thumbnail?.url ||
-    course.thumbnailUrl ||
-    course.thumbnailImage?.url;
+  const thumbnail = course.thumbnail?.image?.url || null;
 
-  // Instructor details
-  const instructor = course.instructor;
-
-  const instructorImage =
-    instructor?.profileImage?.url ||
-    instructor?.avatar?.url ||
-    instructor?.profilePicture ||
-    instructor?.avatar;
-
-  // Pricing details
-  const pricing = course.pricing || {};
-
-  // Course statistics
-  const stats = course.stats || {};
-
-  // Course settings
+  const thumbnailData = course.thumbnail || {};
+  const instructor = course.instructor || {};
   const settings = course.settings || {};
+  const installments = course.installments || {};
+  const liveClasses = course.liveClasses || {};
+  const previewVideo = course.previewVideo || {};
 
-  // Preview video
-  const previewVideo = course.previewVideo?.url || course.previewVideoUrl;
+  const statusVariant = getStatusVariant(course.status);
 
-  // Approval information
-  const approval = course.approval || {};
+  console.log("Course data:", course);
+
+  // ==========================================================
+  // RENDER
+  // ==========================================================
 
   return (
     <div className="space-y-6 fi max-w-5xl pb-10">
-      {/* Navigation */}
+      {/* =====================================================
+          NAVIGATION
+      ===================================================== */}
+
       <div className="flex items-center justify-between flex-wrap gap-3">
         <button
           onClick={() => navigate("/admin/courses")}
@@ -283,7 +321,7 @@ export default function AdminCourseDetail() {
           ← Back to Courses
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Badge variant={statusVariant}>
             {course.status?.replaceAll("_", " ")}
           </Badge>
@@ -292,27 +330,27 @@ export default function AdminCourseDetail() {
         </div>
       </div>
 
-      {/* Course Hero */}
+      {/* =====================================================
+          COURSE OVERVIEW / THUMBNAIL
+      ===================================================== */}
+
       <div className="bg-surface border border-border rounded-2xl overflow-hidden">
         {thumbnail ? (
-          <div className="w-full bg-black">
-            <img
-              src={thumbnail}
-              alt={course.title || "Course thumbnail"}
-              className="w-full max-h-[420px] object-cover"
-              onError={(event) => {
-                event.currentTarget.style.display = "none";
-              }}
-            />
-          </div>
+          <img
+            src={thumbnail}
+            alt={course.title || "Course thumbnail"}
+            className="w-full h-56 md:h-80 object-cover bg-accentDim"
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+            }}
+          />
         ) : (
-          <div className="h-56 bg-accentDim flex items-center justify-center">
-            <div className="text-center">
-              <span className="text-6xl">📚</span>
-              <p className="text-xs text-muted mt-3">
-                No course thumbnail uploaded
-              </p>
-            </div>
+          <div className="w-full h-56 md:h-80 bg-accentDim flex flex-col items-center justify-center">
+            <span className="text-6xl">📚</span>
+
+            <p className="text-xs text-muted mt-3">
+              No course thumbnail available
+            </p>
           </div>
         )}
 
@@ -339,364 +377,417 @@ export default function AdminCourseDetail() {
             )}
 
             {course.shortDescription && (
-              <p className="text-sm text-text/80 mt-3">
+              <p className="text-sm text-text/80 mt-3 leading-6">
                 {course.shortDescription}
               </p>
             )}
           </div>
 
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted">
-            <span>🌐 {course.language || "Language not specified"}</span>
+            <span>🌐 {course.language || "English"}</span>
             <span>📅 Created {formatDate(course.createdAt)}</span>
             <span>🔄 Updated {formatDate(course.updatedAt)}</span>
           </div>
-
-          {course.thumbnail && (
-            <div className="text-xs text-muted">
-              Thumbnail: {course.thumbnail.title || "Course thumbnail"}
-              {course.thumbnail.isActive === false && (
-                <span className="text-red ml-2">Inactive</span>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Quick Statistics */}
+      {/* =====================================================
+          COURSE STATISTICS
+      ===================================================== */}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          {
-            label: "Total Students",
-            value: course.totalStudents ?? stats.totalStudents ?? 0,
-            icon: "👨‍🎓",
-          },
-          {
-            label: "Total Lessons",
-            value: course.totalLessons ?? stats.totalLessons ?? 0,
-            icon: "📖",
-          },
-          {
-            label: "Average Rating",
-            value: course.averageRating ?? stats.averageRating ?? "New",
-            icon: "⭐",
-          },
-          {
-            label: "Reviews",
-            value: stats.totalReviews ?? course.totalReviews ?? 0,
-            icon: "💬",
-          },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="bg-surface border border-border rounded-xl p-4"
-          >
-            <div className="text-xl mb-2">{item.icon}</div>
-            <p className="text-xl font-bold text-text">{item.value}</p>
-            <p className="text-xs text-muted mt-1">{item.label}</p>
-          </div>
-        ))}
+        <StatCard label="Students" value={course.totalStudents} icon="👨‍🎓" />
+
+        <StatCard label="Modules" value={course.totalModules} icon="📚" />
+
+        <StatCard label="Lessons" value={course.totalLessons} icon="📖" />
+
+        <StatCard label="Projects" value={course.totalProjects} icon="💻" />
+
+        <StatCard
+          label="Assignments"
+          value={course.totalAssignments}
+          icon="📝"
+        />
+
+        <StatCard label="Reviews" value={course.totalReviews} icon="💬" />
+
+        <StatCard
+          label="Average Rating"
+          value={
+            Number(course.averageRating || 0) > 0
+              ? `${Number(course.averageRating).toFixed(1)} / 5`
+              : "New"
+          }
+          icon="⭐"
+        />
+
+        <StatCard
+          label="Total Revenue"
+          value={formatNaira(course.totalRevenue)}
+          icon="💰"
+        />
       </div>
 
-      {/* Course Description */}
-      <Section title="Course Description">
-        <div className="space-y-4">
-          <div>
-            <p className="text-xs text-muted mb-2">Full Description</p>
-            <p className="text-sm text-text whitespace-pre-line leading-7">
-              {course.description || "No full description provided."}
-            </p>
-          </div>
+      {/* =====================================================
+          FULL DESCRIPTION
+      ===================================================== */}
 
-          <InfoItem label="Course Slug" value={course.slug} />
-        </div>
+      <Section
+        title="Course Description"
+        description="The full description provided by the instructor."
+      >
+        <p className="text-sm text-text whitespace-pre-line leading-7">
+          {course.description || "No description provided."}
+        </p>
       </Section>
 
-      {/* Instructor */}
-      <Section title="Instructor Information">
+      {/* =====================================================
+          INSTRUCTOR
+      ===================================================== */}
+
+      <Section
+        title="Instructor Information"
+        description="The instructor responsible for this course."
+      >
         <div className="flex items-center gap-4">
-          {instructorImage ? (
-            <img
-              src={instructorImage}
-              alt={getName(instructor)}
-              className="w-16 h-16 rounded-full object-cover border border-border"
-            />
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-accentDim flex items-center justify-center text-2xl">
-              👤
-            </div>
-          )}
+          <div className="w-14 h-14 rounded-full bg-accentDim flex items-center justify-center text-2xl">
+            👤
+          </div>
 
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-text">
               {getName(instructor)}
             </h3>
+
             <p className="text-xs text-muted mt-1">
-              {instructor?.email || "No email available"}
+              {instructor.email || "No email available"}
             </p>
-            {instructor?.phone && (
-              <p className="text-xs text-muted mt-1">{instructor.phone}</p>
-            )}
           </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-x-6">
-          <InfoItem label="First Name" value={instructor?.firstName} />
-          <InfoItem label="Last Name" value={instructor?.lastName} />
-          <InfoItem label="Email" value={instructor?.email} />
-          <InfoItem label="Instructor ID" value={instructor?._id} />
+          <InfoItem label="First Name" value={instructor.firstName} />
+
+          <InfoItem label="Last Name" value={instructor.lastName} />
+
+          <InfoItem label="Email Address" value={instructor.email} />
+
+          <InfoItem label="Instructor ID" value={instructor._id} />
         </div>
       </Section>
 
-      {/* Category and classification */}
-      <Section title="Course Classification">
+      {/* =====================================================
+          CLASSIFICATION
+      ===================================================== */}
+
+      <Section
+        title="Course Classification"
+        description="Course category, difficulty and technologies."
+      >
         <div className="grid md:grid-cols-2 gap-x-6">
           <InfoItem label="Category" value={course.category?.name} />
+
           <InfoItem label="Category ID" value={course.category?._id} />
-          <InfoItem label="Level" value={course.level} />
+
+          <InfoItem label="Difficulty Level" value={course.level} />
+
           <InfoItem label="Language" value={course.language} />
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div>
-            <p className="text-xs text-muted mb-2">Tags</p>
+            <p className="text-xs text-muted mb-3">Course Tags</p>
+
             <TagList items={course.tags} />
           </div>
 
           <div>
-            <p className="text-xs text-muted mb-2">Technologies</p>
+            <p className="text-xs text-muted mb-3">Technologies and Tools</p>
+
             <TagList items={course.technologies} />
           </div>
         </div>
       </Section>
 
-      {/* Learning outcomes */}
+      {/* =====================================================
+          LEARNING OUTCOMES
+      ===================================================== */}
+
       <Section
         title="Learning Outcomes"
-        description="What students are expected to learn from this course."
+        description="What students should be able to achieve after completing the course."
       >
         <BulletList items={course.learningOutcomes} />
       </Section>
 
-      {/* Prerequisites */}
+      {/* =====================================================
+          PREREQUISITES
+      ===================================================== */}
+
       <Section
         title="Prerequisites"
-        description="Requirements or knowledge students should have before enrolling."
+        description="What students should know or have before enrolling."
       >
         <BulletList items={course.prerequisites} />
       </Section>
 
-      {/* Pricing */}
-      <Section title="Course Pricing">
+      {/* =====================================================
+          PRICING
+      ===================================================== */}
+
+      <Section
+        title="Course Pricing"
+        description="Course fees, discounts and installment options."
+      >
         <div className="grid md:grid-cols-2 gap-x-6">
           <InfoItem label="Course Price" value={formatNaira(course.price)} />
-          <InfoItem
-            label="Pricing Amount"
-            value={formatNaira(pricing.amount)}
-          />
-          <InfoItem
-            label="Original Price"
-            value={formatNaira(pricing.originalPrice)}
-          />
+
+          <InfoItem label="Free Course" value={course.isFree} />
+
           <InfoItem
             label="Discount Price"
-            value={formatNaira(pricing.discountPrice)}
-          />
-          <InfoItem label="Currency" value={pricing.currency || "NGN"} />
-          <InfoItem
-            label="Installments Enabled"
-            value={course.installments?.enabled}
-          />
-          <InfoItem
-            label="Installment Amount"
             value={
-              course.installments?.amount !== undefined
-                ? formatNaira(course.installments.amount)
-                : null
+              course.discountPrice !== null &&
+              course.discountPrice !== undefined
+                ? formatNaira(course.discountPrice)
+                : "No discount"
             }
           />
+
           <InfoItem
-            label="Number of Installments"
-            value={course.installments?.count}
+            label="Discount Expiry"
+            value={formatDate(course.discountExpiry)}
           />
+        </div>
+
+        <div className="border-t border-border pt-4 space-y-3">
+          <h3 className="text-xs font-bold text-text">Installment Payment</h3>
+
+          <div className="grid md:grid-cols-2 gap-x-6">
+            <InfoItem label="Enabled" value={installments.enabled} />
+
+            {installments.enabled && (
+              <>
+                <InfoItem
+                  label="Installment Amount"
+                  value={formatNaira(installments.amount)}
+                />
+
+                <InfoItem
+                  label="Number of Installments"
+                  value={installments.count}
+                />
+
+                <InfoItem
+                  label="Payment Interval"
+                  value={installments.interval}
+                />
+              </>
+            )}
+          </div>
         </div>
       </Section>
 
-      {/* Preview Video */}
+      {/* =====================================================
+          COURSE MEDIA
+      ===================================================== */}
+
       <Section
-        title="Course Preview Video"
-        description="The video prospective students can watch before enrolling."
+        title="Course Media"
+        description="Preview video and thumbnail information."
       >
-        {previewVideo ? (
-          <div className="space-y-3">
-            <video
-              src={previewVideo}
-              controls
-              preload="metadata"
-              className="w-full max-h-[400px] rounded-xl bg-black"
-            />
-            <a
-              href={previewVideo}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-accent hover:underline break-all"
-            >
-              Open preview video
-            </a>
+        {/* Preview video */}
 
-            <InfoItem
-              label="Video Duration"
-              value={course.previewVideo?.duration}
-            />
-          </div>
-        ) : (
-          <p className="text-xs text-muted">No preview video uploaded.</p>
-        )}
-      </Section>
+        <div className="space-y-3">
+          <h3 className="text-xs font-bold text-text">Preview Video</h3>
 
-      {/* Thumbnail details */}
-      <Section
-        title="Thumbnail Information"
-        description="Details from the associated CourseThumbnail record."
-      >
-        {course.thumbnail?.image?.url || thumbnail ? (
-          <div className="space-y-3">
-            <img
-              src={course.thumbnail?.image?.url || thumbnail}
-              alt={course.thumbnail?.title || course.title}
-              className="w-full max-w-xl rounded-xl border border-border object-cover"
-            />
-
-            <div className="grid md:grid-cols-2 gap-x-6">
-              <InfoItem
-                label="Thumbnail Title"
-                value={course.thumbnail?.title}
+          {previewVideo.url ? (
+            <>
+              <video
+                src={previewVideo.url}
+                controls
+                preload="metadata"
+                className="w-full max-h-[400px] rounded-xl bg-black"
               />
+
+              <InfoItem
+                label="Video Duration"
+                value={
+                  previewVideo.duration
+                    ? `${previewVideo.duration} seconds`
+                    : "Not specified"
+                }
+              />
+
+              <a
+                href={previewVideo.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-block text-xs text-accent hover:underline break-all"
+              >
+                Open preview video
+              </a>
+            </>
+          ) : (
+            <p className="text-xs text-muted">No preview video uploaded.</p>
+          )}
+        </div>
+
+        {/* Thumbnail details */}
+
+        <div className="border-t border-border pt-4 space-y-3">
+          <h3 className="text-xs font-bold text-text">Thumbnail Details</h3>
+
+          {thumbnail ? (
+            <div className="grid md:grid-cols-2 gap-x-6">
+              <InfoItem label="Thumbnail Title" value={thumbnailData.title} />
+
               <InfoItem
                 label="Thumbnail Category"
-                value={course.thumbnail?.category?.name}
+                value={thumbnailData.category?.name}
               />
-              <InfoItem label="Active" value={course.thumbnail?.isActive} />
+
               <InfoItem
-                label="Sort Order"
-                value={course.thumbnail?.sortOrder}
+                label="Thumbnail Active"
+                value={thumbnailData.isActive}
               />
+
               <InfoItem
-                label="Created At"
-                value={formatDate(course.thumbnail?.createdAt)}
+                label="Thumbnail Created"
+                value={formatDate(thumbnailData.createdAt)}
               />
             </div>
-
-            <InfoItem
-              label="Thumbnail Description"
-              value={course.thumbnail?.description}
-            />
-          </div>
-        ) : (
-          <p className="text-xs text-muted">
-            No thumbnail information available.
-          </p>
-        )}
-      </Section>
-
-      {/* Course settings */}
-      <Section title="Course Settings">
-        <div className="grid md:grid-cols-2 gap-x-6">
-          <InfoItem label="Published" value={settings.isPublished} />
-          <InfoItem label="Featured" value={course.isFeatured} />
-          <InfoItem
-            label="Certificate Enabled"
-            value={settings.certificateEnabled}
-          />
-          <InfoItem
-            label="Discussion Enabled"
-            value={settings.discussionEnabled}
-          />
-          <InfoItem label="Allow Reviews" value={settings.allowReviews} />
-          <InfoItem label="Allow Questions" value={settings.allowQuestions} />
+          ) : (
+            <p className="text-xs text-muted">
+              No thumbnail is associated with this course.
+            </p>
+          )}
         </div>
       </Section>
 
-      {/* Live classes */}
+      {/* =====================================================
+          SETTINGS
+      ===================================================== */}
+
       <Section
-        title="Live Classes"
-        description="Live class information attached to this course."
+        title="Course Settings"
+        description="Enrollment, certificates, discussions and content access."
       >
-        {Array.isArray(course.liveClasses) && course.liveClasses.length > 0 ? (
-          <div className="space-y-3">
-            {course.liveClasses.map((liveClass, index) => (
-              <div
-                key={liveClass._id || index}
-                className="p-4 rounded-xl border border-border"
-              >
-                <h3 className="text-sm font-semibold text-text">
-                  {liveClass.title || `Live Class ${index + 1}`}
-                </h3>
+        <div className="grid md:grid-cols-2 gap-x-6">
+          <InfoItem label="Enrollment Type" value={settings.enrollmentType} />
 
-                <div className="grid md:grid-cols-2 gap-x-6 mt-2">
-                  <InfoItem label="Date" value={formatDate(liveClass.date)} />
-                  <InfoItem label="Status" value={liveClass.status} />
-                  <InfoItem label="Duration" value={liveClass.duration} />
-                  <InfoItem
-                    label="Meeting Link"
-                    value={liveClass.meetingLink}
-                  />
-                </div>
+          <InfoItem
+            label="Certificate Enabled"
+            value={settings.hasCertificate}
+          />
 
-                {liveClass.description && (
-                  <p className="text-xs text-muted mt-2">
-                    {liveClass.description}
-                  </p>
-                )}
-              </div>
-            ))}
+          <InfoItem label="Discussion Enabled" value={settings.hasDiscussion} />
+
+          <InfoItem label="Drip Content" value={settings.dripContent} />
+
+          <InfoItem label="Allow Downloads" value={settings.allowDownloads} />
+
+          <InfoItem label="Featured Course" value={course.isFeatured} />
+        </div>
+      </Section>
+
+      {/* =====================================================
+          LIVE CLASSES
+      ===================================================== */}
+
+      <Section
+        title="Live Class Configuration"
+        description="The live teaching arrangements for this course."
+      >
+        <div className="grid md:grid-cols-2 gap-x-6">
+          <InfoItem label="Live Classes Enabled" value={liveClasses.enabled} />
+
+          <InfoItem label="Frequency" value={liveClasses.frequency} />
+
+          <InfoItem
+            label="Duration"
+            value={
+              liveClasses.duration
+                ? `${liveClasses.duration} minutes`
+                : "Not specified"
+            }
+          />
+
+          <InfoItem
+            label="Platform"
+            value={liveClasses.platform?.replaceAll("-", " ")}
+          />
+        </div>
+
+        {liveClasses.description && (
+          <div>
+            <p className="text-xs text-muted mb-2">Description</p>
+
+            <p className="text-sm text-text leading-6">
+              {liveClasses.description}
+            </p>
           </div>
-        ) : (
-          <p className="text-xs text-muted">
-            No live classes added to this course.
-          </p>
         )}
       </Section>
 
-      {/* Approval and publication */}
-      <Section title="Approval & Publication">
+      {/* =====================================================
+          APPROVAL AND PUBLICATION
+      ===================================================== */}
+
+      <Section
+        title="Approval & Publication"
+        description="Administrative approval and publication records."
+      >
         <div className="grid md:grid-cols-2 gap-x-6">
-          <InfoItem label="Current Status" value={course.status} />
-          <InfoItem label="Approved By" value={getName(approval.approvedBy)} />
           <InfoItem
-            label="Approved At"
-            value={formatDate(approval.approvedAt)}
+            label="Course Status"
+            value={course.status?.replaceAll("_", " ")}
           />
+
+          <InfoItem label="Approved By" value={getName(course.approvedBy)} />
+
+          <InfoItem label="Approved At" value={formatDate(course.approvedAt)} />
+
           <InfoItem
             label="Published At"
             value={formatDate(course.publishedAt)}
           />
-          <InfoItem
-            label="Rejected At"
-            value={formatDate(approval.rejectedAt)}
-          />
-          <InfoItem label="Rejection Reason" value={approval.rejectionReason} />
+
+          <InfoItem label="Rejection Reason" value={course.rejectionReason} />
         </div>
       </Section>
 
-      {/* Course identifiers */}
-      <Section title="Course Record Information">
+      {/* =====================================================
+          RECORD INFORMATION
+      ===================================================== */}
+
+      <Section
+        title="Course Record"
+        description="Database identifiers and record timestamps."
+      >
         <div className="grid md:grid-cols-2 gap-x-6">
           <InfoItem label="Course ID" value={course._id} />
-          <InfoItem label="Slug" value={course.slug} />
+
+          <InfoItem label="Course Slug" value={course.slug} />
+
           <InfoItem label="Created At" value={formatDate(course.createdAt)} />
+
           <InfoItem label="Last Updated" value={formatDate(course.updatedAt)} />
         </div>
       </Section>
 
-      {/* Admin Actions */}
-      {course.status === "pending_review" && (
-        <div className="bg-surface border border-border rounded-2xl p-5">
-          <h2 className="text-sm font-bold text-text mb-2">
-            Course Review Actions
-          </h2>
+      {/* =====================================================
+          ADMIN ACTIONS
+      ===================================================== */}
 
-          <p className="text-xs text-muted mb-5">
-            Review the course information before approving or rejecting it.
+      {course.status === "pending_review" && (
+        <div className="bg-surface border border-border rounded-2xl p-5 md:p-6">
+          <h2 className="text-sm font-bold text-text">Course Review</h2>
+
+          <p className="text-xs text-muted mt-2 mb-5">
+            Review the course content and information before making your
+            decision.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3">

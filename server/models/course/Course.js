@@ -340,8 +340,8 @@ const courseSchema = new mongoose.Schema(
 
       platform: {
         type: String,
-        enum: ["google-meet", "zoom", "microsoft-teams", "other"],
-        default: "google-meet",
+        enum: ["devad-live", "google-meet", "zoom", "microsoft-teams", "other"],
+        default: "devad-live",
       },
 
       description: {
