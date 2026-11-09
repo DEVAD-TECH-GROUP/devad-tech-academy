@@ -3,6 +3,7 @@ import {
   getMyLiveClasses, createLiveClass, getLiveClass,
   updateLiveClass, deleteLiveClass, startLiveClass,
   getLiveClassAttendance, saveLiveClassRecording,
+  getLiveClassRecording, syncLiveClassRecording
 } from "../../controllers/instructor/liveClassController.js";
 import authenticate from "../../middlewares/auth/authenticate.js";
 import isInstructor from "../../middlewares/auth/isInstructor.js";
@@ -18,5 +19,16 @@ router.delete("/:id", deleteLiveClass);
 router.post("/:id/start", startLiveClass);
 router.get("/:id/attendance", getLiveClassAttendance);
 router.post("/:id/recording", saveLiveClassRecording);
+router.get(
+  "/live-classes/:id/recording",
+  protect,
+  getLiveClassRecording
+);
+
+router.post(
+  "/live-classes/:id/sync-recording",
+  protect,
+  syncLiveClassRecording
+);
 
 export default router;

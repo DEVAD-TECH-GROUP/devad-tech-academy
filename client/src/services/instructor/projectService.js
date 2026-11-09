@@ -12,6 +12,9 @@ export const getProject = (id) =>
 export const updateProject = (id, payload) =>
   api.put(`/instructor/projects/${id}`, payload);
 
+export const deleteProject = (id) =>
+  api.delete(`/instructor/projects/${id}`);
+
 export const getProjectSubmissions = (id) =>
   api.get(`/instructor/projects/${id}/submissions`);
 
