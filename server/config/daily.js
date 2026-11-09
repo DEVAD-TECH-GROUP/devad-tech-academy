@@ -32,6 +32,7 @@ const getMaxParticipants = (requestedLimit) => {
 const dailyClient = {
   baseURL,
 
+
   // CREATE DAILY ROOM
   async createRoom(options = {}) {
     const maxParticipants = getMaxParticipants(
@@ -48,10 +49,6 @@ const dailyClient = {
         exp:
           options.exp ||
           Math.floor(Date.now() / 1000) + 7200,
-
-        ...(options.enableRecording
-          ? { enable_recording: "cloud" }
-          : {}),
       },
     };
 
@@ -61,6 +58,13 @@ const dailyClient = {
         payload,
         { headers: headers() }
       );
+
+      console.log("========== DAILY ROOM CREATED ==========");
+      console.log("Room name:", response.data.name);
+      console.log("Room URL:", response.data.url);
+      console.log("Maximum participants:", maxParticipants);
+      console.log("Cloud recording: Disabled");
+      console.log("========================================");
 
       return response.data;
     } catch (error) {
@@ -76,10 +80,7 @@ const dailyClient = {
         "Request payload:",
         JSON.stringify(payload, null, 2)
       );
-      console.error(
-        "Message:",
-        error.message
-      );
+      console.error("Message:", error.message);
       console.error(
         "=============================================="
       );
@@ -87,6 +88,7 @@ const dailyClient = {
       throw error;
     }
   },
+
 
   // DELETE DAILY ROOM
   async deleteRoom(roomName) {
