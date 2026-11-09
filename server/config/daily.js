@@ -1,85 +1,109 @@
-import axios from "axios";
-import env from "./env.js";
 
-const dailyClient = {
-  baseURL: "https://api.daily.co/v1",
-  headers: {
+import axios from "axios";
+import env from "./config/env.js";
+
+const baseURL = "https://api.daily.co/v1";
+
+const headers = () => {
+  if (!env.DAILY_API_KEY) {
+    throw new Error("DAILY_API_KEY is missing from the server environment");
+  }
+
+  return {
     Authorization: `Bearer ${env.DAILY_API_KEY}`,
     "Content-Type": "application/json",
-  },
+  };
+};
 
-  // ── Create meeting room ───────────────────────────────
-  createRoom: async (options = {}) => {
-    try {
-      const response = await axios.post(
-        `${dailyClient.baseURL}/rooms`,
-        {
-          name: options.name || `devad-${Date.now()}`,
-          privacy: options.privacy || "private",
-          properties: {
-            max_participants: options.maxParticipants || 100,
-            enable_recording: options.enableRecording || true,
-            enable_chat: true,
-            enable_knocking: true,
-            exp: options.exp || Math.floor(Date.now() / 1000) + 7200, // 2 hours
-          },
+const dailyClient = {
+  baseURL,
+
+  async createRoom(options = {}) {
+    const response = await axios.post(
+      `${baseURL}/rooms`,
+      {
+        name: options.name || `devad-${Date.now()}`,
+        privacy: options.privacy || "private",
+        properties: {
+          max_participants: options.maxParticipants ?? 100,
+          enable_recording: options.enableRecording ? "cloud" : false,
+          enable_chat: true,
+          enable_knocking: true,
+          exp: options.exp || Math.floor(Date.now() / 1000) + 7200,
         },
-        { headers: dailyClient.headers }
-      );
-      return response.data;
-    } catch (error) {
-      console.error(`❌ Daily.co create room error: ${error.message}`);
-      throw error;
-    }
+      },
+      { headers: headers() }
+    );
+
+    return response.data;
   },
 
-  // ── Delete room ───────────────────────────────────────
-  deleteRoom: async (roomName) => {
-    try {
-      const response = await axios.delete(
-        `${dailyClient.baseURL}/rooms/${roomName}`,
-        { headers: dailyClient.headers }
-      );
-      return response.data;
-    } catch (error) {
-      console.error(`❌ Daily.co delete room error: ${error.message}`);
-      throw error;
-    }
+  async deleteRoom(roomName) {
+    const response = await axios.delete(
+      `${baseURL}/rooms/${encodeURIComponent(roomName)}`,
+      { headers: headers() }
+    );
+
+    return response.data;
   },
 
-  // ── Get meeting token ─────────────────────────────────
-  getMeetingToken: async (roomName, isOwner = false) => {
-    try {
-      const response = await axios.post(
-        `${dailyClient.baseURL}/meeting-tokens`,
-        {
-          properties: {
-            room_name: roomName,
-            is_owner: isOwner,
-            enable_recording: isOwner,
-          },
-        },
-        { headers: dailyClient.headers }
-      );
-      return response.data;
-    } catch (error) {
-      console.error(`❌ Daily.co token error: ${error.message}`);
-      throw error;
+  async getMeetingToken(roomName, isOwner = false, options = {}) {
+    const properties = {
+      room_name: roomName,
+      is_owner: isOwner,
+      user_name: options.userName || (isOwner ? "Instructor" : "Student"),
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 4,
+    };
+
+    if (isOwner && options.startCloudRecording) {
+      properties.start_cloud_recording = true;
     }
+
+    const response = await axios.post(
+      `${baseURL}/meeting-tokens`,
+      { properties },
+      { headers: headers() }
+    );
+
+    return response.data;
   },
 
-  // ── Get recordings ────────────────────────────────────
-  getRecordings: async (roomName) => {
-    try {
-      const response = await axios.get(
-        `${dailyClient.baseURL}/recordings?room_name=${roomName}`,
-        { headers: dailyClient.headers }
-      );
-      return response.data;
-    } catch (error) {
-      console.error(`❌ Daily.co recordings error: ${error.message}`);
-      throw error;
-    }
+  async startRecording(roomName) {
+    const response = await axios.post(
+      `${baseURL}/rooms/${encodeURIComponent(roomName)}/recordings/start`,
+      {},
+      { headers: headers() }
+    );
+
+    return response.data;
+  },
+
+  async stopRecording(roomName) {
+    const response = await axios.post(
+      `${baseURL}/rooms/${encodeURIComponent(roomName)}/recordings/stop`,
+      {},
+      { headers: headers() }
+    );
+
+    return response.data;
+  },
+
+  async getRecordings(roomName) {
+    const response = await axios.get(`${baseURL}/recordings`, {
+      headers: headers(),
+      params: { room_name: roomName },
+    });
+
+    return response.data;
+  },
+
+  async getRecordingAccessLink(recordingId) {
+    const response = await axios.get(
+      `${baseURL}/recordings/${encodeURIComponent(recordingId)}/access-link`,
+      { headers: headers() }
+    );
+
+    return response.data;
   },
 };
 
