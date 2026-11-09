@@ -181,6 +181,32 @@ export const createAssignment = asyncHandler(async (req, res) => {
   );
 });
 
+export const uploadAssignmentAttachments = asyncHandler(
+  async (req, res) => {
+    if (!req.files || req.files.length === 0) {
+      return sendResponse(
+        res,
+        400,
+        "Please select at least one file to upload"
+      );
+    }
+
+    const attachments = req.files.map((file) => ({
+      name: file.originalname,
+      url: file.path,
+      public_id: file.filename,
+      type: file.mimetype,
+    }));
+
+    return sendResponse(
+      res,
+      200,
+      "Assignment attachments uploaded successfully",
+      attachments
+    );
+  }
+);
+
 
 // ============================================================
 // GET SINGLE ASSIGNMENT

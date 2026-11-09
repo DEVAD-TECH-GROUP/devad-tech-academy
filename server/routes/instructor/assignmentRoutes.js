@@ -8,10 +8,12 @@ import {
   deleteAssignment,
   getSubmissions,
   gradeSubmission,
+  uploadAssignmentAttachments,
 } from "../../controllers/instructor/assignmentController.js";
 
 import authenticate from "../../middlewares/auth/authenticate.js";
 import isInstructor from "../../middlewares/auth/isInstructor.js";
+import documentUpload from "../../middlewares/upload/documentUpload.js";
 
 const router = express.Router();
 
@@ -20,6 +22,13 @@ router.use(authenticate, isInstructor);
 // Assignment management
 router.get("/", getMyAssignments);
 router.post("/", createAssignment);
+
+// Upload assignment attachments
+router.post(
+  "/attachments/upload",
+  documentUpload.array("files", 10),
+  uploadAssignmentAttachments
+);
 
 // Submission management
 router.get("/:id/submissions", getSubmissions);

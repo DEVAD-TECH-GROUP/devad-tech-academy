@@ -1,9 +1,9 @@
 import api from "../../api/Api";
 
-export const getLessonResources = (lessonId) =>
+export const getResources = (lessonId) =>
   api.get(`/instructor/resources/${lessonId}`);
 
-export const addResource = (payload) =>
+export const uploadResource = (payload) =>
   api.post("/instructor/resources", payload);
 
 export const deleteResource = (id) =>

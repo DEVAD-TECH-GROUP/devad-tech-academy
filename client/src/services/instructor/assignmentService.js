@@ -20,3 +20,7 @@ export const getSubmissions = (id) =>
 
 export const gradeSubmission = (id, payload) =>
   api.put(`/instructor/assignments/submissions/${id}/grade`, payload);
+
+// Upload assignment attachments from the instructor's computer
+export const uploadAssignmentAttachments = (formData) =>
+  api.post("/instructor/assignments/attachments/upload", formData);
