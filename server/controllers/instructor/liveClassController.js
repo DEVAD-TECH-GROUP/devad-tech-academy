@@ -869,6 +869,29 @@ export const updateLiveClass = asyncHandler(
 // DELETE /instructor/live-classes/:id
 // ─────────────────────────────────────────────────────────────
 
+
+const isLiveKitRoomNotFound = (error) => {
+  const status =
+    error?.status ||
+    error?.statusCode ||
+    error?.response?.status;
+
+  const code = String(
+    error?.code || error?.twirpCode || ""
+  ).toLowerCase();
+
+  const message = String(error?.message || "").toLowerCase();
+
+  return (
+    status === 404 ||
+    code === "not_found" ||
+    code === "notfound" ||
+    message.includes("requested room does not exist") ||
+    message.includes("room does not exist") ||
+    message.includes("room not found")
+  );
+};
+
 export const deleteLiveClass = asyncHandler(
   async (req, res) => {
     const liveClass = await findOwnedClass(
@@ -884,6 +907,7 @@ export const deleteLiveClass = asyncHandler(
       );
     }
 
+    // Never delete a class that is currently live.
     if (
       liveClass.status === LIVE_CLASS_STATUS.LIVE
     ) {
@@ -894,6 +918,7 @@ export const deleteLiveClass = asyncHandler(
       );
     }
 
+    // Never delete while its recording is active or processing.
     if (
       RECORDING_ACTIVE_STATES.includes(
         liveClass.recording?.status
@@ -906,16 +931,38 @@ export const deleteLiveClass = asyncHandler(
       );
     }
 
-    if (liveClass.meetingRoom?.roomName) {
-      await deleteLiveClassRoom(
-        liveClass.meetingRoom.roomName
-      );
+    // Clean up the LiveKit room if it still exists.
+    const roomName = liveClass.meetingRoom?.roomName;
+
+    if (roomName) {
+      try {
+        await deleteLiveClassRoom(roomName);
+      } catch (error) {
+        // The room may already have been removed when the class ended.
+        // This is safe; continue with database deletion.
+        if (!isLiveKitRoomNotFound(error)) {
+          throw error;
+        }
+
+        console.info(
+          `[LiveClass] LiveKit room "${roomName}" was already deleted.`
+        );
+      }
     }
 
-    await LiveClass.deleteOne({
+    // Delete only the class belonging to this instructor.
+    const result = await LiveClass.deleteOne({
       _id: liveClass._id,
       instructor: req.user._id,
     });
+
+    if (result.deletedCount === 0) {
+      return sendResponse(
+        res,
+        404,
+        "Live class not found or already deleted"
+      );
+    }
 
     return sendResponse(
       res,
@@ -924,6 +971,7 @@ export const deleteLiveClass = asyncHandler(
     );
   }
 );
+
 
 // ─────────────────────────────────────────────────────────────
 // START LIVE CLASS
@@ -1712,3 +1760,4 @@ export const saveLiveClassRecording = asyncHandler(
     );
   }
 );
+
