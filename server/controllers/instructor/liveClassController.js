@@ -30,9 +30,8 @@ import {
 
 import { LIVE_CLASS_STATUS } from "../../utils/constants.js";
 
-// ─────────────────────────────────────────────────────────────
-// GENERAL HELPERS
-// ─────────────────────────────────────────────────────────────
+// Fixed capacity for every DEVAD live class.
+const LIVE_CLASS_CAPACITY = 45;
 
 const RECORDING_ACTIVE_STATES = [
   "starting",
@@ -41,8 +40,14 @@ const RECORDING_ACTIVE_STATES = [
   "processing",
 ];
 
+// ─────────────────────────────────────────────────────────────
+// GENERAL HELPERS
+// ─────────────────────────────────────────────────────────────
+
 const findOwnedClass = (id, instructorId) => {
-  if (!mongoose.isValidObjectId(id)) return null;
+  if (!mongoose.isValidObjectId(id)) {
+    return null;
+  }
 
   return LiveClass.findOne({
     _id: id,
@@ -59,6 +64,13 @@ const safeClass = (liveClass) => {
     delete data.meetingRoom.hostToken;
   }
 
+  // Always expose the actual fixed capacity.
+  data.maxParticipants = LIVE_CLASS_CAPACITY;
+
+  if (data.meetingRoom) {
+    data.meetingRoom.maxParticipants = LIVE_CLASS_CAPACITY;
+  }
+
   return data;
 };
 
@@ -73,7 +85,9 @@ const parseBoolean = (value, defaultValue = false) => {
     return defaultValue;
   }
 
-  if (typeof value === "boolean") return value;
+  if (typeof value === "boolean") {
+    return value;
+  }
 
   if (typeof value === "number") {
     if (value === 1) return true;
@@ -96,7 +110,10 @@ const parseBoolean = (value, defaultValue = false) => {
 };
 
 const isValidDate = (value) => {
+  if (!value) return false;
+
   const date = new Date(value);
+
   return !Number.isNaN(date.getTime());
 };
 
@@ -113,7 +130,9 @@ const getClassRoomName = (className, classId) => {
 };
 
 const getCourseForInstructor = (courseId, instructorId) => {
-  if (!mongoose.isValidObjectId(courseId)) return null;
+  if (!mongoose.isValidObjectId(courseId)) {
+    return null;
+  }
 
   return Course.findOne({
     _id: courseId,
@@ -121,12 +140,139 @@ const getCourseForInstructor = (courseId, instructorId) => {
   }).select("_id title instructor");
 };
 
+const getEgressItems = (result) => {
+  if (Array.isArray(result)) {
+    return result;
+  }
+
+  if (Array.isArray(result?.items)) {
+    return result.items;
+  }
+
+  if (Array.isArray(result?.egresses)) {
+    return result.egresses;
+  }
+
+  return [];
+};
+
 // ─────────────────────────────────────────────────────────────
-// RECORDING HELPERS
+// LIVEKIT EGRESS STATUS NORMALIZATION
+// ─────────────────────────────────────────────────────────────
+
+const normalizeEgressStatus = (status) => {
+  if (status === undefined || status === null) {
+    return null;
+  }
+
+  /*
+   * LiveKit EgressStatus protobuf enum values:
+   * 0 = STARTING
+   * 1 = ACTIVE
+   * 2 = ENDING
+   * 3 = COMPLETE
+   * 4 = FAILED
+   * 5 = ABORTED
+   * 6 = LIMIT_REACHED
+   */
+
+  const numericStatusMap = {
+    0: "starting",
+    1: "recording",
+    2: "stopping",
+    3: "processing",
+    4: "failed",
+    5: "failed",
+    6: "failed",
+  };
+
+  if (typeof status === "number") {
+    return numericStatusMap[status] || null;
+  }
+
+  const normalized = String(status)
+    .trim()
+    .toUpperCase();
+
+  if (/^\d+$/.test(normalized)) {
+    return numericStatusMap[Number(normalized)] || null;
+  }
+
+  const statusMap = {
+    EGRESS_STARTING: "starting",
+    EGRESS_ACTIVE: "recording",
+    EGRESS_ENDING: "stopping",
+    EGRESS_COMPLETE: "processing",
+    EGRESS_FAILED: "failed",
+    EGRESS_ABORTED: "failed",
+    EGRESS_LIMIT_REACHED: "failed",
+
+    STARTING: "starting",
+    ACTIVE: "recording",
+    ENDING: "stopping",
+    COMPLETE: "processing",
+    FAILED: "failed",
+    ABORTED: "failed",
+    LIMIT_REACHED: "failed",
+  };
+
+  return statusMap[normalized] || null;
+};
+
+const toEgressDate = (value) => {
+  if (
+    value === undefined ||
+    value === null ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  const numeric = Number(value);
+
+  // LiveKit timestamps are Unix seconds.
+  if (Number.isFinite(numeric)) {
+    const date = new Date(numeric * 1000);
+
+    return Number.isNaN(date.getTime())
+      ? null
+      : date;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? null
+    : date;
+};
+
+const getRecordingDurationSeconds = (recording) => {
+  if (
+    recording?.startedAt &&
+    recording?.endedAt
+  ) {
+    const started = new Date(recording.startedAt).getTime();
+    const ended = new Date(recording.endedAt).getTime();
+
+    if (
+      Number.isFinite(started) &&
+      Number.isFinite(ended) &&
+      ended >= started
+    ) {
+      return Math.round((ended - started) / 1000);
+    }
+  }
+
+  return recording?.duration ?? null;
+};
+
+// ─────────────────────────────────────────────────────────────
+// RECORDING RESPONSE
 // ─────────────────────────────────────────────────────────────
 
 const getRecordingResponse = async (liveClass) => {
-  const recording = liveClass.recording;
+  const recording = liveClass?.recording;
+
   let playbackUrl = null;
 
   if (
@@ -141,7 +287,7 @@ const getRecordingResponse = async (liveClass) => {
   return {
     status: recording?.status || "not_started",
     recordingId: recording?.recordingId || null,
-    duration: recording?.duration ?? 0,
+    duration: getRecordingDurationSeconds(recording),
     startedAt: recording?.startedAt || null,
     endedAt: recording?.endedAt || null,
     lastSyncAt: recording?.lastSyncAt || null,
@@ -150,48 +296,9 @@ const getRecordingResponse = async (liveClass) => {
   };
 };
 
-const getEgressItems = (result) => {
-  if (Array.isArray(result)) return result;
-
-  if (Array.isArray(result?.items)) {
-    return result.items;
-  }
-
-  return [];
-};
-
-const normalizeEgressStatus = (status) => {
-  if (typeof status !== "string") return null;
-
-  const statusMap = {
-    EGRESS_STARTING: "starting",
-    EGRESS_ACTIVE: "recording",
-    EGRESS_ENDING: "stopping",
-    EGRESS_COMPLETE: "processing",
-    EGRESS_FAILED: "failed",
-    EGRESS_ABORTED: "failed",
-    EGRESS_LIMIT_REACHED: "failed",
-  };
-
-  return statusMap[status.toUpperCase()] || null;
-};
-
-const toEgressDate = (value) => {
-  if (value === undefined || value === null || value === "") {
-    return null;
-  }
-
-  const numeric = Number(value);
-
-  // LiveKit Egress timestamps are Unix seconds.
-  if (Number.isFinite(numeric)) {
-    const date = new Date(numeric * 1000);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
+// ─────────────────────────────────────────────────────────────
+// RECORDING FAILURE HANDLER
+// ─────────────────────────────────────────────────────────────
 
 const saveRecordingFailure = async (
   liveClassId,
@@ -201,7 +308,9 @@ const saveRecordingFailure = async (
   const update = {
     "recording.status": "failed",
     "recording.error": String(
-      error?.message || error || "Recording failed"
+      error?.message ||
+        error ||
+        "Recording failed"
     ).slice(0, 2000),
     "recording.endedAt": new Date(),
     "recording.lastSyncAt": new Date(),
@@ -218,6 +327,110 @@ const saveRecordingFailure = async (
 };
 
 // ─────────────────────────────────────────────────────────────
+// RECORDING SYNCHRONIZATION HELPER
+// ─────────────────────────────────────────────────────────────
+
+const synchronizeRecordingState = async (liveClass) => {
+  const recording = liveClass.recording;
+
+  if (!recording?.recordingId) {
+    recording.lastSyncAt = new Date();
+    await liveClass.save();
+    return liveClass;
+  }
+
+  const roomName = liveClass.meetingRoom?.roomName;
+
+  let egress = null;
+
+  /*
+   * Query LiveKit for the actual Egress state.
+   * This is useful after the class has already ended.
+   */
+  if (roomName) {
+    const result = await listRoomRecordings(roomName);
+
+    egress = getEgressItems(result).find(
+      (item) =>
+        item.egressId === recording.recordingId
+    );
+  }
+
+  if (egress) {
+    const mappedStatus = normalizeEgressStatus(
+      egress.status
+    );
+
+    if (mappedStatus) {
+      recording.status = mappedStatus;
+    }
+
+    const startedAt = toEgressDate(egress.startedAt);
+    const endedAt = toEgressDate(egress.endedAt);
+
+    if (startedAt) {
+      recording.startedAt = startedAt;
+    }
+
+    if (endedAt) {
+      recording.endedAt = endedAt;
+    }
+
+    if (recording.status === "failed") {
+      recording.error =
+        egress.error ||
+        "LiveKit reported that the recording failed";
+    } else {
+      recording.error = null;
+    }
+  }
+
+  /*
+   * A completed LiveKit Egress is not necessarily immediately
+   * available in B2. Verify the actual object before showing
+   * the playback button.
+   *
+   * Also check B2 when the LiveKit status was missed or the
+   * Egress listing no longer contains the recording.
+   */
+  const canCheckB2 =
+    Boolean(recording.objectKey) &&
+    !["failed", "not_started", "available"].includes(
+      recording.status
+    );
+
+  if (canCheckB2) {
+    const objectExists = await verifyRecordingObject(
+      recording.objectKey
+    );
+
+    if (objectExists) {
+      recording.status = "available";
+      recording.error = null;
+
+      if (!recording.endedAt) {
+        recording.endedAt = new Date();
+      }
+    }
+  }
+
+  if (
+    recording.status === "processing" &&
+    recording.endedAt
+  ) {
+    recording.duration = getRecordingDurationSeconds(
+      recording
+    );
+  }
+
+  recording.lastSyncAt = new Date();
+
+  await liveClass.save();
+
+  return liveClass;
+};
+
+// ─────────────────────────────────────────────────────────────
 // GET MY LIVE CLASSES
 // GET /instructor/live-classes
 // ─────────────────────────────────────────────────────────────
@@ -226,12 +439,16 @@ export const getMyLiveClasses = asyncHandler(
   async (req, res) => {
     const result = await paginate(
       LiveClass,
-      { instructor: req.user._id },
+      {
+        instructor: req.user._id,
+      },
       {
         page: req.query.page,
         limit: req.query.limit,
         populate: "course",
-        sort: { scheduledAt: -1 },
+        sort: {
+          scheduledAt: -1,
+        },
       }
     );
 
@@ -264,7 +481,9 @@ export const getInstructorJoinToken = asyncHandler(
       );
     }
 
-    if (liveClass.status !== LIVE_CLASS_STATUS.LIVE) {
+    if (
+      liveClass.status !== LIVE_CLASS_STATUS.LIVE
+    ) {
       return sendResponse(
         res,
         400,
@@ -294,7 +513,8 @@ export const getInstructorJoinToken = asyncHandler(
       "Classroom access token generated",
       {
         liveClass: safeClass(liveClass),
-        serverUrl: liveClass.meetingRoom.roomUrl || LIVEKIT_URL,
+        serverUrl:
+          liveClass.meetingRoom.roomUrl || LIVEKIT_URL,
         roomName,
         token,
       }
@@ -316,13 +536,17 @@ export const createLiveClass = asyncHandler(
       scheduledAt,
       duration = 120,
       timezone = "Africa/Lagos",
-      maxParticipants = 50,
       isRecorded = true,
       materials = [],
       classNotes = "",
     } = req.body;
 
-    if (!title?.trim() || !course || !scheduledAt) {
+    if (
+      typeof title !== "string" ||
+      !title.trim() ||
+      !course ||
+      !scheduledAt
+    ) {
       return sendResponse(
         res,
         400,
@@ -347,7 +571,6 @@ export const createLiveClass = asyncHandler(
     }
 
     const durationValue = Number(duration);
-    const capacity = Number(maxParticipants);
     const recorded = parseBoolean(isRecorded, true);
 
     if (
@@ -358,17 +581,6 @@ export const createLiveClass = asyncHandler(
         res,
         400,
         "Duration must be a positive whole number of minutes"
-      );
-    }
-
-    if (
-      !Number.isInteger(capacity) ||
-      capacity < 2
-    ) {
-      return sendResponse(
-        res,
-        400,
-        "Maximum participants must be an integer of at least 2"
       );
     }
 
@@ -388,7 +600,6 @@ export const createLiveClass = asyncHandler(
       );
     }
 
-    // Ensure this instructor owns the selected course.
     const ownedCourse = await getCourseForInstructor(
       course,
       req.user._id
@@ -409,18 +620,16 @@ export const createLiveClass = asyncHandler(
       scheduledAt: new Date(scheduledAt),
       duration: durationValue,
       timezone,
-      maxParticipants: capacity,
+      maxParticipants: LIVE_CLASS_CAPACITY,
       isRecorded: recorded,
       materials,
       classNotes,
       instructor: req.user._id,
 
-      // The room is deliberately not created here.
-      // It is created when the instructor starts the class.
       meetingRoom: {
         roomName: null,
         roomUrl: null,
-        maxParticipants: capacity,
+        maxParticipants: LIVE_CLASS_CAPACITY,
       },
 
       recording: {
@@ -506,7 +715,6 @@ export const updateLiveClass = asyncHandler(
       "scheduledAt",
       "duration",
       "timezone",
-      "maxParticipants",
       "isRecorded",
       "materials",
       "classNotes",
@@ -520,16 +728,22 @@ export const updateLiveClass = asyncHandler(
       }
     }
 
-    const nextTitle = updates.title ?? liveClass.title;
-    const nextCourse = updates.course ?? liveClass.course;
+    const nextTitle =
+      updates.title ?? liveClass.title;
+
+    const nextCourse =
+      updates.course ?? liveClass.course;
+
     const nextScheduledAt =
       updates.scheduledAt ?? liveClass.scheduledAt;
+
     const nextDuration =
       updates.duration ?? liveClass.duration;
-    const nextCapacity =
-      updates.maxParticipants ?? liveClass.maxParticipants;
 
-    if (!String(nextTitle || "").trim()) {
+    if (
+      typeof nextTitle !== "string" ||
+      !nextTitle.trim()
+    ) {
       return sendResponse(
         res,
         400,
@@ -564,31 +778,6 @@ export const updateLiveClass = asyncHandler(
       );
     }
 
-    if (
-      !Number.isInteger(Number(nextCapacity)) ||
-      Number(nextCapacity) < 2
-    ) {
-      return sendResponse(
-        res,
-        400,
-        "Maximum participants must be an integer of at least 2"
-      );
-    }
-
-    // If the class has a previously provisioned room,
-    // its room capacity cannot be changed independently.
-    if (
-      liveClass.meetingRoom?.roomName &&
-      Number(nextCapacity) !==
-        Number(liveClass.meetingRoom.maxParticipants)
-    ) {
-      return sendResponse(
-        res,
-        400,
-        "Participant capacity cannot be changed after the classroom has been provisioned"
-      );
-    }
-
     const ownedCourse = await getCourseForInstructor(
       nextCourse,
       req.user._id
@@ -603,7 +792,9 @@ export const updateLiveClass = asyncHandler(
     }
 
     if (updates.isRecorded !== undefined) {
-      const recorded = parseBoolean(updates.isRecorded);
+      const recorded = parseBoolean(
+        updates.isRecorded
+      );
 
       if (recorded === null) {
         return sendResponse(
@@ -627,11 +818,13 @@ export const updateLiveClass = asyncHandler(
       );
     }
 
-    liveClass.title = String(nextTitle).trim();
+    liveClass.title = nextTitle.trim();
     liveClass.course = ownedCourse._id;
     liveClass.scheduledAt = new Date(nextScheduledAt);
     liveClass.duration = Number(nextDuration);
-    liveClass.maxParticipants = Number(nextCapacity);
+
+    // Capacity cannot be changed through the API.
+    liveClass.maxParticipants = LIVE_CLASS_CAPACITY;
 
     if (updates.description !== undefined) {
       liveClass.description = updates.description;
@@ -653,9 +846,12 @@ export const updateLiveClass = asyncHandler(
       liveClass.classNotes = updates.classNotes;
     }
 
-    // Keep both capacity values synchronized.
+    if (!liveClass.meetingRoom) {
+      liveClass.meetingRoom = {};
+    }
+
     liveClass.meetingRoom.maxParticipants =
-      Number(nextCapacity);
+      LIVE_CLASS_CAPACITY;
 
     await liveClass.save();
 
@@ -688,7 +884,9 @@ export const deleteLiveClass = asyncHandler(
       );
     }
 
-    if (liveClass.status === LIVE_CLASS_STATUS.LIVE) {
+    if (
+      liveClass.status === LIVE_CLASS_STATUS.LIVE
+    ) {
       return sendResponse(
         res,
         400,
@@ -708,7 +906,6 @@ export const deleteLiveClass = asyncHandler(
       );
     }
 
-    // Close the external room before deleting the database record.
     if (liveClass.meetingRoom?.roomName) {
       await deleteLiveClassRoom(
         liveClass.meetingRoom.roomName
@@ -748,7 +945,9 @@ export const startLiveClass = asyncHandler(
       );
     }
 
-    if (liveClass.status === LIVE_CLASS_STATUS.ENDED) {
+    if (
+      liveClass.status === LIVE_CLASS_STATUS.ENDED
+    ) {
       return sendResponse(
         res,
         400,
@@ -756,11 +955,23 @@ export const startLiveClass = asyncHandler(
       );
     }
 
-    if (liveClass.status === LIVE_CLASS_STATUS.LIVE) {
+    if (
+      liveClass.status === LIVE_CLASS_STATUS.LIVE
+    ) {
       return sendResponse(
         res,
         409,
         "This class is already live"
+      );
+    }
+
+    if (
+      liveClass.status !== LIVE_CLASS_STATUS.SCHEDULED
+    ) {
+      return sendResponse(
+        res,
+        400,
+        "This class cannot be started in its current state"
       );
     }
 
@@ -769,23 +980,17 @@ export const startLiveClass = asyncHandler(
       liveClass._id
     );
 
-    let room;
-
-    // Reuse a room if an earlier start attempt created it
-    // but failed before saving the class state.
-    room = await getLiveClassRoom(roomName);
+    let room = await getLiveClassRoom(roomName);
 
     if (!room) {
       try {
         room = await createLiveClassRoom({
           className: liveClass.title,
           classId: liveClass._id.toString(),
-          maxParticipants: Number(
-            liveClass.maxParticipants || 50
-          ),
+          maxParticipants: LIVE_CLASS_CAPACITY,
         });
       } catch (error) {
-        // A concurrent request may have created the same room.
+        // Another request may have created the room.
         room = await getLiveClassRoom(roomName);
 
         if (!room) {
@@ -805,7 +1010,6 @@ export const startLiveClass = asyncHandler(
 
     const startedAt = new Date();
 
-    // Only one concurrent request can transition a scheduled class.
     const updatedClass = await LiveClass.findOneAndUpdate(
       {
         _id: liveClass._id,
@@ -818,11 +1022,10 @@ export const startLiveClass = asyncHandler(
           startedAt,
           endedAt: null,
           actualDuration: 0,
+          maxParticipants: LIVE_CLASS_CAPACITY,
           "meetingRoom.roomName": resolvedRoomName,
           "meetingRoom.roomUrl": roomUrl,
-          "meetingRoom.maxParticipants": Number(
-            liveClass.maxParticipants || 50
-          ),
+          "meetingRoom.maxParticipants": LIVE_CLASS_CAPACITY,
         },
       },
       {
@@ -832,17 +1035,10 @@ export const startLiveClass = asyncHandler(
     );
 
     if (!updatedClass) {
-      const currentClass = await findOwnedClass(
-        liveClass._id,
-        req.user._id
-      );
-
       return sendResponse(
         res,
         409,
-        currentClass?.status === LIVE_CLASS_STATUS.LIVE
-          ? "This class was started by another request"
-          : "This class can no longer be started"
+        "This class was started by another request or can no longer be started"
       );
     }
 
@@ -892,7 +1088,9 @@ export const endLiveClass = asyncHandler(
       );
     }
 
-    if (liveClass.status === LIVE_CLASS_STATUS.ENDED) {
+    if (
+      liveClass.status === LIVE_CLASS_STATUS.ENDED
+    ) {
       return sendResponse(
         res,
         200,
@@ -901,7 +1099,9 @@ export const endLiveClass = asyncHandler(
       );
     }
 
-    if (liveClass.status !== LIVE_CLASS_STATUS.LIVE) {
+    if (
+      liveClass.status !== LIVE_CLASS_STATUS.LIVE
+    ) {
       return sendResponse(
         res,
         400,
@@ -909,28 +1109,30 @@ export const endLiveClass = asyncHandler(
       );
     }
 
-    // Attempt to stop recording, but do not let an Egress
-    // failure prevent the class from being ended.
+    const recording = liveClass.recording;
+    const recordingId = recording?.recordingId;
+
     if (
+      recordingId &&
       ["starting", "recording"].includes(
-        liveClass.recording?.status
-      ) &&
-      liveClass.recording?.recordingId
+        recording.status
+      )
     ) {
       try {
-        await stopRoomRecording(
-          liveClass.recording.recordingId
-        );
+        await stopRoomRecording(recordingId);
 
-        liveClass.recording.status = "stopping";
-        liveClass.recording.lastSyncAt = new Date();
+        recording.status = "stopping";
+        recording.lastSyncAt = new Date();
+        recording.error = null;
       } catch (error) {
-        liveClass.recording.status = "failed";
-        liveClass.recording.error = String(
-          error.message || "Unable to stop the recording"
+        recording.status = "failed";
+        recording.error = String(
+          error.message ||
+            "Unable to stop the recording"
         ).slice(0, 2000);
-        liveClass.recording.endedAt = new Date();
-        liveClass.recording.lastSyncAt = new Date();
+
+        recording.endedAt = new Date();
+        recording.lastSyncAt = new Date();
 
         console.error(
           "LiveKit recording stop failed:",
@@ -940,17 +1142,32 @@ export const endLiveClass = asyncHandler(
     }
 
     const endedAt = new Date();
-    const startedAt = liveClass.startedAt;
 
-    const actualDuration = startedAt
+    const actualDuration = liveClass.startedAt
       ? Math.max(
           0,
           Math.round(
-            (endedAt.getTime() - startedAt.getTime()) /
-              60000
+            (endedAt.getTime() -
+              new Date(liveClass.startedAt).getTime()) /
+              1000
           )
         )
       : 0;
+
+    const update = {
+      status: LIVE_CLASS_STATUS.ENDED,
+      endedAt,
+      actualDuration,
+    };
+
+    if (recording) {
+      update["recording.status"] = recording.status;
+      update["recording.error"] = recording.error;
+      update["recording.lastSyncAt"] =
+        recording.lastSyncAt;
+      update["recording.endedAt"] =
+        recording.endedAt;
+    }
 
     const updatedClass = await LiveClass.findOneAndUpdate(
       {
@@ -959,12 +1176,7 @@ export const endLiveClass = asyncHandler(
         status: LIVE_CLASS_STATUS.LIVE,
       },
       {
-        $set: {
-          status: LIVE_CLASS_STATUS.ENDED,
-          endedAt,
-          actualDuration,
-          recording: liveClass.recording,
-        },
+        $set: update,
       },
       {
         new: true,
@@ -1043,19 +1255,48 @@ export const getLiveClassAttendance = asyncHandler(
       );
     }
 
+    /*
+     * These fields match the actual Attendance model:
+     * liveClass -> LiveClass
+     * student   -> User
+     * course    -> Course
+     */
     const attendance = await Attendance.find({
       liveClass: liveClass._id,
     })
-      .populate(
-        "student",
-        "firstName lastName email avatar"
-      )
-      .sort({ createdAt: -1 });
+      .populate({
+        path: "student",
+        select: "firstName lastName email avatar profilePicture",
+      })
+      .sort({
+        createdAt: -1,
+      })
+      .lean();
+
+    const attendedCount = attendance.filter(
+      (item) =>
+        item.attended === true ||
+        ["attended", "late"].includes(item.status)
+    ).length;
+
+    // Keep the summary on the LiveClass record accurate.
+    await LiveClass.updateOne(
+      {
+        _id: liveClass._id,
+        instructor: req.user._id,
+      },
+      {
+        $set: {
+          totalAttended: attendedCount,
+          totalRegistered: attendance.length,
+        },
+      }
+    );
 
     return sendResponse(
       res,
       200,
-      "Attendance retrieved",
+      "Attendance retrieved successfully",
       attendance
     );
   }
@@ -1081,7 +1322,9 @@ export const startLiveClassRecording = asyncHandler(
       );
     }
 
-    if (liveClass.status !== LIVE_CLASS_STATUS.LIVE) {
+    if (
+      liveClass.status !== LIVE_CLASS_STATUS.LIVE
+    ) {
       return sendResponse(
         res,
         400,
@@ -1151,12 +1394,26 @@ export const startLiveClassRecording = asyncHandler(
         instructorId: req.user._id.toString(),
       });
 
+      if (!egress?.egressId || !egress?.objectKey) {
+        throw new Error(
+          "LiveKit did not return the recording ID or storage object key"
+        );
+      }
+
+      /*
+       * The class might have ended while LiveKit was starting
+       * the recording. Only persist the Egress if the class is
+       * still live and the recording slot is still claimed.
+       */
       const initialStatus =
-        normalizeEgressStatus(egress.status) || "starting";
+        normalizeEgressStatus(egress.status) ||
+        "starting";
 
       const updatedClass = await LiveClass.findOneAndUpdate(
         {
           _id: claimedClass._id,
+          instructor: req.user._id,
+          status: LIVE_CLASS_STATUS.LIVE,
           "recording.status": "starting",
         },
         {
@@ -1174,8 +1431,17 @@ export const startLiveClassRecording = asyncHandler(
       );
 
       if (!updatedClass) {
+        try {
+          await stopRoomRecording(egress.egressId);
+        } catch (stopError) {
+          console.error(
+            "Unable to stop recording after class state changed:",
+            stopError.message
+          );
+        }
+
         throw new Error(
-          "Recording started but its database state could not be updated"
+          "The class ended or its recording state changed while recording was starting"
         );
       }
 
@@ -1257,7 +1523,6 @@ export const stopLiveClassRecording = asyncHandler(
       );
     }
 
-    // Claim the stop operation to prevent duplicate stop calls.
     const claimedClass = await LiveClass.findOneAndUpdate(
       {
         _id: liveClass._id,
@@ -1287,7 +1552,6 @@ export const stopLiveClassRecording = asyncHandler(
     try {
       await stopRoomRecording(recording.recordingId);
     } catch (error) {
-      // Restore recording state so the instructor can retry.
       await LiveClass.updateOne(
         {
           _id: liveClass._id,
@@ -1298,7 +1562,8 @@ export const stopLiveClassRecording = asyncHandler(
           $set: {
             "recording.status": "recording",
             "recording.error": String(
-              error.message || "Unable to stop recording"
+              error.message ||
+                "Unable to stop recording"
             ).slice(0, 2000),
             "recording.lastSyncAt": new Date(),
           },
@@ -1341,9 +1606,7 @@ export const syncLiveClassRecording = asyncHandler(
       );
     }
 
-    const recording = liveClass.recording;
-
-    if (!recording?.recordingId) {
+    if (!liveClass.recording?.recordingId) {
       return sendResponse(
         res,
         200,
@@ -1352,88 +1615,17 @@ export const syncLiveClassRecording = asyncHandler(
       );
     }
 
-    const roomName = liveClass.meetingRoom?.roomName;
+    await synchronizeRecordingState(liveClass);
 
-    if (!roomName) {
-      return sendResponse(
-        res,
-        400,
-        "LiveKit room information is missing"
-      );
-    }
-
-    const egressItems = await listRoomRecordings(roomName);
-
-    const egress = getEgressItems(egressItems).find(
-      (item) =>
-        item.egressId === recording.recordingId
+    const recordingData = await getRecordingResponse(
+      liveClass
     );
-
-    if (egress) {
-      const mappedStatus = normalizeEgressStatus(
-        egress.status
-      );
-
-      if (mappedStatus) {
-        recording.status = mappedStatus;
-      }
-
-      if (recording.status === "failed") {
-        recording.error =
-          egress.error || "LiveKit recording failed";
-
-        recording.endedAt =
-          toEgressDate(egress.endedAt) || new Date();
-      } else {
-        recording.error = null;
-      }
-
-      const egressStartedAt = toEgressDate(
-        egress.startedAt
-      );
-
-      const egressEndedAt = toEgressDate(
-        egress.endedAt
-      );
-
-      if (egressStartedAt) {
-        recording.startedAt = egressStartedAt;
-      }
-
-      if (egressEndedAt) {
-        recording.endedAt = egressEndedAt;
-      }
-    }
-
-    // Only verify B2 after LiveKit has reported completion
-    // or the recording is already waiting for its file.
-    if (
-      ["processing", "stopping"].includes(recording.status) &&
-      recording.objectKey
-    ) {
-      const objectExists = await verifyRecordingObject(
-        recording.objectKey
-      );
-
-      if (objectExists) {
-        recording.status = "available";
-        recording.error = null;
-
-        if (!recording.endedAt) {
-          recording.endedAt = new Date();
-        }
-      }
-    }
-
-    recording.lastSyncAt = new Date();
-
-    await liveClass.save();
 
     return sendResponse(
       res,
       200,
       "Recording status synchronized",
-      await getRecordingResponse(liveClass)
+      recordingData
     );
   }
 );
@@ -1456,6 +1648,26 @@ export const getLiveClassRecording = asyncHandler(
         404,
         "Live class not found"
       );
+    }
+
+    /*
+     * Try to synchronize before returning playback information.
+     * If LiveKit is temporarily unavailable, retain the last
+     * saved state so an already available B2 recording can
+     * still be played.
+     */
+    if (
+      liveClass.recording?.recordingId &&
+      liveClass.recording?.status !== "available"
+    ) {
+      try {
+        await synchronizeRecordingState(liveClass);
+      } catch (error) {
+        console.error(
+          "Recording synchronization during playback lookup failed:",
+          error.message
+        );
+      }
     }
 
     const recordingData = await getRecordingResponse(
