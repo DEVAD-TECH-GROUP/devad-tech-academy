@@ -54,6 +54,15 @@ const env = {
   LIVEKIT_API_KEY: process.env.LIVEKIT_API_KEY,
   LIVEKIT_API_SECRET: process.env.LIVEKIT_API_SECRET,
 
+
+// Backblaze B2 Recording Storage
+  B2_KEY_ID: process.env.B2_KEY_ID,
+  B2_APPLICATION_KEY: process.env.B2_APPLICATION_KEY,
+  B2_BUCKET_NAME: process.env.B2_BUCKET_NAME,
+  B2_ENDPOINT: process.env.B2_ENDPOINT,
+  B2_REGION: process.env.B2_REGION || "us-east-005",
+  B2_SIGNED_URL_TTL: Number(process.env.B2_SIGNED_URL_TTL || 3600),
+
   // Anthropic AI
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
 

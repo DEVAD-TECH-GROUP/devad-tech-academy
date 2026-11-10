@@ -1,0 +1,1334 @@
+.devad-classroom {
+  min-height: 100vh;
+  background: #080d18;
+  color: #e8eef9;
+  display: flex;
+  flex-direction: column;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.devad-classroom * {
+  box-sizing: border-box;
+}
+
+.devad-classroom button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.devad-classroom button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ---------- Header ---------- */
+
+.devad-classroom-header {
+  min-height: 76px;
+  padding: 12px 26px;
+  display: flex;
+  align-items: center;
+  gap: 25px;
+  background: #0d1524;
+  border-bottom: 1px solid #1b2a40;
+}
+
+.devad-classroom-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 220px;
+}
+
+.devad-back-btn,
+.devad-icon-btn {
+  border: 1px solid #29384d;
+  background: #131e30;
+  color: #b9c7da;
+  border-radius: 10px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  transition: 0.2s;
+}
+
+.devad-back-btn:hover,
+.devad-icon-btn:hover {
+  color: white;
+  background: #1b2c43;
+}
+
+.devad-brand-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 10px;
+  flex: 0 0 auto;
+}
+
+.devad-brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.devad-brand-copy strong {
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: white;
+}
+
+.devad-brand-copy span {
+  font-size: 9px;
+  color: #71839d;
+  letter-spacing: 1.6px;
+  font-weight: 800;
+}
+
+.devad-header-class-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.devad-header-class-info h1 {
+  margin: 0 0 4px;
+  color: #f3f7ff;
+  font-size: 15px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.devad-header-class-info span {
+  color: #8192aa;
+  font-size: 11px;
+}
+
+.devad-header-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.devad-timer {
+  color: #9aa9bd;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+}
+
+.devad-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border: 1px solid #6d2836;
+  border-radius: 7px;
+  color: #ff8393;
+  background: #301520;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.devad-live-indicator > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fa536c;
+  box-shadow: 0 0 0 4px #fa536c20;
+  animation: devad-pulse 1.5s infinite;
+}
+
+.devad-connection {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #9aa9bd;
+}
+
+.devad-connection.connected {
+  color: #62d9a2;
+}
+
+.devad-connection.disconnected {
+  color: #ff8291;
+}
+
+/* ---------- Layout ---------- */
+
+.devad-classroom-main {
+  flex: 1;
+  width: 100%;
+  max-width: 1800px;
+  margin: 0 auto;
+  padding: 22px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 20px;
+}
+
+.devad-stage {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.devad-stage-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.devad-eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: #42c8fa;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1.7px;
+}
+
+.devad-stage-heading h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #edf4ff;
+}
+
+.devad-notice {
+  padding: 10px 13px;
+  margin-bottom: 12px;
+  border: 1px solid #66502a;
+  border-radius: 9px;
+  background: #302718;
+  color: #f3d79b;
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.devad-notice button {
+  border: 0;
+  color: inherit;
+  background: transparent;
+}
+
+.devad-notice-close {
+  display: grid;
+  place-items: center;
+}
+
+.devad-notice-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #4a3a1c !important;
+  border: 1px solid #7a6030 !important;
+}
+
+/* ---------- Video stage ---------- */
+
+.devad-video-stage {
+  min-height: 390px;
+  height: min(62vh, 680px);
+  border: 1px solid #1d2b40;
+  border-radius: 15px;
+  background:
+    radial-gradient(ellipse at 50% 45%, #14243a 0%, #0a1220 58%, #070c15 100%);
+  overflow: hidden;
+  position: relative;
+}
+
+.devad-video-grid {
+  width: 100%;
+  height: 100%;
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: minmax(0, 1fr);
+}
+
+.devad-video-grid.c2,
+.devad-video-grid.c4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.devad-video-grid.c6 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.devad-video-grid.cmany {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: minmax(170px, 1fr);
+  overflow-y: auto;
+}
+
+.devad-video-tile {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 11px;
+  background: #111e30;
+  border: 1px solid #293a53;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.devad-video-tile.speaking {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px #38bdf855;
+}
+
+.devad-video-tile video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  background: #111e30;
+}
+
+.devad-video-tile.is-local video:not(.screen-video) {
+  transform: scaleX(-1);
+}
+
+.devad-video-tile video.screen-video {
+  object-fit: contain;
+  background: #080d18;
+}
+
+.devad-tile-placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 40%, #162a44 0%, #0f1c2f 70%);
+}
+
+.devad-tile-avatar {
+  width: clamp(54px, 22%, 96px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #8ce2ff;
+  background: linear-gradient(135deg, #183d5a, #142744);
+  border: 1px solid #28506e;
+  font-weight: 800;
+  font-size: clamp(18px, 3vw, 30px);
+}
+
+.devad-video-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 35px 13px 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  background: linear-gradient(transparent, #030711d9);
+}
+
+.devad-video-name {
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.devad-tile-mic-off {
+  display: inline-flex;
+  align-items: center;
+  color: #ff8b9a;
+}
+
+.devad-local-tag {
+  padding: 4px 6px;
+  border-radius: 4px;
+  color: #7ddfff;
+  background: #123047;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.7px;
+}
+
+/* Screen share layout */
+
+.devad-screen-layout {
+  width: 100%;
+  height: 100%;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  gap: 10px;
+}
+
+.devad-screen-main {
+  min-width: 0;
+  min-height: 0;
+}
+
+.devad-screen-main .devad-video-tile {
+  width: 100%;
+  height: 100%;
+}
+
+.devad-screen-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.devad-video-tile.is-thumb {
+  flex: 0 0 auto;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+}
+
+.devad-video-tile.is-thumb .devad-video-overlay {
+  padding: 22px 8px 7px;
+}
+
+.devad-video-tile.is-thumb .devad-video-name {
+  font-size: 10px;
+}
+
+/* ---------- Footer + controls ---------- */
+
+.devad-stage-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 13px 3px;
+}
+
+.devad-participant-summary,
+.devad-room-id {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #8fa0b7;
+  font-size: 11px;
+}
+
+.devad-participant-summary svg {
+  color: #4fc9f4;
+}
+
+.devad-room-id {
+  gap: 9px;
+}
+
+.devad-room-id > span {
+  color: #647791;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.devad-room-id strong {
+  color: #a9bad0;
+  font-size: 10px;
+  font-weight: 600;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.devad-room-id button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: #7e91aa;
+  background: transparent;
+}
+
+.devad-controls {
+  min-height: 82px;
+  padding: 13px 15px;
+  border: 1px solid #1d2c41;
+  border-radius: 13px;
+  background: #0e1726;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.devad-control-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.devad-control-btn,
+.devad-leave-btn,
+.devad-end-btn {
+  min-height: 48px;
+  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #293b52;
+  border-radius: 10px;
+  background: #162337;
+  color: #d3dfef;
+  font-size: 11px;
+  font-weight: 700;
+  transition: 0.2s;
+}
+
+.devad-control-btn:hover:not(:disabled) {
+  background: #20334d;
+}
+
+.devad-control-btn.active {
+  color: #7edbff;
+  border-color: #24658a;
+  background: #12314a;
+}
+
+.devad-control-btn.off {
+  color: #ff9ba6;
+  border-color: #653541;
+  background: #321c28;
+}
+
+.devad-control-btn.sharing {
+  color: #8ce4ba;
+  border-color: #27654c;
+  background: #153426;
+}
+
+.devad-control-divider {
+  height: 36px;
+  width: 1px;
+  background: #2a394e;
+}
+
+.devad-leave-btn {
+  color: #d8e4f4;
+  background: #1a293d;
+}
+
+.devad-leave-btn:hover {
+  background: #263951;
+}
+
+.devad-end-btn {
+  color: white;
+  background: #b82e49;
+  border-color: #cf405b;
+}
+
+.devad-end-btn:hover:not(:disabled) {
+  background: #d03955;
+}
+
+/* ---------- Sidebar ---------- */
+
+.devad-sidebar {
+  min-width: 0;
+  min-height: 500px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #1d2c41;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0d1624;
+}
+
+.devad-sidebar-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid #223148;
+}
+
+.devad-sidebar-tabs button {
+  min-height: 57px;
+  padding: 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #8294ac;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.devad-sidebar-tabs button.selected {
+  color: #75d9ff;
+  border-bottom-color: #38bdf8;
+  background: #10243a;
+}
+
+.devad-tab-count {
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  background: #1c314a;
+  color: #a7dfff;
+  font-size: 9px;
+}
+
+.devad-chat-panel,
+.devad-people-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.devad-panel-heading {
+  padding: 17px 16px 14px;
+  border-bottom: 1px solid #1b293c;
+}
+
+.devad-panel-heading h3 {
+  margin: 0 0 5px;
+  color: #edf4ff;
+  font-size: 13px;
+}
+
+.devad-panel-heading p {
+  margin: 0;
+  color: #7f91a9;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.devad-chat-messages,
+.devad-people-list {
+  flex: 1;
+  min-height: 250px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 13px;
+}
+
+.devad-chat-empty {
+  height: 100%;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  color: #71849e;
+  gap: 9px;
+}
+
+.devad-chat-empty > div {
+  width: 47px;
+  height: 47px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  color: #6fd7ff;
+  background: #142b42;
+}
+
+.devad-chat-empty strong {
+  color: #c9d7e9;
+  font-size: 12px;
+}
+
+.devad-chat-empty p {
+  max-width: 210px;
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.devad-chat-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-bottom: 17px;
+}
+
+.devad-message-avatar,
+.devad-person-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  color: #8ce2ff;
+  background: linear-gradient(135deg, #183d5a, #142744);
+  border: 1px solid #28506e;
+  font-weight: 800;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.devad-message-avatar {
+  width: 29px;
+  height: 29px;
+  font-size: 9px;
+}
+
+.devad-person-avatar {
+  width: 37px;
+  height: 37px;
+  font-size: 11px;
+}
+
+.devad-person-avatar.speaking {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px #38bdf833;
+}
+
+.devad-chat-message.own-message .devad-message-avatar {
+  border-color: #2f7fa8;
+}
+
+.devad-message-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.devad-message-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.devad-message-meta strong {
+  color: #b9d1e8;
+  font-size: 10px;
+}
+
+.devad-message-meta span {
+  color: #63758e;
+  font-size: 9px;
+}
+
+.devad-message-content p {
+  margin: 0;
+  color: #d5e0ef;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.devad-chat-form {
+  padding: 12px;
+  border-top: 1px solid #1b293c;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.devad-chat-form input {
+  min-width: 0;
+  flex: 1;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid #2a3b53;
+  border-radius: 9px;
+  outline: none;
+  background: #111e30;
+  color: #eef5ff;
+  font-size: 11px;
+}
+
+.devad-chat-form input::placeholder {
+  color: #697d97;
+}
+
+.devad-chat-form input:focus {
+  border-color: #249bd0;
+  box-shadow: 0 0 0 3px #249bd01c;
+}
+
+.devad-chat-form button {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  color: #06111d;
+  background: #47c8f4;
+}
+
+.devad-chat-form button:disabled {
+  color: #70849c;
+  background: #25364b;
+}
+
+.devad-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 2px;
+  border-bottom: 1px solid #1a293c;
+}
+
+.devad-person-info {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.devad-person-info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #dce8f8;
+  font-size: 11px;
+}
+
+.devad-person-info span {
+  color: #72849d;
+  font-size: 9px;
+}
+
+.devad-person-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #8295ac;
+}
+
+.devad-sidebar-security {
+  min-height: 45px;
+  padding: 10px 13px;
+  border-top: 1px solid #1b293c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #6e849f;
+  font-size: 9px;
+}
+
+.devad-sidebar-security svg {
+  color: #4bc99a;
+}
+
+.devad-classroom-footer {
+  min-height: 45px;
+  padding: 10px 25px;
+  border-top: 1px solid #1b293c;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  color: #63758e;
+  font-size: 9px;
+  letter-spacing: 0.6px;
+}
+
+.devad-classroom-footer > span:first-child {
+  color: #8295ae;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+}
+
+.devad-classroom-footer button {
+  border: 0;
+  background: transparent;
+  color: #7d91aa;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+
+/* ---------- Loading / error ---------- */
+
+.devad-classroom-loading,
+.devad-classroom-error {
+  min-height: 100vh;
+  padding: 25px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #e8eef9;
+  background: #080d18;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.devad-loading-logo {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 22px;
+  object-fit: contain;
+}
+
+.devad-spin {
+  animation: devad-spin 1s linear infinite;
+}
+
+.devad-classroom-loading h2,
+.devad-classroom-error h2 {
+  margin: 17px 0 8px;
+  font-size: 19px;
+}
+
+.devad-classroom-loading p,
+.devad-classroom-error p {
+  max-width: 460px;
+  margin: 0;
+  color: #8798b0;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.devad-error-icon {
+  width: 65px;
+  height: 65px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  color: #ff8c9a;
+  background: #351d2a;
+  border: 1px solid #653342;
+}
+
+.devad-error-actions {
+  margin-top: 22px;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.devad-primary-btn,
+.devad-secondary-btn {
+  min-height: 42px;
+  padding: 9px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.devad-primary-btn {
+  border: 1px solid #239bd2;
+  color: #06121e;
+  background: #42c4f2;
+}
+
+.devad-secondary-btn {
+  border: 1px solid #34465e;
+  color: #d2dfef;
+  background: #172438;
+}
+
+/* ---------- Modal ---------- */
+
+.devad-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  padding: 20px;
+  display: grid;
+  place-items: center;
+  background: #02060dcc;
+  backdrop-filter: blur(6px);
+}
+
+.devad-confirm-modal {
+  width: 100%;
+  max-width: 430px;
+  padding: 25px;
+  position: relative;
+  border: 1px solid #35455b;
+  border-radius: 16px;
+  background: #101b2b;
+  box-shadow: 0 25px 80px #0008;
+}
+
+.devad-confirm-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  color: #ff8998;
+  background: #391e2a;
+}
+
+.devad-modal-close {
+  position: absolute;
+  top: 17px;
+  right: 17px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  color: #92a3b9;
+  background: #1c2a3d;
+}
+
+.devad-confirm-modal h2 {
+  margin: 19px 0 8px;
+  color: #f1f5fc;
+  font-size: 18px;
+}
+
+.devad-confirm-modal p {
+  margin: 0;
+  color: #93a3b9;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.devad-modal-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.devad-audio-renderers {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+@keyframes devad-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes devad-pulse {
+  50% {
+    box-shadow: 0 0 0 7px #fa536c0d;
+  }
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1050px) {
+  .devad-classroom-main {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    padding: 15px;
+    gap: 13px;
+  }
+
+  .devad-control-btn {
+    padding: 8px 10px;
+  }
+
+  .devad-control-btn span,
+  .devad-leave-btn span,
+  .devad-end-btn span {
+    font-size: 10px;
+  }
+
+  .devad-screen-layout {
+    grid-template-columns: minmax(0, 1fr) 150px;
+  }
+}
+
+@media (max-width: 800px) {
+  .devad-classroom-header {
+    padding: 12px 15px;
+    gap: 12px;
+  }
+
+  .devad-classroom-brand {
+    min-width: auto;
+  }
+
+  .devad-brand-copy {
+    display: none;
+  }
+
+  .devad-header-class-info h1 {
+    max-width: 240px;
+    font-size: 12px;
+  }
+
+  .devad-header-status {
+    gap: 8px;
+  }
+
+  .devad-connection {
+    font-size: 0;
+  }
+
+  .devad-connection svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .devad-classroom-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .devad-video-stage {
+    height: 55vh;
+    min-height: 300px;
+  }
+
+  .devad-sidebar {
+    min-height: 420px;
+  }
+
+  .devad-chat-messages,
+  .devad-people-list {
+    max-height: 420px;
+  }
+
+  .devad-screen-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) 96px;
+  }
+
+  .devad-screen-strip {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .devad-video-tile.is-thumb {
+    width: 140px;
+    height: 100%;
+    aspect-ratio: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .devad-classroom-header {
+    min-height: 65px;
+  }
+
+  .devad-header-class-info h1 {
+    max-width: 145px;
+    font-size: 11px;
+  }
+
+  .devad-header-class-info span {
+    font-size: 9px;
+  }
+
+  .devad-timer {
+    display: none;
+  }
+
+  .devad-live-indicator {
+    padding: 6px 8px;
+    font-size: 9px;
+  }
+
+  .devad-classroom-main {
+    padding: 12px;
+  }
+
+  .devad-video-stage {
+    height: 43vh;
+    min-height: 260px;
+  }
+
+  .devad-video-grid.c2,
+  .devad-video-grid.c4,
+  .devad-video-grid.c6,
+  .devad-video-grid.cmany {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .devad-video-grid.c1,
+  .devad-video-grid.c2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .devad-stage-heading h2 {
+    font-size: 14px;
+  }
+
+  .devad-controls {
+    padding: 11px 8px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .devad-control-group {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .devad-control-divider {
+    width: 100%;
+    height: 1px;
+  }
+
+  .devad-control-btn,
+  .devad-leave-btn,
+  .devad-end-btn {
+    min-width: 88px;
+    flex: 1;
+    flex-direction: column;
+    gap: 5px;
+    padding: 8px 5px;
+    font-size: 9px;
+  }
+
+  .devad-control-btn span,
+  .devad-leave-btn span,
+  .devad-end-btn span {
+    font-size: 9px;
+  }
+
+  .devad-stage-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .devad-classroom-footer {
+    padding: 10px 13px;
+    flex-wrap: wrap;
+  }
+}
+
+
+/* ---------- Audio settings tab ---------- */
+
+.devad-sidebar-tabs.three-tabs {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.devad-sidebar-tabs.three-tabs button {
+  gap: 6px;
+  padding: 10px 6px;
+  font-size: 11px;
+}
+
+.devad-settings-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.devad-settings-body {
+  flex: 1;
+  min-height: 250px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.devad-hint {
+  padding: 10px 12px;
+  border: 1px solid #1f4d68;
+  border-radius: 9px;
+  background: #0f2a3f;
+  color: #9fdcf7;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.devad-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.devad-setting label {
+  color: #b9c9de;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.devad-setting small {
+  color: #71849e;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.devad-setting select {
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #2a3b53;
+  border-radius: 9px;
+  outline: none;
+  background: #111e30;
+  color: #eef5ff;
+  font-size: 11px;
+  font-family: inherit;
+  text-overflow: ellipsis;
+}
+
+.devad-setting select:focus {
+  border-color: #249bd0;
+  box-shadow: 0 0 0 3px #249bd01c;
+}
+
+.devad-meter {
+  height: 8px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #16263b;
+}
+
+.devad-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #35d39b, #42c4f2);
+  transition: width 0.1s linear;
+}
+
+.devad-meter.off > span {
+  width: 0 !important;
+}
+
+.devad-test-btn {
+  align-self: flex-start;
+}
+
+.devad-range {
+  width: 100%;
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
