@@ -1,3 +1,8 @@
+/* =========================================================
+   DEVAD LIVE CLASSROOM
+   Complete classroom and recording styles
+========================================================= */
+
 .devad-classroom {
   min-height: 100vh;
   background: #080d18;
@@ -110,6 +115,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 .devad-timer {
@@ -132,6 +138,7 @@
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 1px;
+  white-space: nowrap;
 }
 
 .devad-live-indicator > span {
@@ -149,6 +156,7 @@
   gap: 6px;
   font-size: 11px;
   color: #9aa9bd;
+  white-space: nowrap;
 }
 
 .devad-connection.connected {
@@ -157,6 +165,47 @@
 
 .devad-connection.disconnected {
   color: #ff8291;
+}
+
+/* ---------- Recording indicator ---------- */
+
+.devad-recording-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid #63313b;
+  border-radius: 7px;
+  color: #ff9aa7;
+  background: #321923;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  white-space: nowrap;
+}
+
+.devad-recording-indicator > span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
+.devad-recording-indicator.recording-active > span {
+  animation: devad-recording-dot 1.2s infinite;
+}
+
+@keyframes devad-recording-dot {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 #ef444455;
+  }
+
+  50% {
+    opacity: 0.45;
+    box-shadow: 0 0 0 5px #ef444400;
+  }
 }
 
 /* ---------- Layout ---------- */
@@ -367,7 +416,7 @@
   letter-spacing: 0.7px;
 }
 
-/* Screen share layout */
+/* ---------- Screen share layout ---------- */
 
 .devad-screen-layout {
   width: 100%;
@@ -410,7 +459,7 @@
   font-size: 10px;
 }
 
-/* ---------- Footer + controls ---------- */
+/* ---------- Stage footer ---------- */
 
 .devad-stage-footer {
   display: flex;
@@ -461,6 +510,119 @@
   color: #7e91aa;
   background: transparent;
 }
+
+/* ---------- Recording video panel ---------- */
+
+.devad-recording-panel {
+  width: 100%;
+  margin: 0 0 15px;
+  padding: 15px;
+  border: 1px solid #24513f;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #10271f, #0d1c20);
+}
+
+.devad-recording-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 13px;
+}
+
+.devad-recording-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.devad-recording-title > svg {
+  flex: 0 0 auto;
+  color: #65dba6;
+}
+
+.devad-recording-title > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.devad-recording-title strong {
+  color: #d8fbea;
+  font-size: 12px;
+}
+
+.devad-recording-title span {
+  color: #86b8a0;
+  font-size: 10px;
+}
+
+.devad-recording-ready {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border: 1px solid #286a4d;
+  border-radius: 6px;
+  background: #153d2c;
+  color: #83e4b2;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.7px;
+}
+
+.devad-recording-player {
+  display: block;
+  width: 100%;
+  max-height: 440px;
+  border-radius: 9px;
+  background: #030711;
+  outline: none;
+}
+
+.devad-recording-open {
+  display: inline-flex;
+  margin-top: 11px;
+  color: #78d8ff;
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.devad-recording-open:hover {
+  color: #b3ecff;
+  text-decoration: underline;
+}
+
+.devad-recording-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid #713444;
+  border-radius: 10px;
+  background: #321b26;
+  color: #ff9aa7;
+}
+
+.devad-recording-error > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.devad-recording-error strong {
+  font-size: 11px;
+}
+
+.devad-recording-error span {
+  color: #e6a5af;
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Controls ---------- */
 
 .devad-controls {
   min-height: 82px;
@@ -523,6 +685,7 @@
 .devad-control-divider {
   height: 36px;
   width: 1px;
+  flex: 0 0 auto;
   background: #2a394e;
 }
 
@@ -543,6 +706,75 @@
 
 .devad-end-btn:hover:not(:disabled) {
   background: #d03955;
+}
+
+/* ---------- Recording controls ---------- */
+
+.devad-recording-controls {
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.devad-record-start-btn {
+  color: #ffb0b8;
+  border-color: #793541;
+  background: #351b27;
+}
+
+.devad-record-start-btn:hover:not(:disabled) {
+  color: #fff;
+  border-color: #d44b60;
+  background: #52202e;
+}
+
+.devad-record-start-btn svg {
+  color: #fa536c;
+  fill: #fa536c;
+}
+
+.devad-record-stop-btn {
+  color: #fff;
+  border-color: #dc2626;
+  background: #991b1b;
+}
+
+.devad-record-stop-btn:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.devad-record-stop-btn svg {
+  color: #fff;
+}
+
+.devad-recording-status {
+  min-height: 45px;
+  padding: 8px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #5c4730;
+  border-radius: 9px;
+  background: #302719;
+  color: #f1d59b;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.devad-recording-status svg {
+  color: #f2c56f;
+}
+
+.devad-recording-status.recording-complete {
+  border-color: #286a4d;
+  background: #153d2c;
+  color: #83e4b2;
+}
+
+.devad-recording-status.recording-complete svg {
+  color: #83e4b2;
 }
 
 /* ---------- Sidebar ---------- */
@@ -836,6 +1068,8 @@
   color: #4bc99a;
 }
 
+/* ---------- Footer ---------- */
+
 .devad-classroom-footer {
   min-height: 45px;
   padding: 10px 25px;
@@ -1021,6 +1255,8 @@
   gap: 9px;
 }
 
+/* ---------- Audio renderer ---------- */
+
 .devad-audio-renderers {
   position: absolute;
   width: 1px;
@@ -1028,204 +1264,6 @@
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
 }
-
-@keyframes devad-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes devad-pulse {
-  50% {
-    box-shadow: 0 0 0 7px #fa536c0d;
-  }
-}
-
-/* ---------- Responsive ---------- */
-
-@media (max-width: 1050px) {
-  .devad-classroom-main {
-    grid-template-columns: minmax(0, 1fr) 300px;
-    padding: 15px;
-    gap: 13px;
-  }
-
-  .devad-control-btn {
-    padding: 8px 10px;
-  }
-
-  .devad-control-btn span,
-  .devad-leave-btn span,
-  .devad-end-btn span {
-    font-size: 10px;
-  }
-
-  .devad-screen-layout {
-    grid-template-columns: minmax(0, 1fr) 150px;
-  }
-}
-
-@media (max-width: 800px) {
-  .devad-classroom-header {
-    padding: 12px 15px;
-    gap: 12px;
-  }
-
-  .devad-classroom-brand {
-    min-width: auto;
-  }
-
-  .devad-brand-copy {
-    display: none;
-  }
-
-  .devad-header-class-info h1 {
-    max-width: 240px;
-    font-size: 12px;
-  }
-
-  .devad-header-status {
-    gap: 8px;
-  }
-
-  .devad-connection {
-    font-size: 0;
-  }
-
-  .devad-connection svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  .devad-classroom-main {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .devad-video-stage {
-    height: 55vh;
-    min-height: 300px;
-  }
-
-  .devad-sidebar {
-    min-height: 420px;
-  }
-
-  .devad-chat-messages,
-  .devad-people-list {
-    max-height: 420px;
-  }
-
-  .devad-screen-layout {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) 96px;
-  }
-
-  .devad-screen-strip {
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-  }
-
-  .devad-video-tile.is-thumb {
-    width: 140px;
-    height: 100%;
-    aspect-ratio: auto;
-  }
-}
-
-@media (max-width: 560px) {
-  .devad-classroom-header {
-    min-height: 65px;
-  }
-
-  .devad-header-class-info h1 {
-    max-width: 145px;
-    font-size: 11px;
-  }
-
-  .devad-header-class-info span {
-    font-size: 9px;
-  }
-
-  .devad-timer {
-    display: none;
-  }
-
-  .devad-live-indicator {
-    padding: 6px 8px;
-    font-size: 9px;
-  }
-
-  .devad-classroom-main {
-    padding: 12px;
-  }
-
-  .devad-video-stage {
-    height: 43vh;
-    min-height: 260px;
-  }
-
-  .devad-video-grid.c2,
-  .devad-video-grid.c4,
-  .devad-video-grid.c6,
-  .devad-video-grid.cmany {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .devad-video-grid.c1,
-  .devad-video-grid.c2 {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .devad-stage-heading h2 {
-    font-size: 14px;
-  }
-
-  .devad-controls {
-    padding: 11px 8px;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .devad-control-group {
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-
-  .devad-control-divider {
-    width: 100%;
-    height: 1px;
-  }
-
-  .devad-control-btn,
-  .devad-leave-btn,
-  .devad-end-btn {
-    min-width: 88px;
-    flex: 1;
-    flex-direction: column;
-    gap: 5px;
-    padding: 8px 5px;
-    font-size: 9px;
-  }
-
-  .devad-control-btn span,
-  .devad-leave-btn span,
-  .devad-end-btn span {
-    font-size: 9px;
-  }
-
-  .devad-stage-footer {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 9px;
-  }
-
-  .devad-classroom-footer {
-    padding: 10px 13px;
-    flex-wrap: wrap;
-  }
-}
-
 
 /* ---------- Audio settings tab ---------- */
 
@@ -1331,4 +1369,296 @@
   width: 100%;
   accent-color: #38bdf8;
   cursor: pointer;
+}
+
+/* ---------- Animations ---------- */
+
+@keyframes devad-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes devad-pulse {
+  50% {
+    box-shadow: 0 0 0 7px #fa536c0d;
+  }
+}
+
+/* ---------- Responsive: tablets ---------- */
+
+@media (max-width: 1050px) {
+  .devad-classroom-main {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    padding: 15px;
+    gap: 13px;
+  }
+
+  .devad-control-btn {
+    padding: 8px 10px;
+  }
+
+  .devad-control-btn span,
+  .devad-leave-btn span,
+  .devad-end-btn span {
+    font-size: 10px;
+  }
+
+  .devad-screen-layout {
+    grid-template-columns: minmax(0, 1fr) 150px;
+  }
+
+  .devad-recording-controls {
+    gap: 7px;
+  }
+
+  .devad-recording-status {
+    padding: 8px;
+    font-size: 9px;
+  }
+}
+
+/* ---------- Responsive: smaller screens ---------- */
+
+@media (max-width: 800px) {
+  .devad-classroom-header {
+    padding: 12px 15px;
+    gap: 12px;
+  }
+
+  .devad-classroom-brand {
+    min-width: auto;
+  }
+
+  .devad-brand-copy {
+    display: none;
+  }
+
+  .devad-header-class-info h1 {
+    max-width: 240px;
+    font-size: 12px;
+  }
+
+  .devad-header-status {
+    gap: 8px;
+  }
+
+  .devad-connection {
+    font-size: 0;
+  }
+
+  .devad-connection svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .devad-classroom-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .devad-video-stage {
+    height: 55vh;
+    min-height: 300px;
+  }
+
+  .devad-sidebar {
+    min-height: 420px;
+  }
+
+  .devad-chat-messages,
+  .devad-people-list {
+    max-height: 420px;
+  }
+
+  .devad-screen-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) 96px;
+  }
+
+  .devad-screen-strip {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .devad-video-tile.is-thumb {
+    width: 140px;
+    height: 100%;
+    aspect-ratio: auto;
+  }
+
+  .devad-controls {
+    flex-wrap: wrap;
+  }
+
+  .devad-recording-controls {
+    flex: 1 1 100%;
+    order: 2;
+    justify-content: center;
+  }
+}
+
+/* ---------- Responsive: mobile ---------- */
+
+@media (max-width: 560px) {
+  .devad-classroom-header {
+    min-height: 65px;
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .devad-header-class-info h1 {
+    max-width: 145px;
+    font-size: 11px;
+  }
+
+  .devad-header-class-info span {
+    font-size: 9px;
+  }
+
+  .devad-header-status {
+    gap: 6px;
+  }
+
+  .devad-timer {
+    display: none;
+  }
+
+  .devad-live-indicator {
+    padding: 6px 8px;
+    font-size: 9px;
+  }
+
+  .devad-recording-indicator {
+    padding: 6px 7px;
+    gap: 5px;
+    font-size: 8px;
+  }
+
+  .devad-recording-indicator > span {
+    width: 6px;
+    height: 6px;
+  }
+
+  .devad-classroom-main {
+    padding: 12px;
+  }
+
+  .devad-video-stage {
+    height: 43vh;
+    min-height: 260px;
+  }
+
+  .devad-video-grid.c2,
+  .devad-video-grid.c4,
+  .devad-video-grid.c6,
+  .devad-video-grid.cmany {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .devad-video-grid.c1,
+  .devad-video-grid.c2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .devad-stage-heading h2 {
+    font-size: 14px;
+  }
+
+  .devad-controls {
+    padding: 11px 8px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .devad-control-group {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .devad-control-divider {
+    width: 100%;
+    height: 1px;
+  }
+
+  .devad-control-btn,
+  .devad-leave-btn,
+  .devad-end-btn {
+    min-width: 88px;
+    flex: 1;
+    flex-direction: column;
+    gap: 5px;
+    padding: 8px 5px;
+    font-size: 9px;
+  }
+
+  .devad-control-btn span,
+  .devad-leave-btn span,
+  .devad-end-btn span {
+    font-size: 9px;
+  }
+
+  .devad-recording-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .devad-recording-controls .devad-control-btn,
+  .devad-recording-status {
+    width: 100%;
+    min-height: 44px;
+    flex-direction: row;
+  }
+
+  .devad-recording-status {
+    justify-content: center;
+  }
+
+  .devad-stage-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .devad-recording-panel {
+    padding: 11px;
+  }
+
+  .devad-recording-panel-heading {
+    align-items: flex-start;
+  }
+
+  .devad-recording-ready {
+    font-size: 8px;
+  }
+
+  .devad-recording-player {
+    max-height: 260px;
+  }
+
+  .devad-classroom-footer {
+    padding: 10px 13px;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 380px) {
+  .devad-header-class-info h1 {
+    max-width: 105px;
+  }
+
+  .devad-recording-indicator {
+    letter-spacing: 0;
+  }
+
+  .devad-brand-logo {
+    width: 34px;
+    height: 34px;
+  }
+
+  .devad-back-btn {
+    width: 34px;
+    height: 34px;
+  }
 }

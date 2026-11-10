@@ -26,11 +26,20 @@ export const startLiveClass = (id) =>
 export const endLiveClass = (id) =>
   api.post(`${base}/${id}/end`);
 
+export const getInstructorJoinToken = (id) =>
+  api.post(`${base}/${id}/join-token`);
+
 // Attendance
 export const getLiveClassAttendance = (id) =>
   api.get(`${base}/${id}/attendance`);
 
 // Recording lifecycle
+export const startLiveClassRecording = (id) =>
+  api.post(`${base}/${id}/recording/start`);
+
+export const stopLiveClassRecording = (id) =>
+  api.post(`${base}/${id}/recording/stop`);
+
 export const getLiveClassRecording = (id) =>
   api.get(`${base}/${id}/recording`);
 
@@ -40,7 +49,3 @@ export const syncLiveClassRecording = (id) =>
 // Legacy endpoint: retained for compatibility only.
 export const saveLiveClassRecording = (id, payload) =>
   api.post(`${base}/${id}/recording`, payload);
-
-
-export const getInstructorJoinToken = (id) =>
-  api.post(`${base}/${id}/join-token`);

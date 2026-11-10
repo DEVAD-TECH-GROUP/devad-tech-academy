@@ -4,7 +4,7 @@ import { LIVEKIT_URL } from "../../config/livekit.js";
 
 import LiveClass from "../../models/live/LiveClass.js";
 import Attendance from "../../models/live/Attendance.js";
-import Course from "../../models/Course.js";
+import Course from "../../models/course/Course.js";
 
 import paginate from "../../utils/pagination.js";
 import sendResponse from "../../utils/sendResponse.js";

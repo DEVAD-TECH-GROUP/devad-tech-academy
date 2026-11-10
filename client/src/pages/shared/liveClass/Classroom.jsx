@@ -26,11 +26,18 @@ import {
   Volume2,
   SlidersHorizontal,
   X,
+  Circle,
+  Square,
+  Film,
 } from "lucide-react";
 
 import {
   endLiveClass,
   getInstructorJoinToken,
+  getLiveClassRecording,
+  startLiveClassRecording,
+  stopLiveClassRecording,
+  syncLiveClassRecording,
 } from "../../../services/instructor/liveClassService";
 
 import "./Classroom.css";
@@ -43,6 +50,11 @@ const unwrap = (response) =>
   response?.data?.data ??
   response?.data ??
   response;
+
+const unwrapRecording = (response) => {
+  const data = unwrap(response);
+  return data?.recording || data;
+};
 
 const getErrorMessage = (error) =>
   error?.response?.data?.message ||
@@ -264,6 +276,7 @@ export default function Classroom({ role = "instructor" }) {
   const leavingRef = useRef(false);
   const startedAtRef = useRef(null);
   const toneUrlRef = useRef(null);
+  const recordingSyncRef = useRef(false);
 
   const [attempt, setAttempt] = useState(0);
   const [room, setRoom] = useState(null);
@@ -300,6 +313,12 @@ export default function Classroom({ role = "instructor" }) {
   const [endingClass, setEndingClass] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+
+  // Recording state
+  const [recording, setRecording] = useState(null);
+  const [recordingBusy, setRecordingBusy] = useState(false);
+
+  const recordingStatus = recording?.status || "not_started";
 
   const [volume, setVolume] = useState(1);
   const [micLevel, setMicLevel] = useState(0);
@@ -668,6 +687,74 @@ export default function Classroom({ role = "instructor" }) {
     };
   }, [id, attempt, syncRoom]);
 
+  // Load the existing recording state when the instructor enters the room.
+  useEffect(() => {
+    if (!id || !isInstructor) return;
+
+    let cancelled = false;
+
+    const loadRecording = async () => {
+      try {
+        const data = unwrapRecording(await getLiveClassRecording(id));
+
+        if (!cancelled && data && typeof data === "object") {
+          setRecording(data);
+        }
+      } catch {
+        // A recording may not exist yet. Do not interrupt classroom entry.
+      }
+    };
+
+    loadRecording();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isInstructor]);
+
+  // Keep recording state synchronized while LiveKit Egress is active or processing.
+  useEffect(() => {
+    if (
+      !id ||
+      !isInstructor ||
+      !["starting", "recording", "stopping", "processing"].includes(
+        recordingStatus,
+      )
+    ) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const synchronize = async () => {
+      if (recordingSyncRef.current) return;
+
+      recordingSyncRef.current = true;
+
+      try {
+        const data = unwrapRecording(await syncLiveClassRecording(id));
+
+        if (!cancelled && data && typeof data === "object") {
+          setRecording(data);
+        }
+      } catch {
+        // Keep the last known status and retry on the next interval.
+      } finally {
+        recordingSyncRef.current = false;
+      }
+    };
+
+    // Sync immediately, then continue every 8 seconds.
+    synchronize();
+
+    const timer = setInterval(synchronize, 8000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [id, isInstructor, recordingStatus]);
+
   // Unlock audio playback on the first click anywhere on the page.
   useEffect(() => {
     if (!room) return;
@@ -838,6 +925,59 @@ export default function Classroom({ role = "instructor" }) {
     }
   };
 
+  // Start recording through the DEVAD backend.
+  const startRecording = async () => {
+    if (
+      !id ||
+      recordingBusy ||
+      !room ||
+      connectionState !== ConnectionState.Connected
+    ) {
+      return;
+    }
+
+    setRecordingBusy(true);
+
+    try {
+      const data = unwrapRecording(await startLiveClassRecording(id));
+
+      if (data && typeof data === "object") {
+        setRecording(data);
+      }
+
+      setNotice(
+        "Recording request submitted. Your class recording is starting.",
+      );
+    } catch (err) {
+      setNotice(getErrorMessage(err));
+    } finally {
+      setRecordingBusy(false);
+    }
+  };
+
+  // Stop recording. The backend will finalize the video in Backblaze B2.
+  const stopRecording = async () => {
+    if (!id || recordingBusy) return;
+
+    setRecordingBusy(true);
+
+    try {
+      const data = unwrapRecording(await stopLiveClassRecording(id));
+
+      if (data && typeof data === "object") {
+        setRecording(data);
+      }
+
+      setNotice(
+        "Recording stop request submitted. DEVAD is processing your video.",
+      );
+    } catch (err) {
+      setNotice(getErrorMessage(err));
+    } finally {
+      setRecordingBusy(false);
+    }
+  };
+
   const sendMessage = async (event) => {
     event.preventDefault();
 
@@ -919,6 +1059,8 @@ export default function Classroom({ role = "instructor" }) {
       setEndingClass(true);
       leavingRef.current = true;
 
+      // The backend also attempts to stop an active recording when ending
+      // the class, so the recording is not abandoned when the instructor exits.
       await endLiveClass(id);
 
       const activeRoom = roomRef.current;
@@ -981,6 +1123,20 @@ export default function Classroom({ role = "instructor" }) {
   });
 
   const meterWidth = `${Math.round(Math.min(1, Math.sqrt(micLevel) * 1.4) * 100)}%`;
+
+  const recordingInProgress = [
+    "starting",
+    "recording",
+    "stopping",
+    "processing",
+  ].includes(recordingStatus);
+
+  const recordingStatusLabel = {
+    starting: "STARTING",
+    recording: "REC",
+    stopping: "STOPPING",
+    processing: "PROCESSING",
+  }[recordingStatus];
 
   if (loading) {
     return (
@@ -1089,6 +1245,18 @@ export default function Classroom({ role = "instructor" }) {
             LIVE
           </span>
 
+          {isInstructor && liveClass?.isRecorded && recordingInProgress && (
+            <span
+              className={`devad-recording-indicator ${
+                recordingStatus === "recording" ? "recording-active" : ""
+              }`}
+              title={`Recording status: ${recordingStatus}`}
+            >
+              <span />
+              {recordingStatusLabel}
+            </span>
+          )}
+
           <span
             className={`devad-connection ${
               connectionState === ConnectionState.Connected
@@ -1189,6 +1357,53 @@ export default function Classroom({ role = "instructor" }) {
             </div>
           </div>
 
+          {/* Recording playback becomes available after Egress finishes
+              processing and the backend confirms the B2 object exists. */}
+          {isInstructor &&
+            recordingStatus === "available" &&
+            recording?.url && (
+              <div className="devad-recording-panel">
+                <div className="devad-recording-panel-heading">
+                  <div className="devad-recording-title">
+                    <Film size={18} />
+                    <div>
+                      <strong>Class recording ready</strong>
+                      <span>Your recording is ready to watch.</span>
+                    </div>
+                  </div>
+
+                  <span className="devad-recording-ready">AVAILABLE</span>
+                </div>
+
+                <video
+                  className="devad-recording-player"
+                  controls
+                  preload="metadata"
+                  src={recording.url}
+                >
+                  Your browser does not support video playback.
+                </video>
+
+                <a
+                  className="devad-recording-open"
+                  href={recording.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open recording in a new tab
+                </a>
+              </div>
+            )}
+
+          {isInstructor && recordingStatus === "failed" && recording?.error && (
+            <div className="devad-recording-error">
+              <div>
+                <strong>Recording failed</strong>
+                <span>{recording.error}</span>
+              </div>
+            </div>
+          )}
+
           <div className="devad-controls">
             <div className="devad-control-group">
               <button
@@ -1239,6 +1454,78 @@ export default function Classroom({ role = "instructor" }) {
                 </span>
               </button>
             </div>
+
+            {/* Instructor-only recording controls */}
+            {isInstructor && liveClass?.isRecorded && (
+              <>
+                <div className="devad-control-divider" />
+
+                <div className="devad-control-group devad-recording-controls">
+                  {(recordingStatus === "not_started" ||
+                    recordingStatus === "failed") && (
+                    <button
+                      className="devad-control-btn devad-record-start-btn"
+                      onClick={startRecording}
+                      disabled={
+                        !room ||
+                        recordingBusy ||
+                        connectionState !== ConnectionState.Connected
+                      }
+                      title="Start recording this class"
+                    >
+                      {recordingBusy ? (
+                        <LoaderCircle className="devad-spin" size={19} />
+                      ) : (
+                        <Circle size={19} />
+                      )}
+                      <span>
+                        {recordingBusy ? "Starting..." : "Record class"}
+                      </span>
+                    </button>
+                  )}
+
+                  {recordingStatus === "recording" && (
+                    <button
+                      className="devad-control-btn devad-record-stop-btn"
+                      onClick={stopRecording}
+                      disabled={recordingBusy}
+                      title="Stop class recording"
+                    >
+                      {recordingBusy ? (
+                        <LoaderCircle className="devad-spin" size={19} />
+                      ) : (
+                        <Square size={18} />
+                      )}
+                      <span>
+                        {recordingBusy ? "Stopping..." : "Stop recording"}
+                      </span>
+                    </button>
+                  )}
+
+                  {["starting", "stopping", "processing"].includes(
+                    recordingStatus,
+                  ) && (
+                    <div className="devad-recording-status">
+                      <LoaderCircle className="devad-spin" size={17} />
+                      <span>
+                        {recordingStatus === "starting"
+                          ? "Starting recording..."
+                          : recordingStatus === "stopping"
+                            ? "Stopping recording..."
+                            : "Processing recording..."}
+                      </span>
+                    </div>
+                  )}
+
+                  {recordingStatus === "available" && (
+                    <div className="devad-recording-status recording-complete">
+                      <Film size={17} />
+                      <span>Recording ready</span>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
             <div className="devad-control-divider" />
 
@@ -1600,6 +1887,8 @@ export default function Classroom({ role = "instructor" }) {
             <p>
               This will end the classroom for everyone. All connected
               participants will be disconnected. This action cannot be undone.
+              {recordingStatus === "recording" &&
+                " The active recording will also be stopped and processed."}
             </p>
 
             <div className="devad-modal-actions">
